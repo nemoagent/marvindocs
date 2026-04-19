@@ -1,0 +1,18 @@
+{{define "page.html"}}
+{{template "layout_head" .}}
+<div class="page-layout">
+  <aside class="sidebar">
+    <h2><a href="/docs/{{.Doc.Slug}}/">{{.Doc.Name}}</a></h2>
+    {{if .Doc.Version}}<p class="muted">{{.Doc.Version}}</p>{{end}}
+    <ul class="entries">
+    {{range .Entries}}
+      <li><a href="/docs/{{$.Doc.Slug}}/{{.Path}}">{{.Name}}</a></li>
+    {{end}}
+    </ul>
+  </aside>
+  <article class="page">
+    {{safeHTML .Body}}
+  </article>
+</div>
+{{template "layout_foot" .}}
+{{end}}

@@ -1,0 +1,22 @@
+{{define "search.html"}}
+{{template "layout_head" .}}
+<h1>Search</h1>
+{{if .Query}}
+  <p class="muted">{{len .Hits}} hits for <code>{{.Query}}</code>{{if .DocSlug}} in <code>{{.DocSlug}}</code>{{end}}</p>
+  {{if .Hits}}
+  <ol class="hits">
+  {{range .Hits}}
+    <li>
+      <a href="/docs/{{.DocSlug}}/{{.Path}}">{{.Name}}</a>
+      <span class="muted">— {{.DocSlug}}{{if .Type}} / {{.Type}}{{end}}</span>
+    </li>
+  {{end}}
+  </ol>
+  {{else}}
+    <p class="muted">No matches.</p>
+  {{end}}
+{{else}}
+  <p class="muted">Type a query above. Tokens are matched as prefixes.</p>
+{{end}}
+{{template "layout_foot" .}}
+{{end}}

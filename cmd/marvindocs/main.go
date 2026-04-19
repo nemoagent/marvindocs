@@ -15,6 +15,7 @@ import (
 	"github.com/piligrim/marvindocs/internal/docstore"
 	"github.com/piligrim/marvindocs/internal/index"
 	"github.com/piligrim/marvindocs/internal/mcpserver"
+	"github.com/piligrim/marvindocs/internal/web"
 )
 
 const usage = `marvindocs - MCP server and web UI for the DevDocs archive.
@@ -102,20 +103,29 @@ func runServeWith(httpAddr string, stdio bool, docsPath, indexPath string) error
 
 	var httpServer *http.Server
 	if httpAddr != "" {
-		mux := http.NewServeMux()
-		handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+		webHandler, err := web.Handler(web.Deps{Store: store, Index: idx})
+		if err != nil {
+			return fmt.Errorf("init web: %w", err)
+		}
+		mcpHandler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 			return srv
 		}, nil)
-		mux.Handle("/mcp", handler)
-		mux.Handle("/mcp/", handler)
+
+		mux := http.NewServeMux()
+		mux.Handle("/mcp", mcpHandler)
+		mux.Handle("/mcp/", mcpHandler)
 		mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte("ok"))
 		})
+		// Web UI catches everything else (registered last so that /mcp and
+		// /healthz take precedence on the ServeMux pattern tree).
+		mux.Handle("/", webHandler)
+
 		httpServer = &http.Server{Addr: httpAddr, Handler: mux}
 
 		go func() {
-			fmt.Fprintf(os.Stderr, "marvindocs HTTP server: listening on %s (MCP at /mcp)\n", httpAddr)
+			fmt.Fprintf(os.Stderr, "marvindocs HTTP server: listening on %s (web at /, MCP at /mcp)\n", httpAddr)
 			err := httpServer.ListenAndServe()
 			if errors.Is(err, http.ErrServerClosed) {
 				err = nil

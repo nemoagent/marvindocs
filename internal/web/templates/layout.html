@@ -1,0 +1,24 @@
+{{define "layout_head"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{.Title}}</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">marvindocs</a>
+  <form class="search" action="/search" method="get">
+    <input type="text" name="q" value="{{if .Query}}{{.Query}}{{end}}" placeholder="search">
+    {{if .DocSlug}}<input type="hidden" name="doc" value="{{.DocSlug}}">{{end}}
+    <button type="submit">Search</button>
+  </form>
+</header>
+<main>
+{{end}}
+
+{{define "layout_foot"}}
+</main>
+</body>
+</html>
+{{end}}

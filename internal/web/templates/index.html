@@ -1,0 +1,14 @@
+{{define "index.html"}}
+{{template "layout_head" .}}
+<h1>Indexed documents <span class="muted">({{len .Docs}})</span></h1>
+<ul class="doc-list">
+{{range .Docs}}
+  <li>
+    <a href="/docs/{{.Slug}}/">{{.Name}}{{if .Version}} <span class="muted">{{.Version}}</span>{{end}}</a>
+  </li>
+{{else}}
+  <li class="muted">No documents indexed yet. Run <code>marvindocs index build</code>.</li>
+{{end}}
+</ul>
+{{template "layout_foot" .}}
+{{end}}
