@@ -2,9 +2,15 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/piligrim/marvindocs/internal/docstore"
+	"github.com/piligrim/marvindocs/internal/index"
 )
 
 const usage = `marvindocs - MCP server and web UI for the DevDocs archive.
@@ -68,19 +74,76 @@ func runIndex(args []string) {
 	switch args[0] {
 	case "build":
 		fs := flag.NewFlagSet("index build", flag.ExitOnError)
-		fullText := fs.Bool("fulltext", false, "Also index page body text (adds GBs)")
+		fullText := fs.Bool("fulltext", false, "Also index page body text (adds GBs) - not implemented yet")
 		docsPath := fs.String("docs-path", "data/public/docs", "Path to devdocs data")
 		indexPath := fs.String("index-path", "marvindocs.db", "Output SQLite file")
 		_ = fs.Parse(args[1:])
-		fmt.Fprintf(os.Stderr, "index build fulltext=%v docs=%q index=%q (not implemented yet)\n",
-			*fullText, *docsPath, *indexPath)
+		if *fullText {
+			fmt.Fprintln(os.Stderr, "warning: --fulltext is not implemented yet, ignoring")
+		}
+		if err := runIndexBuild(*docsPath, *indexPath); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
 	case "stats":
 		fs := flag.NewFlagSet("index stats", flag.ExitOnError)
 		indexPath := fs.String("index-path", "marvindocs.db", "SQLite file")
 		_ = fs.Parse(args[1:])
-		fmt.Fprintf(os.Stderr, "index stats %q (not implemented yet)\n", *indexPath)
+		if err := runIndexStats(*indexPath); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
 	default:
 		fmt.Fprintf(os.Stderr, "unknown subcommand: index %s\n", args[0])
 		os.Exit(2)
 	}
+}
+
+func runIndexBuild(docsPath, indexPath string) error {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	store, err := docstore.Open(docsPath)
+	if err != nil {
+		return fmt.Errorf("open docstore: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "loaded docs.json: %d docs from %s\n", len(store.Docs()), docsPath)
+
+	idx, err := index.Open(indexPath)
+	if err != nil {
+		return err
+	}
+	defer idx.Close()
+
+	stats, err := idx.Build(ctx, store)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "indexed %d docs, %d entries in %s -> %s\n",
+		stats.Docs, stats.Entries, stats.Duration.Round(1e6), indexPath)
+	return nil
+}
+
+func runIndexStats(indexPath string) error {
+	if _, err := os.Stat(indexPath); err != nil {
+		return fmt.Errorf("index file not found: %s (run `marvindocs index build` first)", indexPath)
+	}
+	idx, err := index.Open(indexPath)
+	if err != nil {
+		return err
+	}
+	defer idx.Close()
+
+	st, err := idx.Stats(context.Background())
+	if err != nil {
+		return err
+	}
+	fi, _ := os.Stat(indexPath)
+	fmt.Printf("index:   %s\n", indexPath)
+	if fi != nil {
+		fmt.Printf("size:    %d bytes\n", fi.Size())
+	}
+	fmt.Printf("docs:    %d\n", st.Docs)
+	fmt.Printf("entries: %d\n", st.Entries)
+	return nil
 }
