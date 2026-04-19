@@ -9,7 +9,7 @@
 /marvindocs.db-*
 
 # External data (devdocs source, ~17 GB)
-/docs/public/
+/data/public/
 
 # Editor / OS
 .idea/

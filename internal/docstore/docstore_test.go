@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// dataRoot points at the project's docs/public/docs directory. Tests are
+// dataRoot points at the project's data/public/docs directory. Tests are
 // skipped if the data isn't present (e.g. in CI without the dump).
 func dataRoot(t *testing.T) string {
 	t.Helper()
@@ -15,7 +15,7 @@ func dataRoot(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := filepath.Join(wd, "..", "..", "docs", "public", "docs")
+	root := filepath.Join(wd, "..", "..", "data", "public", "docs")
 	if _, err := os.Stat(filepath.Join(root, "docs.json")); err != nil {
 		t.Skipf("devdocs data not available at %s", root)
 	}

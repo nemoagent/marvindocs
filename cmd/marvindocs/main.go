@@ -48,7 +48,7 @@ func runServe(args []string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	httpAddr := fs.String("http", "", "HTTP listen address (e.g. :3333). Empty = disabled")
 	stdio := fs.Bool("stdio", false, "Run MCP server over stdio")
-	docsPath := fs.String("docs-path", "docs/public/docs", "Path to the devdocs data directory")
+	docsPath := fs.String("docs-path", "data/public/docs", "Path to the devdocs data directory")
 	indexPath := fs.String("index-path", "marvindocs.db", "Path to the SQLite index file")
 	_ = fs.Parse(args)
 
@@ -69,7 +69,7 @@ func runIndex(args []string) {
 	case "build":
 		fs := flag.NewFlagSet("index build", flag.ExitOnError)
 		fullText := fs.Bool("fulltext", false, "Also index page body text (adds GBs)")
-		docsPath := fs.String("docs-path", "docs/public/docs", "Path to devdocs data")
+		docsPath := fs.String("docs-path", "data/public/docs", "Path to devdocs data")
 		indexPath := fs.String("index-path", "marvindocs.db", "Output SQLite file")
 		_ = fs.Parse(args[1:])
 		fmt.Fprintf(os.Stderr, "index build fulltext=%v docs=%q index=%q (not implemented yet)\n",

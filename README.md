@@ -15,14 +15,14 @@ Single-binary MCP server and web UI for the DevDocs documentation archive
 ## Layout
 
 ```
-docs/public/docs/     source data (devdocs dump, not in git)
+data/public/docs/     source data (devdocs dump, not in git)
 cmd/marvindocs/       CLI entrypoint
 internal/docstore/    loader for docs.json / index.json / db.json
 internal/index/       SQLite FTS5 index builder + search
 internal/mcpserver/   MCP tools
 internal/web/         HTTP handlers and templates
-documentation/ru/     Russian docs
-documentation/en/     English docs
+docs/ru/              Russian docs
+docs/en/              English docs
 ```
 
 ## Quick start
@@ -42,4 +42,4 @@ MCP over stdio (for Claude Desktop):
 
 MCP over HTTP: `POST http://localhost:3333/mcp`
 
-See `documentation/en/` for details, `documentation/ru/` for Russian.
+See `docs/en/` for details, `docs/ru/` for Russian.
