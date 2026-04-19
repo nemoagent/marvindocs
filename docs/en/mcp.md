@@ -1,0 +1,141 @@
+# MCP server
+
+marvindocs implements the [Model Context Protocol](https://modelcontextprotocol.io/)
+using the official [`github.com/modelcontextprotocol/go-sdk`](https://github.com/modelcontextprotocol/go-sdk).
+
+## Transports
+
+| Transport | Flag | Endpoint |
+|---|---|---|
+| stdio | `--stdio` | stdin / stdout |
+| Streamable HTTP | `--http ADDR` | `<addr>/mcp` |
+
+A liveness probe is available at `<addr>/healthz` when HTTP is enabled.
+
+## Tools
+
+### `list_docs`
+
+Returns every indexed documentation set.
+
+- **Input:** `{}`
+- **Output:** `{ docs: [{ slug, name, type, version, release, mtime }] }`
+
+Use this first to discover available slugs; pass any `slug` value as
+`doc_slug` to `search` or `get_page`.
+
+### `search`
+
+Full-text search over entry names and paths, ranked by SQLite FTS5 BM25.
+
+- **Input:**
+  - `query` *(string, required)* — user query. Tokens are prefix-matched
+    (`use` matches `useState`). Special FTS characters are escaped, so
+    arbitrary input is safe.
+  - `doc_slug` *(string, optional)* — restrict results to a single doc.
+  - `limit` *(int, optional)* — default `20`, max `100`.
+- **Output:**
+  `{ hits: [{ doc_slug, name, path, type, score }] }`. Lower `score`
+  means a better match.
+
+Example (pseudo-JSON):
+
+```json
+{"name": "search", "arguments": {"query": "useState", "limit": 3}}
+```
+
+```json
+{
+  "hits": [
+    {"doc_slug": "react", "name": "useState", "path": "reference/react/useState", "type": "Hooks", "score": -7.51},
+    ...
+  ]
+}
+```
+
+### `get_page`
+
+Fetches a single documentation page.
+
+- **Input:**
+  - `doc_slug` *(string, required)*
+  - `path` *(string, required)* — path value from `search.path` or
+    `index.json`.
+  - `format` *(string, optional)* — `markdown` *(default)* or `html`.
+- **Output:**
+  `{ doc_slug, path, format, content }`. When `format=markdown`
+  the content is produced on-the-fly by the HTML→Markdown converter.
+
+## Client configuration
+
+### Claude Desktop / Claude Code (stdio)
+
+Add to `~/.config/claude/claude_desktop_config.json` (or the equivalent
+on your OS):
+
+```json
+{
+  "mcpServers": {
+    "marvindocs": {
+      "command": "/absolute/path/to/marvindocs",
+      "args": ["serve", "--stdio",
+               "--docs-path", "/absolute/path/to/data/public/docs",
+               "--index-path", "/absolute/path/to/marvindocs.db"]
+    }
+  }
+}
+```
+
+Restart the client; three tools (`list_docs`, `search`, `get_page`)
+should appear.
+
+### Cursor (stdio)
+
+Cursor reads the same shape from its `mcp.json`. Example:
+
+```json
+{
+  "mcpServers": {
+    "marvindocs": {
+      "command": "marvindocs",
+      "args": ["serve", "--stdio"]
+    }
+  }
+}
+```
+
+### Remote agents (HTTP)
+
+Start the HTTP server somewhere reachable:
+
+```bash
+marvindocs serve --http :3333
+```
+
+Point the client at `http://<host>:3333/mcp`. The official Go SDK client,
+for example:
+
+```go
+transport := &mcp.StreamableClientTransport{
+    Endpoint: "http://localhost:3333/mcp",
+}
+session, _ := client.Connect(ctx, transport, nil)
+```
+
+## Security
+
+The server performs **no authentication**. If you expose `--http` on a
+public address, put it behind a reverse proxy that terminates TLS and
+handles auth (e.g. nginx + basic auth, or an OAuth-aware gateway).
+
+Clients can only read data — the tools never write to the index or the
+devdocs dump.
+
+## Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| `index file not found` | Run `marvindocs index build` first. |
+| `open docs.json: no such file` | `--docs-path` is wrong; expected `<path>/docs.json`. |
+| Tool call returns an empty `hits` list | Query has no prefix matches, or the doc isn't indexed. Try `list_docs` first. |
+| `get_page` returns "page not found" | `path` must be a value from `search.path` or `index.json`, not a URL. |

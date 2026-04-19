@@ -1,0 +1,112 @@
+# Getting started
+
+This page takes you from a fresh checkout to a running MCP server.
+
+## 1. Prerequisites
+
+- **Docker** — the default `Makefile` runs Go inside `golang:1.25` so you
+  don't need Go installed locally.
+- **~20 GB disk** — 17 GB for the devdocs dump, ~500 MB for the index.
+- *(Optional)* **Go 1.25+** — if you prefer native builds, set
+  `CGO_ENABLED=0` and run `go build ./cmd/marvindocs`.
+
+## 2. Get the devdocs data
+
+marvindocs does not ship the documentation itself — it reads the raw
+devdocs archive. There are two ways to obtain it.
+
+### Option A: run the devdocs Rails app locally and download packs
+
+See https://github.com/freeCodeCamp/devdocs for the canonical instructions.
+Once the app has downloaded the packs, copy its `public/docs/` directory
+into this repo as `data/public/docs/`.
+
+### Option B: use an existing dump
+
+If you already have a snapshot somewhere, put it under `data/public/docs/`
+so the final layout looks like:
+
+```
+data/public/docs/
+├── docs.json               # list of all documents
+├── angular/
+│   ├── meta.json
+│   ├── index.json
+│   └── db.json
+├── python~3.12/
+│   └── ...
+└── ...
+```
+
+`docs.json` is mandatory. Each doc slug directory must contain at least
+`index.json` and `db.json`.
+
+## 3. Build the binary
+
+```bash
+make build
+```
+
+This runs the build inside Docker and drops a single static binary at
+`./bin/marvindocs` (about 9 MB).
+
+## 4. Build the search index
+
+```bash
+./bin/marvindocs index build
+```
+
+Expected output:
+
+```
+loaded docs.json: 791 docs from data/public/docs
+indexed 791 docs, 2677981 entries in 2m31s -> marvindocs.db
+```
+
+The command creates `marvindocs.db` (~455 MB with 791 docs). It is safe
+to rerun — the previous contents are replaced atomically.
+
+Check the result:
+
+```bash
+./bin/marvindocs index stats
+```
+
+## 5. Start the MCP server
+
+### Over stdio (for Claude Desktop, Cursor, Claude Code)
+
+```bash
+./bin/marvindocs serve --stdio
+```
+
+The process reads JSON-RPC from stdin and writes to stdout. See
+[MCP client configuration](mcp.md#client-configuration).
+
+### Over HTTP (for remote agents)
+
+```bash
+./bin/marvindocs serve --http :3333
+```
+
+The MCP Streamable HTTP endpoint is at `http://localhost:3333/mcp`.
+A liveness probe is exposed at `/healthz`.
+
+You can also run both transports at once:
+
+```bash
+./bin/marvindocs serve --stdio --http :3333
+```
+
+## 6. Verify
+
+With `curl`:
+
+```bash
+curl -s http://localhost:3333/healthz
+# ok
+```
+
+For a proper MCP round-trip, use any MCP-aware client and point it at
+`http://localhost:3333/mcp` (HTTP) or the `marvindocs serve --stdio`
+command (stdio). See [MCP server](mcp.md) for examples.
