@@ -62,7 +62,7 @@ marvindocs serve [--stdio] [--http ADDR] \
 | Flag | Default | Notes |
 |---|---|---|
 | `--stdio` | `false` | Serve MCP over stdin/stdout. |
-| `--http` | empty | Serve MCP Streamable HTTP at `<addr>/mcp`. |
+| `--http` | empty | Serve the web UI at `<addr>/` and MCP Streamable HTTP at `<addr>/mcp`. |
 | `--docs-path` | `data/public/docs` | Needed by `get_page` to read `db.json` on demand. |
 | `--index-path` | `marvindocs.db` | Must already exist (run `index build` first). |
 

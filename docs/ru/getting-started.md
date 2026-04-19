@@ -82,14 +82,18 @@ indexed 791 docs, 2677981 entries in 2m31s -> marvindocs.db
 Процесс читает JSON-RPC со stdin и пишет на stdout. Примеры конфигов —
 в [MCP server](mcp.md#настройка-клиентов).
 
-### По HTTP (для удалённых агентов)
+### По HTTP (MCP + веб-интерфейс)
 
 ```bash
 ./bin/marvindocs serve --http :3333
 ```
 
-Endpoint MCP Streamable HTTP — `http://localhost:3333/mcp`. Проба
-живости — `/healthz`.
+Одной командой поднимает сразу два:
+
+- Веб-интерфейс для чтения документации в браузере: <http://localhost:3333/>
+- MCP Streamable HTTP-endpoint: <http://localhost:3333/mcp>
+
+Проба живости — `/healthz`.
 
 Можно включить оба транспорта сразу:
 

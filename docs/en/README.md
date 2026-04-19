@@ -5,3 +5,4 @@
 - [CLI reference](cli.md) — every subcommand and flag
 - [MCP server](mcp.md) — stdio + HTTP transports, tool reference,
   client configuration examples
+- [Web UI](web.md) — routes, navigation, styling

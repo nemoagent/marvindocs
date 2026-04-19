@@ -83,14 +83,18 @@ Check the result:
 The process reads JSON-RPC from stdin and writes to stdout. See
 [MCP client configuration](mcp.md#client-configuration).
 
-### Over HTTP (for remote agents)
+### Over HTTP (MCP + web UI)
 
 ```bash
 ./bin/marvindocs serve --http :3333
 ```
 
-The MCP Streamable HTTP endpoint is at `http://localhost:3333/mcp`.
-A liveness probe is exposed at `/healthz`.
+Opens two things at once:
+
+- Web UI for browsing docs in a browser: <http://localhost:3333/>
+- MCP Streamable HTTP endpoint: <http://localhost:3333/mcp>
+
+A liveness probe is also exposed at `/healthz`.
 
 You can also run both transports at once:
 

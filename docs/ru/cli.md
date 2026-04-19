@@ -62,7 +62,7 @@ marvindocs serve [--stdio] [--http ADDR] \
 | Флаг | По умолчанию | Примечание |
 |---|---|---|
 | `--stdio` | `false` | MCP через stdin/stdout. |
-| `--http` | пусто | MCP Streamable HTTP на `<addr>/mcp`. |
+| `--http` | пусто | Web UI на `<addr>/` и MCP Streamable HTTP на `<addr>/mcp`. |
 | `--docs-path` | `data/public/docs` | Нужен `get_page`, чтобы читать `db.json` по требованию. |
 | `--index-path` | `marvindocs.db` | Файл должен уже существовать (сначала `index build`). |
 
