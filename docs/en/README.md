@@ -8,3 +8,5 @@
 - [MCP clients](clients.md) — ready-to-paste configs for Claude Desktop,
   Claude Code, Cursor, Windsurf, Zed, Continue, VS Code Copilot Chat
 - [Web UI](web.md) — routes, navigation, styling
+- [Data format](data-format.md) — authoritative spec of the on-disk
+  layout, for writing your own scraper / parser
