@@ -1,4 +1,4 @@
-GO_IMAGE = golang:1.23
+GO_IMAGE = golang:1.25
 DOCKER_RUN = docker run --rm \
 	-v "$(PWD)":/src \
 	-v "$(PWD)/.gocache":/root/.cache/go-build \
@@ -11,7 +11,7 @@ DOCKER_RUN = docker run --rm \
 
 build:
 	mkdir -p bin .gocache .gomodcache
-	$(DOCKER_RUN) go build -o bin/marvindocs ./cmd/marvindocs
+	$(DOCKER_RUN) go build -buildvcs=false -o bin/marvindocs ./cmd/marvindocs
 
 tidy:
 	mkdir -p .gocache .gomodcache
