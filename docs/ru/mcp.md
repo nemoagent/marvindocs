@@ -132,6 +132,53 @@ TLS и занимается авторизацией (nginx + basic auth, OAuth-
 Клиенты могут только читать данные — инструменты никогда не пишут в
 индекс и не меняют дамп devdocs.
 
+## Как проверить, что сервер жив
+
+В репозитории лежит smoke-тест, который прогоняет все инструменты по
+HTTP:
+
+```bash
+marvindocs serve --http :3333 &
+./scripts/mcp-smoke.sh                     # использует curl + jq
+```
+
+Ожидаемый вывод (сокращённый):
+
+```
+==> initialize http://localhost:3333/mcp
+==> tools/list
+    - get_page: Fetch a documentation page ...
+    - list_docs: List all indexed documentation sets ...
+    - search: Search across all indexed documentation ...
+==> tools/call list_docs (first 3)
+    791 docs, first 3:
+      angular  Angular
+      ...
+==> tools/call search query=useState limit=3
+    react  useState  reference/react/usestate
+    ...
+==> tools/call get_page react reference/react/usestate (markdown)
+    length=24496 chars
+OK
+```
+
+Указать другой адрес можно через `MCP_URL=http://host:3333/mcp`.
+
+Быстрая ручная проверка одной командой:
+
+```bash
+# 1. initialize (идентификатор сессии приходит в заголовке ответа)
+curl -sS -i -X POST http://localhost:3333/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize",
+       "params":{"protocolVersion":"2025-06-18","capabilities":{},
+                 "clientInfo":{"name":"c","version":"0"}}}'
+```
+
+Сервер отдаёт `Mcp-Session-Id: <id>` — его надо прокидывать тем же
+заголовком в последующие `tools/list` / `tools/call`.
+
 ## Диагностика
 
 | Симптом | Возможная причина |

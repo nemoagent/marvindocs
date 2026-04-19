@@ -131,6 +131,53 @@ handles auth (e.g. nginx + basic auth, or an OAuth-aware gateway).
 Clients can only read data — the tools never write to the index or the
 devdocs dump.
 
+## Verifying the server is alive
+
+There is a bundled smoke test that drives a running HTTP server through
+every tool:
+
+```bash
+marvindocs serve --http :3333 &
+./scripts/mcp-smoke.sh                     # uses curl + jq
+```
+
+Expected output (abbreviated):
+
+```
+==> initialize http://localhost:3333/mcp
+==> tools/list
+    - get_page: Fetch a documentation page ...
+    - list_docs: List all indexed documentation sets ...
+    - search: Search across all indexed documentation ...
+==> tools/call list_docs (first 3)
+    791 docs, first 3:
+      angular  Angular
+      ...
+==> tools/call search query=useState limit=3
+    react  useState  reference/react/usestate
+    ...
+==> tools/call get_page react reference/react/usestate (markdown)
+    length=24496 chars
+OK
+```
+
+Point the script at another host with `MCP_URL=http://host:3333/mcp`.
+
+For a quick manual check you can also just do:
+
+```bash
+# 1. initialize (grab the session id from the response headers)
+curl -sS -i -X POST http://localhost:3333/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize",
+       "params":{"protocolVersion":"2025-06-18","capabilities":{},
+                 "clientInfo":{"name":"c","version":"0"}}}'
+```
+
+The server responds with `Mcp-Session-Id: <id>`; resend it as a header
+on subsequent `tools/list` / `tools/call` requests.
+
 ## Troubleshooting
 
 | Symptom | Likely cause |
