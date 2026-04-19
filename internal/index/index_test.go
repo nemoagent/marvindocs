@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/piligrim/marvindocs/internal/docstore"
 )
 
 // dataRoot points at the project's data/public/docs directory. Tests are
@@ -44,33 +42,15 @@ func TestOpenAndReset(t *testing.T) {
 	}
 }
 
-func TestBuildAndSearch(t *testing.T) {
-	store, err := docstore.Open(dataRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	path := filepath.Join(t.TempDir(), "test.db")
-	idx, err := Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = idx.Close() })
-
-	stats, err := idx.Build(context.Background(), store)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if stats.Docs == 0 || stats.Entries == 0 {
-		t.Fatalf("expected non-empty build, got %+v", stats)
-	}
+func TestBuildPopulatesDocsAndEntries(t *testing.T) {
+	idx := sharedIndex(t)
 
 	got, err := idx.Stats(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Docs != stats.Docs || got.Entries != stats.Entries {
-		t.Fatalf("stats mismatch: built=%+v stored=%+v", stats, got)
+	if got.Docs == 0 || got.Entries == 0 {
+		t.Fatalf("expected non-empty stats, got %+v", got)
 	}
 
 	// Sanity: the angular doc should have been recorded.

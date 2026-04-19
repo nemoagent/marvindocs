@@ -1,0 +1,123 @@
+package index
+
+import (
+	"context"
+	"fmt"
+	"strings"
+)
+
+// SearchHit is one result from Search.
+type SearchHit struct {
+	DocSlug string  `json:"doc_slug"`
+	Name    string  `json:"name"`
+	Path    string  `json:"path"`
+	Type    string  `json:"type"`
+	Score   float64 `json:"score"` // lower = better (bm25)
+}
+
+// Search queries the FTS index for entries whose name/path match the query.
+// If docSlug is non-empty, results are restricted to that doc.
+// Limit must be > 0.
+func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([]SearchHit, error) {
+	q := sanitizeFTSQuery(query)
+	if q == "" {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+
+	var (
+		rows interface {
+			Next() bool
+			Scan(dest ...any) error
+			Close() error
+			Err() error
+		}
+		err error
+	)
+
+	if docSlug == "" {
+		rows, err = i.db.QueryContext(ctx, `
+			SELECT e.doc_slug, e.name, e.path, e.type, bm25(entries_fts) AS score
+			FROM entries_fts
+			JOIN entries e ON e.id = entries_fts.rowid
+			WHERE entries_fts MATCH ?
+			ORDER BY score
+			LIMIT ?`, q, limit)
+	} else {
+		rows, err = i.db.QueryContext(ctx, `
+			SELECT e.doc_slug, e.name, e.path, e.type, bm25(entries_fts) AS score
+			FROM entries_fts
+			JOIN entries e ON e.id = entries_fts.rowid
+			WHERE entries_fts MATCH ? AND e.doc_slug = ?
+			ORDER BY score
+			LIMIT ?`, q, docSlug, limit)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("search: %w", err)
+	}
+	defer rows.Close()
+
+	var hits []SearchHit
+	for rows.Next() {
+		var h SearchHit
+		if err := rows.Scan(&h.DocSlug, &h.Name, &h.Path, &h.Type, &h.Score); err != nil {
+			return nil, err
+		}
+		hits = append(hits, h)
+	}
+	return hits, rows.Err()
+}
+
+// ListDocs returns all indexed documents ordered by slug.
+func (i *Index) ListDocs(ctx context.Context) ([]DocRow, error) {
+	rows, err := i.db.QueryContext(ctx,
+		`SELECT slug, name, type, version, release, mtime FROM docs ORDER BY slug`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []DocRow
+	for rows.Next() {
+		var d DocRow
+		if err := rows.Scan(&d.Slug, &d.Name, &d.Type, &d.Version, &d.Release, &d.Mtime); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+// DocRow mirrors a row from the docs table.
+type DocRow struct {
+	Slug    string `json:"slug"`
+	Name    string `json:"name"`
+	Type    string `json:"type"`
+	Version string `json:"version"`
+	Release string `json:"release"`
+	Mtime   int64  `json:"mtime"`
+}
+
+// sanitizeFTSQuery escapes a user-supplied query so that arbitrary input
+// can't produce FTS5 syntax errors. Each whitespace-separated token is
+// wrapped in double quotes with embedded quotes doubled; a trailing * is
+// appended to enable prefix matching. An empty input yields an empty
+// string (caller should treat as "no query").
+func sanitizeFTSQuery(q string) string {
+	fields := strings.Fields(q)
+	if len(fields) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(fields))
+	for _, f := range fields {
+		// drop tokens that become empty after quote-escaping
+		escaped := strings.ReplaceAll(f, `"`, `""`)
+		if escaped == "" {
+			continue
+		}
+		parts = append(parts, `"`+escaped+`"*`)
+	}
+	return strings.Join(parts, " ")
+}
