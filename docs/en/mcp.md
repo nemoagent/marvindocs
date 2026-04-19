@@ -68,59 +68,19 @@ Fetches a single documentation page.
 
 ## Client configuration
 
-### Claude Desktop / Claude Code (stdio)
+See **[clients.md](clients.md)** for ready-to-paste configuration for:
 
-Add to `~/.config/claude/claude_desktop_config.json` (or the equivalent
-on your OS):
+- Claude Desktop (stdio)
+- Claude Code (stdio, via `claude mcp add`)
+- Cursor (stdio)
+- Windsurf (stdio)
+- Zed (stdio)
+- Continue — VS Code / JetBrains (stdio)
+- VS Code / GitHub Copilot Chat (stdio and HTTP)
+- Generic HTTP client (Go SDK example)
 
-```json
-{
-  "mcpServers": {
-    "marvindocs": {
-      "command": "/absolute/path/to/marvindocs",
-      "args": ["serve", "--stdio",
-               "--docs-path", "/absolute/path/to/data/public/docs",
-               "--index-path", "/absolute/path/to/marvindocs.db"]
-    }
-  }
-}
-```
-
-Restart the client; three tools (`list_docs`, `search`, `get_page`)
-should appear.
-
-### Cursor (stdio)
-
-Cursor reads the same shape from its `mcp.json`. Example:
-
-```json
-{
-  "mcpServers": {
-    "marvindocs": {
-      "command": "marvindocs",
-      "args": ["serve", "--stdio"]
-    }
-  }
-}
-```
-
-### Remote agents (HTTP)
-
-Start the HTTP server somewhere reachable:
-
-```bash
-marvindocs serve --http :3333
-```
-
-Point the client at `http://<host>:3333/mcp`. The official Go SDK client,
-for example:
-
-```go
-transport := &mcp.StreamableClientTransport{
-    Endpoint: "http://localhost:3333/mcp",
-}
-session, _ := client.Connect(ctx, transport, nil)
-```
+All clients use the same three tools once connected: `list_docs`,
+`search`, `get_page`.
 
 ## Security
 

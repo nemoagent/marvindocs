@@ -69,59 +69,20 @@ SQLite FTS5 BM25.
 
 ## Настройка клиентов
 
-### Claude Desktop / Claude Code (stdio)
+Готовые к копированию конфиги для всех популярных агентов — в
+**[clients.md](clients.md)**:
 
-Добавить в `~/.config/claude/claude_desktop_config.json` (или
-аналогичный файл на твоей ОС):
+- Claude Desktop (stdio)
+- Claude Code (stdio, через `claude mcp add`)
+- Cursor (stdio)
+- Windsurf (stdio)
+- Zed (stdio)
+- Continue — VS Code / JetBrains (stdio)
+- VS Code / GitHub Copilot Chat (stdio и HTTP)
+- Универсальный HTTP-клиент (пример на Go SDK)
 
-```json
-{
-  "mcpServers": {
-    "marvindocs": {
-      "command": "/absolute/path/to/marvindocs",
-      "args": ["serve", "--stdio",
-               "--docs-path", "/absolute/path/to/data/public/docs",
-               "--index-path", "/absolute/path/to/marvindocs.db"]
-    }
-  }
-}
-```
-
-Перезапустить клиент; должны появиться три инструмента: `list_docs`,
-`search`, `get_page`.
-
-### Cursor (stdio)
-
-Cursor читает такой же формат из `mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "marvindocs": {
-      "command": "marvindocs",
-      "args": ["serve", "--stdio"]
-    }
-  }
-}
-```
-
-### Удалённые агенты (HTTP)
-
-Поднять HTTP-сервер в доступном месте:
-
-```bash
-marvindocs serve --http :3333
-```
-
-Указать клиенту адрес `http://<host>:3333/mcp`. Пример подключения
-официальным Go-клиентом:
-
-```go
-transport := &mcp.StreamableClientTransport{
-    Endpoint: "http://localhost:3333/mcp",
-}
-session, _ := client.Connect(ctx, transport, nil)
-```
+Во всех клиентах после подключения становятся доступны три инструмента:
+`list_docs`, `search`, `get_page`.
 
 ## Безопасность
 
