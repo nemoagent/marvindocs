@@ -1,0 +1,21 @@
+# Go
+/bin/
+*.exe
+*.test
+*.out
+
+# SQLite index
+/marvindocs.db
+/marvindocs.db-*
+
+# External data (devdocs source, ~17 GB)
+/docs/public/
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Docker build cache
+/.gocache/
+/.gomodcache/
