@@ -3,14 +3,18 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/piligrim/marvindocs/internal/docstore"
 	"github.com/piligrim/marvindocs/internal/index"
+	"github.com/piligrim/marvindocs/internal/mcpserver"
 )
 
 const usage = `marvindocs - MCP server and web UI for the DevDocs archive.
@@ -62,8 +66,78 @@ func runServe(args []string) {
 		fmt.Fprintln(os.Stderr, "error: specify --http ADDR and/or --stdio")
 		os.Exit(2)
 	}
-	fmt.Fprintf(os.Stderr, "marvindocs serve http=%q stdio=%v docs=%q index=%q (not implemented yet)\n",
-		*httpAddr, *stdio, *docsPath, *indexPath)
+	if err := runServeWith(*httpAddr, *stdio, *docsPath, *indexPath); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+}
+
+func runServeWith(httpAddr string, stdio bool, docsPath, indexPath string) error {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	if _, err := os.Stat(indexPath); err != nil {
+		return fmt.Errorf("index file not found: %s (run `marvindocs index build` first)", indexPath)
+	}
+	store, err := docstore.Open(docsPath)
+	if err != nil {
+		return fmt.Errorf("open docstore: %w", err)
+	}
+	idx, err := index.Open(indexPath)
+	if err != nil {
+		return err
+	}
+	defer idx.Close()
+
+	srv := mcpserver.New(mcpserver.Deps{Store: store, Index: idx}, version)
+
+	errCh := make(chan error, 2)
+
+	if stdio {
+		go func() {
+			fmt.Fprintln(os.Stderr, "marvindocs MCP stdio server: ready")
+			errCh <- srv.Run(ctx, &mcp.StdioTransport{})
+		}()
+	}
+
+	var httpServer *http.Server
+	if httpAddr != "" {
+		mux := http.NewServeMux()
+		handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+			return srv
+		}, nil)
+		mux.Handle("/mcp", handler)
+		mux.Handle("/mcp/", handler)
+		mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("ok"))
+		})
+		httpServer = &http.Server{Addr: httpAddr, Handler: mux}
+
+		go func() {
+			fmt.Fprintf(os.Stderr, "marvindocs HTTP server: listening on %s (MCP at /mcp)\n", httpAddr)
+			err := httpServer.ListenAndServe()
+			if errors.Is(err, http.ErrServerClosed) {
+				err = nil
+			}
+			errCh <- err
+		}()
+	}
+
+	select {
+	case <-ctx.Done():
+	case err := <-errCh:
+		if err != nil {
+			return err
+		}
+	}
+
+	if httpServer != nil {
+		shutdownCtx, cancelShutdown := context.WithCancel(context.Background())
+		defer cancelShutdown()
+		_ = httpServer.Shutdown(shutdownCtx)
+	}
+	return nil
 }
 
 func runIndex(args []string) {
