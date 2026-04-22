@@ -36,6 +36,8 @@ make build                    # собрать бинарь marvindocs (один
 | `--force` | Игнорировать локальный mtime — всегда перекачать запрошенные slug'и. |
 | `--no-index` | Не перестраивать `marvindocs.db` после загрузки. |
 | `--jobs N` | Параллельных загрузок (по умолчанию `4`). |
+| `--list-remote` | Сходить в живой каталог devdocs.io и напечатать все доступные slug'и с именем и версией. Ничего не скачивает, индекс не трогает. |
+| `--search-remote QUERY` | То же, что `--list-remote`, но оставляет только строки, где `slug` или `name` содержит `QUERY` (регистронезависимо). |
 
 ### Примеры
 
@@ -55,6 +57,10 @@ make build                    # собрать бинарь marvindocs (один
 # Скачать без перестройки индекса
 ./scripts/sync-docs.sh --all --no-index
 ./bin/marvindocs index build      # построить индекс вручную позже
+
+# Посмотреть удалённый каталог перед скачиванием
+./scripts/sync-docs.sh --list-remote | head
+./scripts/sync-docs.sh --search-remote kubernetes
 ```
 
 ## Проверка обновлений
@@ -114,7 +120,27 @@ rust     sqlite    typescript  vue~3
 
 Каждое название на <https://devdocs.io> — это slug для скачивания.
 Версионные варианты используют тильду: `python~3.12`, `angular~18`,
-`react~18`. Посмотреть что уже есть:
+`react~18`.
+
+Смотреть живой каталог можно прямо из скрипта — браузер не нужен:
+
+```bash
+# Все ~794 доков
+./scripts/sync-docs.sh --list-remote
+
+# Grep по slug или name (регистронезависимо)
+./scripts/sync-docs.sh --search-remote python
+./scripts/sync-docs.sh --search-remote "vue"
+./scripts/sync-docs.sh --search-remote rust
+
+# Пайп в shell
+./scripts/sync-docs.sh --list-remote | awk 'NR>1 {print $1}' | sort > all-slugs.txt
+```
+
+Каталог берётся из `https://devdocs.io/docs.json` в момент запроса —
+данные всегда актуальные.
+
+Посмотреть, что уже лежит локально:
 
 ```bash
 grep -o '"slug":"[^"]*"' data/public/docs/docs.json | cut -d'"' -f4

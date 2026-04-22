@@ -10,14 +10,18 @@
 #   ./scripts/sync-docs.sh --check                # print what would change, no download
 #   ./scripts/sync-docs.sh --force                # re-download everything, ignore mtime
 #   ./scripts/sync-docs.sh --no-index             # skip marvindocs index build
+#   ./scripts/sync-docs.sh --list-remote          # list all docs available on devdocs.io
+#   ./scripts/sync-docs.sh --search-remote QUERY  # grep remote catalog by slug/name
 #
 # Options:
-#   --all        re-download every slug listed in data/public/docs/docs.json
-#   --check      dry-run: show up-to-date / outdated / missing status only
-#   --force      ignore If-Modified-Since, always re-download
-#   --no-index   do not run marvindocs index build when finished
-#   --jobs N     parallel downloads (default 4)
-#   --help       show this message
+#   --all            re-download every slug listed in data/public/docs/docs.json
+#   --check          dry-run: show up-to-date / outdated / missing status only
+#   --force          ignore If-Modified-Since, always re-download
+#   --no-index       do not run marvindocs index build when finished
+#   --list-remote    fetch devdocs.io catalog and print slug/name/version table
+#   --search-remote Q  filter the remote catalog by substring (case-insensitive)
+#   --jobs N         parallel downloads (default 4)
+#   --help           show this message
 #
 # Update detection
 #
@@ -42,6 +46,8 @@ PARALLEL_JOBS=4
 MODE="list"      # list | all | slugs
 CHECK_ONLY=false # --check: print status table, do not download
 FORCE=false      # --force: ignore If-Modified-Since
+REMOTE_ACTION="" # --list-remote / --search-remote
+REMOTE_QUERY=""
 SLUGS=()
 
 # Popular default set. Edit to taste.
@@ -100,6 +106,19 @@ while [ $# -gt 0 ]; do
 		PARALLEL_JOBS="$2"
 		shift 2
 		;;
+	--list-remote)
+		REMOTE_ACTION="list"
+		shift
+		;;
+	--search-remote)
+		REMOTE_ACTION="search"
+		REMOTE_QUERY="${2:-}"
+		if [ -z "$REMOTE_QUERY" ]; then
+			echo "--search-remote needs a query argument" >&2
+			exit 2
+		fi
+		shift 2
+		;;
 	--help | -h)
 		sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
 		exit 0
@@ -116,6 +135,59 @@ while [ $# -gt 0 ]; do
 		;;
 	esac
 done
+
+# ---- remote catalog (no download, no index) --------------------------------
+if [ -n "$REMOTE_ACTION" ]; then
+	CATALOG_URL="https://devdocs.io/docs.json"
+	echo "==> fetching remote catalog: $CATALOG_URL" >&2
+	catalog=$(curl -sSLf "$CATALOG_URL") || {
+		echo "ERROR: failed to fetch $CATALOG_URL" >&2
+		exit 1
+	}
+
+	# Parse JSON array of flat doc objects. Splits top-level objects using
+	# brace-depth tracking so that nested "links": {...} doesn't confuse us.
+	rows=$(printf '%s' "$catalog" | awk '
+		BEGIN { depth=0; buf="" }
+		{
+			line=$0
+			n=length(line)
+			for (i=1; i<=n; i++) {
+				c=substr(line,i,1)
+				if (c=="{") { if (depth==0) buf=""; depth++; buf=buf c; continue }
+				if (c=="}") { depth--; buf=buf c; if (depth==0) print buf; continue }
+				if (depth>0) buf=buf c
+			}
+		}' | awk '
+		{
+			s=$0
+			slug=""; name=""; version=""; release=""
+			if (match(s, /"slug":[[:space:]]*"[^"]*"/))    { t=substr(s,RSTART,RLENGTH); sub(/"slug":[[:space:]]*"/,"",t);    sub(/"$/,"",t); slug=t }
+			if (match(s, /"name":[[:space:]]*"[^"]*"/))    { t=substr(s,RSTART,RLENGTH); sub(/"name":[[:space:]]*"/,"",t);    sub(/"$/,"",t); name=t }
+			if (match(s, /"version":[[:space:]]*"[^"]*"/)) { t=substr(s,RSTART,RLENGTH); sub(/"version":[[:space:]]*"/,"",t); sub(/"$/,"",t); version=t }
+			if (match(s, /"release":[[:space:]]*"[^"]*"/)) { t=substr(s,RSTART,RLENGTH); sub(/"release":[[:space:]]*"/,"",t); sub(/"$/,"",t); release=t }
+			if (slug == "") next
+			v = (version != "") ? version : release
+			printf "%s\t%s\t%s\n", slug, name, v
+		}')
+
+	if [ "$REMOTE_ACTION" = "search" ]; then
+		q=$(printf '%s' "$REMOTE_QUERY" | tr '[:upper:]' '[:lower:]')
+		rows=$(printf '%s\n' "$rows" | awk -F'\t' -v q="$q" '
+			{ l = tolower($1 "\t" $2); if (index(l, q)) print $0 }')
+	fi
+
+	count=$(printf '%s\n' "$rows" | grep -c . || true)
+	if [ "$count" -eq 0 ]; then
+		echo "no matches" >&2
+		exit 0
+	fi
+	printf '%-32s  %-40s  %s\n' "SLUG" "NAME" "VERSION"
+	printf '%s\n' "$rows" | awk -F'\t' '{ printf "%-32s  %-40s  %s\n", $1, $2, $3 }'
+	echo >&2
+	echo "$count doc(s)" >&2
+	exit 0
+fi
 
 # ---- resolve slug list ------------------------------------------------------
 case "$MODE" in

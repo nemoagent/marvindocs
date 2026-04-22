@@ -36,6 +36,8 @@ make build                    # build the marvindocs binary (once)
 | `--force` | Ignore local mtime — re-download every requested slug unconditionally. |
 | `--no-index` | Skip rebuilding `marvindocs.db` after download. |
 | `--jobs N` | Parallel downloads (default `4`). |
+| `--list-remote` | Fetch the live devdocs.io catalog and print every available slug with its name and version. No download, no index touched. |
+| `--search-remote QUERY` | Same as `--list-remote` but filter rows whose `slug` or `name` contain `QUERY` (case-insensitive). |
 
 ### Examples
 
@@ -55,6 +57,10 @@ make build                    # build the marvindocs binary (once)
 # Download without rebuilding the index
 ./scripts/sync-docs.sh --all --no-index
 ./bin/marvindocs index build      # build index manually later
+
+# Browse the remote catalog before downloading anything
+./scripts/sync-docs.sh --list-remote | head
+./scripts/sync-docs.sh --search-remote kubernetes
 ```
 
 ## Update detection
@@ -113,7 +119,26 @@ Edit `DEFAULT_SLUGS` at the top of `scripts/sync-docs.sh` to change this.
 
 Every name on <https://devdocs.io> is a downloadable slug.
 Versioned docs use a tilde: `python~3.12`, `angular~18`, `react~18`.
-Check what is already in your `docs.json`:
+
+Browse the live catalog directly from the script — no browser needed:
+
+```bash
+# All ~794 docs
+./scripts/sync-docs.sh --list-remote
+
+# Grep by slug or name (case-insensitive)
+./scripts/sync-docs.sh --search-remote python
+./scripts/sync-docs.sh --search-remote "vue"
+./scripts/sync-docs.sh --search-remote rust
+
+# Pipe into shell tools
+./scripts/sync-docs.sh --list-remote | awk 'NR>1 {print $1}' | sort > all-slugs.txt
+```
+
+The catalog comes from `https://devdocs.io/docs.json` at request time,
+so it's always current.
+
+To see what you already have locally:
 
 ```bash
 grep -o '"slug":"[^"]*"' data/public/docs/docs.json | cut -d'"' -f4
