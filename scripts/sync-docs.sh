@@ -148,12 +148,16 @@ mkdir -p "$DATA_DIR"
 
 # ---- helpers ---------------------------------------------------------------
 
-# local_mtime <slug>  -> echoes unix timestamp from meta.json, empty if none
+# local_mtime <slug>  -> echoes unix timestamp, empty if none.
+#
+# We trust the .last-modified stamp file (fs mtime == server Last-Modified)
+# because the in-archive meta.json mtime is the devdocs *build* time, which
+# can differ from the S3 upload time by a few seconds — using it would leave
+# every doc forever OUTDATED after the first sync.
 local_mtime() {
-	local meta="$DATA_DIR/$1/meta.json"
-	[ -f "$meta" ] || return 0
-	grep -oE '"mtime":[[:space:]]*[0-9]+' "$meta" | head -n1 \
-		| sed -E 's/"mtime":[[:space:]]*([0-9]+)/\1/'
+	local stamp="$DATA_DIR/$1/.last-modified"
+	[ -f "$stamp" ] || return 0
+	stat -c %Y "$stamp" 2>/dev/null || stat -f %m "$stamp" 2>/dev/null
 }
 
 # unix_to_http <timestamp>  -> HTTP-date format (RFC 7231, always GMT)
@@ -165,21 +169,22 @@ unix_to_http() {
 		TZ=UTC date -r "$ts" "+%a, %d %b %Y %H:%M:%S GMT"
 }
 
+# http_to_unix <http-date-string>  -> unix timestamp
+http_to_unix() {
+	local lm="$1"
+	date -u -d "$lm" +%s 2>/dev/null ||
+		date -u -jf "%a, %d %b %Y %H:%M:%S %Z" "$lm" +%s 2>/dev/null
+}
+
 # remote_mtime <slug>  -> unix timestamp of the archive's Last-Modified,
 # empty on error. Uses HEAD only; no bytes transferred.
-#
-# The Last-Modified header always ends with "GMT" (RFC 7231). We parse
-# the string using the timezone embedded in it, not the local TZ.
 remote_mtime() {
 	local slug="$1"
 	local lm
 	lm=$(curl -sI --fail "https://downloads.devdocs.io/${slug}.tar.gz" 2>/dev/null |
 		grep -i '^last-modified:' | sed 's/^[^:]*: *//; s/\r$//')
 	[ -n "$lm" ] || return 0
-	# GNU date reads the "GMT" suffix correctly with -u -d.
-	# BSD date (macOS) needs %Z in the parse format to honor the zone.
-	date -u -d "$lm" +%s 2>/dev/null ||
-		date -u -jf "%a, %d %b %Y %H:%M:%S %Z" "$lm" +%s 2>/dev/null
+	http_to_unix "$lm"
 }
 
 # ---- dry-run: --check ------------------------------------------------------
@@ -217,29 +222,28 @@ download_slug() {
 	local slug="$1"
 	local dir="$DATA_DIR/$slug"
 	local url="https://downloads.devdocs.io/${slug}.tar.gz"
+	local stamp="$dir/.last-modified"
 
-	# Conditional GET if we have a local mtime and --force wasn't set.
+	# Conditional GET if we have a stamp file and --force wasn't set.
+	# curl -z <file> sends the file's mtime as If-Modified-Since.
 	local zflag=()
-	if [ "$FORCE" != true ]; then
-		local lm http
-		lm=$(local_mtime "$slug")
-		if [ -n "$lm" ]; then
-			http=$(unix_to_http "$lm")
-			zflag=(--time-cond "$http")
-		fi
+	if [ "$FORCE" != true ] && [ -f "$stamp" ]; then
+		zflag=(--time-cond "$stamp")
 	fi
 
-	# HTTP status is written to a temp file so we can distinguish 200/304/404.
+	# Download to a temp file with -R so curl sets its mtime from Last-Modified.
 	local tmp
 	tmp="$(mktemp)"
 	local code
-	code=$(curl -sS --fail-with-body -o "$tmp" -w '%{http_code}' -L \
+	code=$(curl -sS --fail-with-body -R -o "$tmp" -w '%{http_code}' -L \
 		"${zflag[@]}" "$url" 2>/dev/null || true)
 
 	case "$code" in
 	200)
 		mkdir -p "$dir"
 		if tar -xzf "$tmp" -C "$dir" 2>/dev/null; then
+			# Preserve the server's Last-Modified as our local stamp.
+			touch -r "$tmp" "$stamp"
 			echo "  UPDATED $slug"
 		else
 			echo "  FAIL    $slug (tar error)"
@@ -257,7 +261,7 @@ download_slug() {
 	esac
 	rm -f "$tmp"
 }
-export -f download_slug local_mtime unix_to_http
+export -f download_slug local_mtime unix_to_http http_to_unix
 export DATA_DIR FORCE
 
 # ---- parallel download ------------------------------------------------------

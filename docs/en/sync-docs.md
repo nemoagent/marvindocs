@@ -59,24 +59,30 @@ make build                    # build the marvindocs binary (once)
 
 ## Update detection
 
-Each devdocs archive is tagged by the server with a `Last-Modified`
-HTTP header, and its `meta.json` carries an `mtime` Unix timestamp of
-the server-side build. `sync-docs.sh` compares them:
+Each devdocs archive is served with a `Last-Modified` HTTP header.
+After a successful download the script creates a marker file
+`data/public/docs/<slug>/.last-modified` whose filesystem mtime equals
+the server-side `Last-Modified`. On the next run:
 
-- When a slug is already present locally, the script reads `mtime`
-  from `data/public/docs/<slug>/meta.json`, converts it to an HTTP
-  date and sends it to `curl` as `If-Modified-Since`.
-- If the archive hasn't been rebuilt, the server returns **304 Not
+- `curl --time-cond <marker>` sends the marker's mtime as
+  `If-Modified-Since`.
+- If the archive hasn't been re-uploaded, the server returns **304 Not
   Modified** and the script prints `SKIP <slug> (up-to-date)` — zero
   bytes transferred beyond the headers.
 - If the archive is newer, it's downloaded and extracted, and the
-  script prints `UPDATED <slug>`.
+  script prints `UPDATED <slug>` and refreshes the marker.
 - `--force` bypasses the check and always re-downloads.
 - `--check` only prints the status table and exits without touching
   any files.
 
+Why a marker file instead of the `mtime` field inside `meta.json`?
+The `meta.json mtime` is the devdocs *build* time, which can be
+several seconds older than the S3 upload time. Comparing against it
+leaves every doc in a permanent OUTDATED state. The marker uses the
+same clock the server sends, so the comparison is exact.
+
 This means re-running the script daily/weekly is cheap: one HEAD-like
-request per slug and nothing else when the upstream hasn't changed.
+request per slug and nothing else when upstream hasn't changed.
 
 ## What the script does
 
