@@ -31,7 +31,9 @@ make build                    # build the marvindocs binary (once)
 |---|---|
 | *(nothing)* | Download the built-in popular set (~29 docs). |
 | `react`, `python~3.13`, … | Download only these specific slugs. |
-| `--all` | Re-download every slug already listed in `data/public/docs/docs.json`. |
+| `--all` | Process every slug already listed in `data/public/docs/docs.json`. |
+| `--check` | Dry-run: print up-to-date / outdated / missing status and exit without downloading. |
+| `--force` | Ignore local mtime — re-download every requested slug unconditionally. |
 | `--no-index` | Skip rebuilding `marvindocs.db` after download. |
 | `--jobs N` | Parallel downloads (default `4`). |
 
@@ -41,13 +43,40 @@ make build                    # build the marvindocs binary (once)
 # A few specific docs
 ./scripts/sync-docs.sh react vue~3 typescript python~3.13
 
-# All slugs from the current docs.json (update everything)
+# Just check what is outdated, don't download anything
+./scripts/sync-docs.sh --check --all
+
+# Update every doc already on disk (unchanged ones are skipped with HTTP 304)
 ./scripts/sync-docs.sh --all
+
+# Re-download everything from scratch even if nothing changed
+./scripts/sync-docs.sh --all --force
 
 # Download without rebuilding the index
 ./scripts/sync-docs.sh --all --no-index
 ./bin/marvindocs index build      # build index manually later
 ```
+
+## Update detection
+
+Each devdocs archive is tagged by the server with a `Last-Modified`
+HTTP header, and its `meta.json` carries an `mtime` Unix timestamp of
+the server-side build. `sync-docs.sh` compares them:
+
+- When a slug is already present locally, the script reads `mtime`
+  from `data/public/docs/<slug>/meta.json`, converts it to an HTTP
+  date and sends it to `curl` as `If-Modified-Since`.
+- If the archive hasn't been rebuilt, the server returns **304 Not
+  Modified** and the script prints `SKIP <slug> (up-to-date)` — zero
+  bytes transferred beyond the headers.
+- If the archive is newer, it's downloaded and extracted, and the
+  script prints `UPDATED <slug>`.
+- `--force` bypasses the check and always re-downloads.
+- `--check` only prints the status table and exits without touching
+  any files.
+
+This means re-running the script daily/weekly is cheap: one HEAD-like
+request per slug and nothing else when the upstream hasn't changed.
 
 ## What the script does
 
