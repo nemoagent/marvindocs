@@ -24,12 +24,17 @@ Usage:
   marvindocs serve [--http ADDR] [--stdio] [--docs-path DIR] [--index-path FILE]
   marvindocs index build [--fulltext] [--docs-path DIR] [--index-path FILE]
   marvindocs index stats [--index-path FILE]
+  marvindocs search QUERY [--doc SLUG] [--limit N] [--json]
+  marvindocs get SLUG PATH [--format FORMAT]
+  marvindocs list [--json]
   marvindocs version
 
 Examples:
   marvindocs serve --http :3333
   marvindocs serve --stdio
   marvindocs index build --fulltext
+  marvindocs search useState --doc react
+  marvindocs get react reference/react/usestate
 `
 
 // version is overridden at build time with -ldflags.
@@ -45,6 +50,12 @@ func main() {
 		runServe(os.Args[2:])
 	case "index":
 		runIndex(os.Args[2:])
+	case "search":
+		runSearch(os.Args[2:])
+	case "get":
+		runGet(os.Args[2:])
+	case "list":
+		runList(os.Args[2:])
 	case "version", "--version", "-v":
 		fmt.Println("marvindocs", version)
 	case "help", "--help", "-h":
