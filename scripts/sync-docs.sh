@@ -156,23 +156,30 @@ local_mtime() {
 		| sed -E 's/"mtime":[[:space:]]*([0-9]+)/\1/'
 }
 
-# unix_to_http <timestamp>  -> HTTP-date format (GNU date or BSD date)
+# unix_to_http <timestamp>  -> HTTP-date format (RFC 7231, always GMT)
+# Works on both GNU coreutils and BSD date (macOS). TZ=UTC forces the
+# output timezone regardless of the user's locale.
 unix_to_http() {
 	local ts="$1"
-	date -u -d "@$ts" "+%a, %d %b %Y %H:%M:%S GMT" 2>/dev/null ||
-		date -u -r "$ts" "+%a, %d %b %Y %H:%M:%S GMT"
+	TZ=UTC date -d "@$ts" "+%a, %d %b %Y %H:%M:%S GMT" 2>/dev/null ||
+		TZ=UTC date -r "$ts" "+%a, %d %b %Y %H:%M:%S GMT"
 }
 
 # remote_mtime <slug>  -> unix timestamp of the archive's Last-Modified,
 # empty on error. Uses HEAD only; no bytes transferred.
+#
+# The Last-Modified header always ends with "GMT" (RFC 7231). We parse
+# the string using the timezone embedded in it, not the local TZ.
 remote_mtime() {
 	local slug="$1"
 	local lm
 	lm=$(curl -sI --fail "https://downloads.devdocs.io/${slug}.tar.gz" 2>/dev/null |
 		grep -i '^last-modified:' | sed 's/^[^:]*: *//; s/\r$//')
 	[ -n "$lm" ] || return 0
+	# GNU date reads the "GMT" suffix correctly with -u -d.
+	# BSD date (macOS) needs %Z in the parse format to honor the zone.
 	date -u -d "$lm" +%s 2>/dev/null ||
-		date -u -jf "%a, %d %b %Y %H:%M:%S GMT" "$lm" +%s 2>/dev/null
+		date -u -jf "%a, %d %b %Y %H:%M:%S %Z" "$lm" +%s 2>/dev/null
 }
 
 # ---- dry-run: --check ------------------------------------------------------
