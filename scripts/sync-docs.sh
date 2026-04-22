@@ -127,7 +127,8 @@ all)
 	fi
 	while IFS= read -r slug; do
 		SLUGS+=("$slug")
-	done < <(grep -o '"slug":"[^"]*"' "$DATA_DIR/docs.json" | cut -d'"' -f4)
+	done < <(grep -oE '"slug":[[:space:]]*"[^"]*"' "$DATA_DIR/docs.json" \
+		| sed -E 's/"slug":[[:space:]]*"([^"]*)"/\1/')
 	;;
 list)
 	SLUGS=("${DEFAULT_SLUGS[@]}")
@@ -151,7 +152,8 @@ mkdir -p "$DATA_DIR"
 local_mtime() {
 	local meta="$DATA_DIR/$1/meta.json"
 	[ -f "$meta" ] || return 0
-	grep -o '"mtime":[0-9]*' "$meta" | head -n1 | cut -d: -f2
+	grep -oE '"mtime":[[:space:]]*[0-9]+' "$meta" | head -n1 \
+		| sed -E 's/"mtime":[[:space:]]*([0-9]+)/\1/'
 }
 
 # unix_to_http <timestamp>  -> HTTP-date format (GNU date or BSD date)
