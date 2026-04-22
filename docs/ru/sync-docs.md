@@ -1,39 +1,27 @@
 # Синхронизация данных документации
 
-marvindocs не поставляется с документацией devdocs. На этой странице
-объясняется, как с помощью вспомогательного скрипта скачать данные и
-построить поисковый индекс за один шаг.
+marvindocs не поставляется с документацией devdocs. Вспомогательный
+скрипт `scripts/sync-docs.sh` скачивает её напрямую с
+`downloads.devdocs.io`, используя только `curl` и `tar` — без Docker,
+без Ruby, без клона devdocs.
 
 ## Требования
 
-- **Docker** — скрипт собирает образ devdocs и выполняет загрузку
-  внутри того же Ruby-окружения, которое использует devdocs.
-- **Исходник devdocs** — по умолчанию скрипт ищет `../devdocs`
-  (уровень выше этого репозитория). Если ещё нет — склонируй:
+- `curl`
+- `tar`
+- `python3` — для сборки `docs.json` из отдельных `meta.json`
+- `./bin/marvindocs` — только если хочешь автоматически перестроить
+  индекс (`make build`)
 
-  ```bash
-  git clone https://github.com/freeCodeCamp/devdocs ../devdocs
-  ```
-
-- **`./bin/marvindocs`** — собирается из этого репозитория (`make build`).
-  Нужен только если хочешь, чтобы индекс перестроился автоматически
-  после скачивания.
+Всё это есть на любом Linux и macOS из коробки.
 
 ## Быстрый старт
 
 ```bash
-# 1. Собрать бинарь marvindocs (если ещё не сделано)
-make build
-
-# 2. Скачать набор по умолчанию (~30 популярных доков, ~1-2 ГБ, несколько минут)
-./scripts/sync-docs.sh
-
-# 3. Запустить сервер
+make build                    # собрать бинарь marvindocs (один раз)
+./scripts/sync-docs.sh        # скачать ~29 популярных доков, перестроить индекс
 ./bin/marvindocs serve --http :3333
 ```
-
-После шага 2 в `data/public/docs/` появятся документы, а в корне —
-свежий `marvindocs.db`.
 
 ## Использование
 
@@ -43,72 +31,74 @@ make build
 
 | Аргумент / опция | Значение |
 |---|---|
-| *(ничего)* | Скачать набор по умолчанию (то же самое, что `--default`). |
-| `--default` | ~30 популярных доков по выбору мейнтейнеров devdocs. |
-| `--all` | Все доступные доки (~790, ~17 ГБ, 1–2 часа). |
-| `react`, `python~3.13`, … | Только конкретные slug'и. Можно передать несколько. |
+| *(ничего)* | Скачать встроенный популярный набор (~29 доков). |
+| `react`, `python~3.13`, … | Только указанные slug'и. |
+| `--all` | Перекачать все slug'и из `data/public/docs/docs.json`. |
 | `--no-index` | Не перестраивать `marvindocs.db` после загрузки. |
-| `--devdocs-dir DIR` | Путь к исходникам devdocs (по умолчанию `../devdocs`). |
+| `--jobs N` | Параллельных загрузок (по умолчанию `4`). |
 
 ### Примеры
 
 ```bash
-# Только react и конкретная версия Python
-./scripts/sync-docs.sh react python~3.13
+# Несколько конкретных доков
+./scripts/sync-docs.sh react vue~3 typescript python~3.13
 
-# Всё, индекс потом вручную
+# Обновить всё из текущего docs.json
+./scripts/sync-docs.sh --all
+
+# Скачать без перестройки индекса
 ./scripts/sync-docs.sh --all --no-index
-
-# devdocs лежит в другом месте
-./scripts/sync-docs.sh --devdocs-dir ~/src/devdocs
+./bin/marvindocs index build      # построить индекс вручную позже
 ```
 
 ## Что делает скрипт
 
-1. Пишет минимальный `Dockerfile` (без `thor docs:download --all`) и
-   строит Docker-образ `marvindocs-devdocs-sync`. В образ устанавливаются
-   только Ruby-зависимости — скачивать документацию в слой образа было
-   бы расточительно (17 ГБ).
-2. Запускает контейнер; внутри выполняет
-   `thor docs:download <твои аргументы>`, который забирает `.tar.gz`-архивы
-   с `downloads.devdocs.io` и распаковывает их в `/devdocs/public/docs/`.
-3. Копирует `/devdocs/public/docs/` из контейнера в `data/public/docs/`
-   этого репозитория.
-4. Удаляет контейнер.
-5. *(Если не передан `--no-index`)* Запускает `./bin/marvindocs index build`
-   и строит `marvindocs.db`.
+1. Составляет список slug'ов (встроенный, `--all` из существующего
+   `docs.json`, или указанные вручную).
+2. Параллельно скачивает `https://downloads.devdocs.io/<slug>.tar.gz`
+   через `curl` и распаковывает в `data/public/docs/<slug>/`.
+   Неудачные slug'и (404/403) выводятся и пропускаются, скрипт не падает.
+3. Пересобирает `data/public/docs/docs.json` из файлов `meta.json`
+   каждого скачанного slug'а с помощью Python.
+4. *(Если не передан `--no-index`)* Запускает `./bin/marvindocs index build`.
 
-## Список доступных slug'ов
+## Встроенный популярный набор
 
-Посмотреть полный список slug'ов, которые знает devdocs:
+При запуске без аргументов скрипт скачивает:
 
-```bash
-docker run --rm marvindocs-devdocs-sync thor docs:list
+```
+angular  bash      c         cpp       css        django
+docker   go        html      http      javascript  jinja
+jquery   kubernetes linux    markdown  nginx       node
+npm      postgresql python~3.13 react  redis      ruby
+rust     sqlite    typescript  vue~3
 ```
 
-Либо зайди на https://devdocs.io — каждое название документации
-соответствует скачиваемому slug'у.
+Чтобы изменить набор — отредактируй `DEFAULT_SLUGS` в начале файла
+`scripts/sync-docs.sh`.
+
+## Как найти нужный slug
+
+Каждое название на <https://devdocs.io> — это slug для скачивания.
+Версионные варианты используют тильду: `python~3.12`, `angular~18`,
+`react~18`. Посмотреть что уже есть:
+
+```bash
+python3 -c "import json; [print(d['slug']) for d in json.load(open('data/public/docs/docs.json'))]"
+```
 
 ## Повторная синхронизация / обновление
 
-Скрипт безопасно запускать повторно. `thor docs:download` перезаписывает
-существующие архивы, а `marvindocs index build` пересобирает индекс
-с нуля. Чтобы обновить только несколько доков:
+Скрипт идемпотентен — повторный запуск перезаписывает файлы.
+Чтобы обновить только несколько доков:
 
 ```bash
-./scripts/sync-docs.sh react vue angular
+./scripts/sync-docs.sh react vue~3
 ```
 
 ## Место на диске
 
-| Набор | Примерный размер | Время (хорошее соединение) |
+| Набор | Примерный размер | Время скачивания (100 Мбит) |
 |---|---|---|
-| `--default` (~30 доков) | 1–3 ГБ | 5–15 мин |
-| `--all` (~790 доков) | ~17 ГБ | 1–2 часа |
-
-Сам Docker-образ занимает ~700 МБ (Ruby + gems). После загрузки его
-можно удалить:
-
-```bash
-docker rmi marvindocs-devdocs-sync
-```
+| Встроенный (~29 доков) | ~1–2 ГБ | ~2–5 мин |
+| Все (~790 доков) | ~17 ГБ | ~30–90 мин |

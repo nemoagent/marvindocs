@@ -1,143 +1,170 @@
 #!/usr/bin/env bash
 # scripts/sync-docs.sh — download devdocs documentation into data/public/docs/
 #
+# No Docker required. Downloads .tar.gz archives directly from
+# downloads.devdocs.io using curl and tar. Requires only:
+#   curl, tar (standard on any Linux/macOS)
+#   python3   (used to merge meta.json files into docs.json)
+#
 # Usage:
-#   ./scripts/sync-docs.sh                        # download --default (~30 popular docs)
-#   ./scripts/sync-docs.sh --all                  # all ~790 docs (~17 GB, takes 1-2 hours)
-#   ./scripts/sync-docs.sh react python~3.13      # specific docs only
-#   ./scripts/sync-docs.sh --no-index             # skip marvindocs index build after sync
+#   ./scripts/sync-docs.sh                        # popular docs from built-in list
+#   ./scripts/sync-docs.sh react vue angular      # specific slugs
+#   ./scripts/sync-docs.sh --all                  # all slugs from existing docs.json
+#   ./scripts/sync-docs.sh --no-index             # skip marvindocs index build
 #
 # Options:
-#   --all          download every available doc (passed to thor docs:download --all)
-#   --default      download only the default set (default behavior without explicit slugs)
-#   --no-index     do not run marvindocs index build when finished
-#   --devdocs-dir  path to the devdocs source tree (default: ../devdocs)
-#
-# Requirements:
-#   - docker
-#   - ./bin/marvindocs (run `make build` if missing)
+#   --all        re-download every slug already present in data/public/docs/docs.json
+#   --no-index   do not run marvindocs index build when finished
+#   --jobs N     parallel downloads (default 4)
+#   --help       show this message
 
 set -euo pipefail
 
-# ---- parse arguments -------------------------------------------------------
-DEVDOCS_DIR="$(realpath "${DEVDOCS_DIR:-../devdocs}")"
-DOWNLOAD_ARGS="--default"
+# ---- defaults ---------------------------------------------------------------
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+DATA_DIR="$REPO_DIR/data/public/docs"
+BINARY="$REPO_DIR/bin/marvindocs"
+
 RUN_INDEX=true
+PARALLEL_JOBS=4
+MODE="list" # list | all | slugs
 SLUGS=()
 
+# Popular default set — a curated subset that covers most common use-cases.
+DEFAULT_SLUGS=(
+	angular
+	bash
+	c
+	cpp
+	css
+	django
+	docker
+	go
+	html
+	http
+	javascript
+	jinja
+	jquery
+	kubernetes
+	linux
+	markdown
+	nginx
+	node
+	npm
+	postgresql
+	python~3.13
+	react
+	redis
+	ruby
+	rust
+	sqlite
+	typescript
+	vue~3
+)
+
+# ---- parse arguments --------------------------------------------------------
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 	--all)
-		DOWNLOAD_ARGS="--all"
-		shift
-		;;
-	--default)
-		DOWNLOAD_ARGS="--default"
+		MODE="all"
 		shift
 		;;
 	--no-index)
 		RUN_INDEX=false
 		shift
 		;;
-	--devdocs-dir)
-		DEVDOCS_DIR="$(realpath "$2")"
+	--jobs)
+		PARALLEL_JOBS="$2"
 		shift 2
+		;;
+	--help | -h)
+		sed -n '2,15p' "$0" | sed 's/^# \?//'
+		exit 0
 		;;
 	-*)
 		echo "Unknown option: $1" >&2
-		echo "Usage: $0 [--all | --default | <slug> ...] [--no-index] [--devdocs-dir DIR]" >&2
+		echo "Run $0 --help for usage." >&2
 		exit 2
 		;;
 	*)
+		MODE="slugs"
 		SLUGS+=("$1")
 		shift
 		;;
 	esac
 done
 
-if [[ ${#SLUGS[@]} -gt 0 ]]; then
-	DOWNLOAD_ARGS="${SLUGS[*]}"
+# ---- resolve slug list ------------------------------------------------------
+if [[ "$MODE" == "all" ]]; then
+	if [[ ! -f "$DATA_DIR/docs.json" ]]; then
+		echo "ERROR: $DATA_DIR/docs.json not found."
+		echo "       Run without --all first to download the default set,"
+		echo "       or pass specific slugs."
+		exit 1
+	fi
+	mapfile -t SLUGS < <(python3 -c "
+import json
+docs = json.load(open('$DATA_DIR/docs.json'))
+for d in docs: print(d['slug'])
+")
+elif [[ "$MODE" == "list" ]]; then
+	SLUGS=("${DEFAULT_SLUGS[@]}")
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-DATA_DIR="$REPO_DIR/data/public/docs"
-IMAGE="marvindocs-devdocs-sync"
-CONTAINER="marvindocs-devdocs-sync-$$"
-
-echo "==> devdocs source: $DEVDOCS_DIR"
-echo "==> output:         $DATA_DIR"
-echo "==> docs to fetch:  $DOWNLOAD_ARGS"
+echo "==> target: $DATA_DIR"
+echo "==> slugs:  ${#SLUGS[@]} (parallel: $PARALLEL_JOBS)"
 echo ""
-
-# ---- sanity checks ---------------------------------------------------------
-if [[ ! -f "$DEVDOCS_DIR/Dockerfile" ]]; then
-	echo "ERROR: $DEVDOCS_DIR/Dockerfile not found." >&2
-	echo "       Set --devdocs-dir or clone https://github.com/freeCodeCamp/devdocs" >&2
-	exit 1
-fi
-
-# ---- build a minimal image (skip the heavy RUN thor docs:download step) ----
-# We use a temporary Dockerfile that copies the app WITHOUT running the full
-# Dockerfile's download step (which would pull --all by default, ~17 GB).
-echo "==> building docker image (deps only, no docs)..."
-
-TMPDF="$(mktemp /tmp/Dockerfile-sync-XXXXXX)"
-trap 'rm -f "$TMPDF"' EXIT
-
-cat >"$TMPDF" <<'DOCKERFILE'
-FROM ruby:3.4.8
-ENV LANG=C.UTF-8
-WORKDIR /devdocs
-
-RUN apt-get update && \
-    apt-get -y install git nodejs libcurl4 && \
-    gem install bundler && \
-    rm -rf /var/lib/apt/lists/*
-
-COPY Gemfile Gemfile.lock Rakefile /devdocs/
-RUN bundle config set path.system true && \
-    bundle install && \
-    rm -rf ~/.gem /root/.bundle/cache /usr/local/bundle/cache
-
-COPY . /devdocs
-DOCKERFILE
-
-docker build -f "$TMPDF" -t "$IMAGE" "$DEVDOCS_DIR" 2>&1 |
-	grep -E "^(Step|Successfully|=>|#[0-9]|ERROR)" || true
-echo "    image: $IMAGE"
-
-# ---- run download inside the container -------------------------------------
-echo ""
-echo "==> downloading docs inside container (thor docs:download $DOWNLOAD_ARGS)..."
-echo "    this may take minutes to hours depending on --all vs specific slugs."
-echo ""
-
-# Run the container, execute thor, then keep it alive so we can copy.
-docker run --name "$CONTAINER" \
-	--user "$(id -u):$(id -g)" \
-	-e HOME=/tmp \
-	-e BUNDLE_PATH=/usr/local/bundle \
-	"$IMAGE" \
-	bash -c "cd /devdocs && thor docs:download $DOWNLOAD_ARGS"
-
-echo ""
-echo "==> copying docs from container to $DATA_DIR ..."
 
 mkdir -p "$DATA_DIR"
 
-# Copy the whole public/docs tree from the container.
-docker cp "$CONTAINER:/devdocs/public/docs/." "$DATA_DIR/"
+# ---- download function ------------------------------------------------------
+download_slug() {
+	local slug="$1"
+	local dir="$DATA_DIR/$slug"
+	local url="https://downloads.devdocs.io/${slug}.tar.gz"
 
-echo "    done. $(ls "$DATA_DIR" | wc -l) slugs now in $DATA_DIR"
+	mkdir -p "$dir"
+	if curl -sS --fail -L "$url" | tar -xzf - -C "$dir" 2>/dev/null; then
+		echo "  OK   $slug"
+	else
+		echo "  FAIL $slug (curl/tar error — slug may not exist)"
+		rmdir "$dir" 2>/dev/null || true
+	fi
+}
+export -f download_slug
+export DATA_DIR
 
-# ---- cleanup ---------------------------------------------------------------
-echo "==> removing container..."
-docker rm "$CONTAINER"
+# ---- parallel download ------------------------------------------------------
+printf '%s\n' "${SLUGS[@]}" |
+	xargs -P "$PARALLEL_JOBS" -I{} bash -c 'download_slug "$@"' _ {}
 
-# ---- rebuild index ---------------------------------------------------------
+echo ""
+echo "==> rebuilding docs.json from meta.json files..."
+
+python3 - "$DATA_DIR" <<'PYEOF'
+import json, os, sys
+
+root = sys.argv[1]
+docs = []
+for slug in sorted(os.listdir(root)):
+    meta_path = os.path.join(root, slug, 'meta.json')
+    if not os.path.isfile(meta_path):
+        continue
+    try:
+        with open(meta_path) as fh:
+            docs.append(json.load(fh))
+    except Exception as e:
+        print(f'  warn: could not read {meta_path}: {e}', file=sys.stderr)
+
+out = os.path.join(root, 'docs.json')
+with open(out, 'w') as fh:
+    json.dump(docs, fh, ensure_ascii=False, separators=(',', ':'))
+print(f'  {len(docs)} docs -> {out}')
+PYEOF
+
+# ---- rebuild index ----------------------------------------------------------
 if [[ "$RUN_INDEX" == true ]]; then
-	BINARY="$REPO_DIR/bin/marvindocs"
 	if [[ ! -x "$BINARY" ]]; then
 		echo ""
 		echo "==> binary not found at $BINARY, building..."
@@ -150,7 +177,7 @@ fi
 
 echo ""
 echo "All done!"
-echo "  Docs: $DATA_DIR ($(ls "$DATA_DIR" | wc -l | tr -d ' ') slugs)"
+echo "  Docs:  $DATA_DIR ($(ls "$DATA_DIR" | grep -v '^docs\.json$' | wc -l | tr -d ' ') slugs)"
 if [[ "$RUN_INDEX" == true ]]; then
 	echo "  Index: $REPO_DIR/marvindocs.db"
 fi
