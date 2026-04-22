@@ -1,37 +1,35 @@
 #!/usr/bin/env bash
 # scripts/sync-docs.sh — download devdocs documentation into data/public/docs/
 #
-# No Docker required. Downloads .tar.gz archives directly from
-# downloads.devdocs.io using curl and tar. Requires only:
-#   curl, tar (standard on any Linux/macOS)
-#   python3   (used to merge meta.json files into docs.json)
+# Requires only: curl, tar  (standard on any Linux/macOS/WSL)
 #
 # Usage:
-#   ./scripts/sync-docs.sh                        # popular docs from built-in list
+#   ./scripts/sync-docs.sh                        # built-in popular set
 #   ./scripts/sync-docs.sh react vue angular      # specific slugs
 #   ./scripts/sync-docs.sh --all                  # all slugs from existing docs.json
 #   ./scripts/sync-docs.sh --no-index             # skip marvindocs index build
 #
 # Options:
-#   --all        re-download every slug already present in data/public/docs/docs.json
+#   --all        re-download every slug listed in data/public/docs/docs.json
 #   --no-index   do not run marvindocs index build when finished
 #   --jobs N     parallel downloads (default 4)
 #   --help       show this message
 
 set -euo pipefail
 
-# ---- defaults ---------------------------------------------------------------
+# ---- paths ------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DATA_DIR="$REPO_DIR/data/public/docs"
 BINARY="$REPO_DIR/bin/marvindocs"
 
+# ---- defaults ---------------------------------------------------------------
 RUN_INDEX=true
 PARALLEL_JOBS=4
 MODE="list" # list | all | slugs
 SLUGS=()
 
-# Popular default set — a curated subset that covers most common use-cases.
+# Popular default set. Edit to taste.
 DEFAULT_SLUGS=(
 	angular
 	bash
@@ -64,7 +62,7 @@ DEFAULT_SLUGS=(
 )
 
 # ---- parse arguments --------------------------------------------------------
-while [[ $# -gt 0 ]]; do
+while [ $# -gt 0 ]; do
 	case "$1" in
 	--all)
 		MODE="all"
@@ -79,7 +77,7 @@ while [[ $# -gt 0 ]]; do
 		shift 2
 		;;
 	--help | -h)
-		sed -n '2,15p' "$0" | sed 's/^# \?//'
+		sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
 		exit 0
 		;;
 	-*)
@@ -96,39 +94,40 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ---- resolve slug list ------------------------------------------------------
-if [[ "$MODE" == "all" ]]; then
-	if [[ ! -f "$DATA_DIR/docs.json" ]]; then
-		echo "ERROR: $DATA_DIR/docs.json not found."
-		echo "       Run without --all first to download the default set,"
-		echo "       or pass specific slugs."
+case "$MODE" in
+all)
+	if [ ! -f "$DATA_DIR/docs.json" ]; then
+		echo "ERROR: $DATA_DIR/docs.json not found." >&2
+		echo "       Run without --all first, or pass specific slugs." >&2
 		exit 1
 	fi
-	mapfile -t SLUGS < <(python3 -c "
-import json
-docs = json.load(open('$DATA_DIR/docs.json'))
-for d in docs: print(d['slug'])
-")
-elif [[ "$MODE" == "list" ]]; then
+	# Extract "slug" values with grep + cut — no python, no jq needed.
+	# docs.json format: [{"slug":"react",...}, ...]
+	while IFS= read -r slug; do
+		SLUGS+=("$slug")
+	done < <(grep -o '"slug":"[^"]*"' "$DATA_DIR/docs.json" | cut -d'"' -f4)
+	;;
+list)
 	SLUGS=("${DEFAULT_SLUGS[@]}")
-fi
+	;;
+esac
 
 echo "==> target: $DATA_DIR"
-echo "==> slugs:  ${#SLUGS[@]} (parallel: $PARALLEL_JOBS)"
+echo "==> slugs:  ${#SLUGS[@]} (parallel downloads: $PARALLEL_JOBS)"
 echo ""
 
 mkdir -p "$DATA_DIR"
 
-# ---- download function ------------------------------------------------------
+# ---- download one slug (called via xargs in parallel) ----------------------
 download_slug() {
 	local slug="$1"
 	local dir="$DATA_DIR/$slug"
 	local url="https://downloads.devdocs.io/${slug}.tar.gz"
-
 	mkdir -p "$dir"
 	if curl -sS --fail -L "$url" | tar -xzf - -C "$dir" 2>/dev/null; then
 		echo "  OK   $slug"
 	else
-		echo "  FAIL $slug (curl/tar error — slug may not exist)"
+		echo "  FAIL $slug"
 		rmdir "$dir" 2>/dev/null || true
 	fi
 }
@@ -139,46 +138,47 @@ export DATA_DIR
 printf '%s\n' "${SLUGS[@]}" |
 	xargs -P "$PARALLEL_JOBS" -I{} bash -c 'download_slug "$@"' _ {}
 
+# ---- rebuild docs.json from meta.json files (pure bash) --------------------
 echo ""
 echo "==> rebuilding docs.json from meta.json files..."
 
-python3 - "$DATA_DIR" <<'PYEOF'
-import json, os, sys
+DOCS_JSON="$DATA_DIR/docs.json"
+TMP_JSON="$DOCS_JSON.tmp"
+count=0
+sep=""
 
-root = sys.argv[1]
-docs = []
-for slug in sorted(os.listdir(root)):
-    meta_path = os.path.join(root, slug, 'meta.json')
-    if not os.path.isfile(meta_path):
-        continue
-    try:
-        with open(meta_path) as fh:
-            docs.append(json.load(fh))
-    except Exception as e:
-        print(f'  warn: could not read {meta_path}: {e}', file=sys.stderr)
+printf '[' >"$TMP_JSON"
+for slug in $(ls -1 "$DATA_DIR" | LC_ALL=C sort); do
+	meta="$DATA_DIR/$slug/meta.json"
+	[ -f "$meta" ] || continue
+	printf '%s' "$sep" >>"$TMP_JSON"
+	cat "$meta" >>"$TMP_JSON"
+	sep=","
+	count=$((count + 1))
+done
+printf ']' >>"$TMP_JSON"
 
-out = os.path.join(root, 'docs.json')
-with open(out, 'w') as fh:
-    json.dump(docs, fh, ensure_ascii=False, separators=(',', ':'))
-print(f'  {len(docs)} docs -> {out}')
-PYEOF
+mv "$TMP_JSON" "$DOCS_JSON"
+echo "  $count docs -> $DOCS_JSON"
 
 # ---- rebuild index ----------------------------------------------------------
-if [[ "$RUN_INDEX" == true ]]; then
-	if [[ ! -x "$BINARY" ]]; then
+if [ "$RUN_INDEX" = true ]; then
+	if [ ! -x "$BINARY" ]; then
 		echo ""
 		echo "==> binary not found at $BINARY, building..."
 		make -C "$REPO_DIR" build
 	fi
 	echo ""
 	echo "==> rebuilding marvindocs index..."
-	"$BINARY" index build --docs-path "$DATA_DIR" --index-path "$REPO_DIR/marvindocs.db"
+	"$BINARY" index build \
+		--docs-path "$DATA_DIR" \
+		--index-path "$REPO_DIR/marvindocs.db"
 fi
 
 echo ""
 echo "All done!"
-echo "  Docs:  $DATA_DIR ($(ls "$DATA_DIR" | grep -v '^docs\.json$' | wc -l | tr -d ' ') slugs)"
-if [[ "$RUN_INDEX" == true ]]; then
+echo "  Docs:  $DATA_DIR ($count slugs)"
+if [ "$RUN_INDEX" = true ]; then
 	echo "  Index: $REPO_DIR/marvindocs.db"
 fi
 echo ""

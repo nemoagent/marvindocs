@@ -9,11 +9,9 @@ marvindocs не поставляется с документацией devdocs. 
 
 - `curl`
 - `tar`
-- `python3` — для сборки `docs.json` из отдельных `meta.json`
-- `./bin/marvindocs` — только если хочешь автоматически перестроить
-  индекс (`make build`)
 
-Всё это есть на любом Linux и macOS из коробки.
+Всё. Ни Python, ни Docker, ни Ruby — обе утилиты есть на любом Linux,
+macOS и WSL из коробки.
 
 ## Быстрый старт
 

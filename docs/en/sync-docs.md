@@ -9,11 +9,9 @@ no devdocs checkout needed.
 
 - `curl`
 - `tar`
-- `python3` (used to assemble `docs.json` from individual `meta.json` files)
-- `./bin/marvindocs` — only if you want the index rebuilt automatically
-  (`make build`).
 
-All of these ship on any Linux or macOS out of the box.
+That's it. No Python, no Docker, no Ruby — both ship on any Linux, macOS
+and WSL out of the box.
 
 ## Quick start
 
