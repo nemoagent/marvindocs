@@ -50,6 +50,67 @@ docs:    791
 entries: 2677981
 ```
 
+## `marvindocs search`
+
+Runs a full-text search against the index and prints hits. Useful for
+shell pipelines and quick lookups without starting a server.
+
+```bash
+marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--index-path FILE]
+```
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--doc` | empty | Restrict results to a single doc slug (e.g. `react`, `python~3.13`). |
+| `--limit` | `20` | Maximum number of results (1–100). |
+| `--json` | `false` | Emit the raw hit list as JSON on stdout. |
+| `--index-path` | `marvindocs.db` | SQLite index file (must exist). |
+
+Positional arguments after the flags are joined with spaces, so
+`marvindocs search http server` is equivalent to `marvindocs search "http server"`.
+
+Plain text output columns: `DOC_SLUG  NAME  PATH`. The trailing
+`N result(s)` summary is written to stderr so it is easy to pipe the
+data portion into other tools.
+
+Exit code `0` even when there are no hits (a message is printed to
+stderr); `1` on index errors; `2` on usage errors.
+
+## `marvindocs get`
+
+Fetches a single page from the devdocs dump and prints it as Markdown
+or raw HTML. Does **not** require the SQLite index — it reads
+`<slug>/db.json` directly.
+
+```bash
+marvindocs get SLUG PATH [--format markdown|html] [--docs-path DIR]
+```
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--format` | `markdown` | Either `markdown` (alias `md`) or `html`. |
+| `--docs-path` | `data/public/docs` | Directory containing `<slug>/db.json`. |
+
+`PATH` is the page path as stored in devdocs (for example
+`hooks/use-state` for the React doc). Use `marvindocs search` to find
+valid paths.
+
+## `marvindocs list`
+
+Prints the docs currently present in the index, one per line:
+
+```bash
+marvindocs list [--json] [--index-path FILE]
+```
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--json` | `false` | Emit the doc list as JSON. |
+| `--index-path` | `marvindocs.db` | SQLite index file (must exist). |
+
+Plain text columns: `SLUG  NAME  VERSION` (falls back to `release`
+when `version` is empty). The summary line goes to stderr.
+
 ## `marvindocs serve`
 
 Runs the MCP server.

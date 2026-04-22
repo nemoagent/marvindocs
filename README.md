@@ -124,6 +124,9 @@ Verify the server with the bundled smoke test (needs `curl` + `jq`):
 marvindocs index build   [--docs-path DIR] [--index-path FILE]  # build/rebuild index
 marvindocs index stats   [--index-path FILE]                    # show counts
 marvindocs serve         [--stdio] [--http ADDR]                # start server
+marvindocs search QUERY  [--doc SLUG] [--limit N] [--json]      # search the index
+marvindocs get SLUG PATH [--format markdown|html]               # fetch one page
+marvindocs list          [--json]                               # list indexed docs
 marvindocs version
 ```
 

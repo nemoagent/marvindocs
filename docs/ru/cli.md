@@ -50,6 +50,67 @@ docs:    791
 entries: 2677981
 ```
 
+## `marvindocs search`
+
+Выполняет полнотекстовый поиск по индексу и печатает результаты.
+Удобно для shell-пайплайнов и быстрых проверок без запуска сервера.
+
+```bash
+marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--index-path FILE]
+```
+
+| Флаг | По умолчанию | Примечание |
+|---|---|---|
+| `--doc` | пусто | Ограничить поиск одним slug (например, `react`, `python~3.13`). |
+| `--limit` | `20` | Максимум результатов (1–100). |
+| `--json` | `false` | Выводить сырой список результатов как JSON в stdout. |
+| `--index-path` | `marvindocs.db` | Файл SQLite-индекса (должен существовать). |
+
+Позиционные аргументы после флагов склеиваются через пробел, то есть
+`marvindocs search http server` эквивалентно `marvindocs search "http server"`.
+
+Текстовый вывод — колонки `DOC_SLUG  NAME  PATH`. Итоговая строка
+`N result(s)` пишется в stderr, чтобы было удобно передавать данные
+по пайпу.
+
+Код выхода `0` даже при отсутствии результатов (в stderr выводится
+сообщение); `1` — ошибка индекса; `2` — ошибка использования.
+
+## `marvindocs get`
+
+Возвращает одну страницу из дампа devdocs в виде Markdown или
+исходного HTML. SQLite-индекс не нужен — читает `<slug>/db.json`
+напрямую.
+
+```bash
+marvindocs get SLUG PATH [--format markdown|html] [--docs-path DIR]
+```
+
+| Флаг | По умолчанию | Примечание |
+|---|---|---|
+| `--format` | `markdown` | `markdown` (алиас `md`) или `html`. |
+| `--docs-path` | `data/public/docs` | Каталог с `<slug>/db.json`. |
+
+`PATH` — путь страницы, как он хранится в devdocs (например
+`hooks/use-state` для React). Узнать корректный путь можно через
+`marvindocs search`.
+
+## `marvindocs list`
+
+Печатает документации, присутствующие в индексе, по одной в строке:
+
+```bash
+marvindocs list [--json] [--index-path FILE]
+```
+
+| Флаг | По умолчанию | Примечание |
+|---|---|---|
+| `--json` | `false` | Выводить список как JSON. |
+| `--index-path` | `marvindocs.db` | Файл SQLite-индекса (должен существовать). |
+
+Текстовый вывод — колонки `SLUG  NAME  VERSION` (если `version`
+пусто, используется `release`). Итоговая строка идёт в stderr.
+
 ## `marvindocs serve`
 
 Запускает MCP-сервер.
