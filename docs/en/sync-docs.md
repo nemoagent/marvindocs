@@ -57,7 +57,7 @@ make build                    # build the marvindocs binary (once)
    with `curl` and extracts each archive into `data/public/docs/<slug>/`.
    Failed slugs (404/403) are reported and skipped without aborting.
 3. Rebuilds `data/public/docs/docs.json` from the `meta.json` file
-   inside each downloaded slug directory using Python.
+   inside each downloaded slug directory (pure bash, no Python).
 4. *(Unless `--no-index`)* Runs `./bin/marvindocs index build`.
 
 ## Built-in popular set
@@ -81,7 +81,7 @@ Versioned docs use a tilde: `python~3.12`, `angular~18`, `react~18`.
 Check what is already in your `docs.json`:
 
 ```bash
-python3 -c "import json; [print(d['slug']) for d in json.load(open('data/public/docs/docs.json'))]"
+grep -o '"slug":"[^"]*"' data/public/docs/docs.json | cut -d'"' -f4
 ```
 
 ## Re-syncing / updating

@@ -57,7 +57,7 @@ make build                    # собрать бинарь marvindocs (один
    через `curl` и распаковывает в `data/public/docs/<slug>/`.
    Неудачные slug'и (404/403) выводятся и пропускаются, скрипт не падает.
 3. Пересобирает `data/public/docs/docs.json` из файлов `meta.json`
-   каждого скачанного slug'а с помощью Python.
+   каждого скачанного slug'а — чистый bash, без Python.
 4. *(Если не передан `--no-index`)* Запускает `./bin/marvindocs index build`.
 
 ## Встроенный популярный набор
@@ -82,7 +82,7 @@ rust     sqlite    typescript  vue~3
 `react~18`. Посмотреть что уже есть:
 
 ```bash
-python3 -c "import json; [print(d['slug']) for d in json.load(open('data/public/docs/docs.json'))]"
+grep -o '"slug":"[^"]*"' data/public/docs/docs.json | cut -d'"' -f4
 ```
 
 ## Повторная синхронизация / обновление
