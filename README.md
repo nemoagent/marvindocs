@@ -16,14 +16,16 @@ SQLite FTS5 for search.
 ## Quick start
 
 ```bash
-make build                            # builds ./bin/marvindocs (docker golang:1.25)
-./bin/marvindocs index build          # ~2.5 min, produces ~455 MB marvindocs.db
-./bin/marvindocs serve --http :3333   # web UI at / and MCP at /mcp
-./bin/marvindocs serve --stdio        # MCP over stdio
+make build                                  # builds ./bin/marvindocs
+./scripts/sync-docs.sh                      # download default docs (~1-2 GB, ~10 min)
+./bin/marvindocs serve --http :3333         # web UI at / and MCP at /mcp
 ```
 
-For the devdocs dump layout, put the data under `data/public/docs/`
-(same layout the official `devdocs` Rails app produces under `public/docs/`).
+To download all ~790 docs (~17 GB):
+
+```bash
+./scripts/sync-docs.sh --all
+```
 
 ## Documentation
 
