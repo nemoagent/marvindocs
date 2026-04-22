@@ -169,14 +169,11 @@ func runIndex(args []string) {
 	switch args[0] {
 	case "build":
 		fs := flag.NewFlagSet("index build", flag.ExitOnError)
-		fullText := fs.Bool("fulltext", false, "Also index page body text (adds GBs) - not implemented yet")
+		fullText := fs.Bool("fulltext", false, "Also index page body text into pages_fts (adds GBs, much slower)")
 		docsPath := fs.String("docs-path", "data/public/docs", "Path to devdocs data")
 		indexPath := fs.String("index-path", "marvindocs.db", "Output SQLite file")
 		_ = fs.Parse(args[1:])
-		if *fullText {
-			fmt.Fprintln(os.Stderr, "warning: --fulltext is not implemented yet, ignoring")
-		}
-		if err := runIndexBuild(*docsPath, *indexPath); err != nil {
+		if err := runIndexBuild(*docsPath, *indexPath, *fullText); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
 		}
@@ -194,7 +191,7 @@ func runIndex(args []string) {
 	}
 }
 
-func runIndexBuild(docsPath, indexPath string) error {
+func runIndexBuild(docsPath, indexPath string, fullText bool) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
@@ -210,12 +207,20 @@ func runIndexBuild(docsPath, indexPath string) error {
 	}
 	defer idx.Close()
 
-	stats, err := idx.Build(ctx, store)
+	if fullText {
+		fmt.Fprintln(os.Stderr, "full-text body indexing enabled; this is slow and the index will be large")
+	}
+	stats, err := idx.BuildWithOptions(ctx, store, index.BuildOptions{Fulltext: fullText})
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "indexed %d docs, %d entries in %s -> %s\n",
-		stats.Docs, stats.Entries, stats.Duration.Round(1e6), indexPath)
+	if stats.Pages > 0 {
+		fmt.Fprintf(os.Stderr, "indexed %d docs, %d entries, %d pages in %s -> %s\n",
+			stats.Docs, stats.Entries, stats.Pages, stats.Duration.Round(1e6), indexPath)
+	} else {
+		fmt.Fprintf(os.Stderr, "indexed %d docs, %d entries in %s -> %s\n",
+			stats.Docs, stats.Entries, stats.Duration.Round(1e6), indexPath)
+	}
 	return nil
 }
 
@@ -240,5 +245,6 @@ func runIndexStats(indexPath string) error {
 	}
 	fmt.Printf("docs:    %d\n", st.Docs)
 	fmt.Printf("entries: %d\n", st.Entries)
+	fmt.Printf("pages:   %d\n", st.Pages)
 	return nil
 }

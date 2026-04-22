@@ -9,16 +9,32 @@ import (
 	"github.com/piligrim/marvindocs/internal/docstore"
 )
 
+// BuildOptions controls optional work done by Build.
+type BuildOptions struct {
+	// Fulltext, when true, also populates pages_fts with the plain-text
+	// body of every page from db.json. This is slower and the resulting
+	// index file grows to roughly the combined size of all dumps.
+	Fulltext bool
+}
+
 // BuildStats is returned from Build to describe what was indexed.
 type BuildStats struct {
 	Docs     int
 	Entries  int
+	Pages    int // 0 unless Fulltext was requested
 	Duration time.Duration
 }
 
-// Build (re)populates the index from the given docstore. It replaces any
-// existing rows — incremental updates are not supported yet.
+// Build (re)populates the index from the given docstore with default
+// options (symbols only, no page bodies).
 func (i *Index) Build(ctx context.Context, s *docstore.Store) (BuildStats, error) {
+	return i.BuildWithOptions(ctx, s, BuildOptions{})
+}
+
+// BuildWithOptions (re)populates the index from the given docstore using
+// the provided options. It replaces any existing rows — incremental
+// updates are not supported yet.
+func (i *Index) BuildWithOptions(ctx context.Context, s *docstore.Store, opts BuildOptions) (BuildStats, error) {
 	start := time.Now()
 	var stats BuildStats
 
@@ -46,6 +62,16 @@ func (i *Index) Build(ctx context.Context, s *docstore.Store) (BuildStats, error
 	}
 	defer entStmt.Close()
 
+	var pageStmt *sql.Stmt
+	if opts.Fulltext {
+		pageStmt, err = tx.PrepareContext(ctx,
+			`INSERT INTO pages_fts(doc_slug, path, body) VALUES (?, ?, ?)`)
+		if err != nil {
+			return stats, fmt.Errorf("prepare pages_fts: %w", err)
+		}
+		defer pageStmt.Close()
+	}
+
 	for _, d := range s.Docs() {
 		if err := ctx.Err(); err != nil {
 			return stats, err
@@ -67,6 +93,28 @@ func (i *Index) Build(ctx context.Context, s *docstore.Store) (BuildStats, error
 			}
 			stats.Entries++
 		}
+
+		if opts.Fulltext {
+			err := s.StreamPages(d.Slug, func(path, html string) error {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				body := docstore.ToPlainText(html)
+				if body == "" {
+					return nil
+				}
+				if _, err := pageStmt.ExecContext(ctx, d.Slug, path, body); err != nil {
+					return fmt.Errorf("insert page %s/%s: %w", d.Slug, path, err)
+				}
+				stats.Pages++
+				return nil
+			})
+			// db.json missing is non-fatal (some docs ship only index.json).
+			if err != nil {
+				return stats, err
+			}
+			s.EvictDB(d.Slug)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -75,6 +123,9 @@ func (i *Index) Build(ctx context.Context, s *docstore.Store) (BuildStats, error
 
 	// Post-build optimizations: FTS optimize + ANALYZE. Not fatal if they fail.
 	_, _ = i.db.Exec(`INSERT INTO entries_fts(entries_fts) VALUES('optimize')`)
+	if opts.Fulltext {
+		_, _ = i.db.Exec(`INSERT INTO pages_fts(pages_fts) VALUES('optimize')`)
+	}
 	_, _ = i.db.Exec(`ANALYZE`)
 
 	stats.Duration = time.Since(start)
@@ -85,6 +136,7 @@ func (i *Index) Build(ctx context.Context, s *docstore.Store) (BuildStats, error
 type Stats struct {
 	Docs    int
 	Entries int
+	Pages   int // rows in pages_fts (0 if full-text indexing wasn't used)
 }
 
 // Stats queries the index for summary counts.
@@ -100,6 +152,10 @@ func (i *Index) Stats(ctx context.Context) (Stats, error) {
 	row = i.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM entries`)
 	if err := row.Scan(&st.Entries); err != nil {
 		return st, err
+	}
+	// pages_fts may not exist on an old index file — tolerate that.
+	if err := i.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pages_fts`).Scan(&st.Pages); err != nil {
+		st.Pages = 0
 	}
 	return st, nil
 }

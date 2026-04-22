@@ -22,11 +22,12 @@ func runSearch(args []string) {
 	docSlug := fs.String("doc", "", "Restrict results to this doc slug (optional)")
 	limit := fs.Int("limit", 20, "Maximum number of results (1-100)")
 	asJSON := fs.Bool("json", false, "Print results as JSON instead of a table")
+	body := fs.Bool("body", false, "Search page bodies (requires index built with --fulltext)")
 	indexPath := fs.String("index-path", "marvindocs.db", "SQLite index file")
 	_ = fs.Parse(args)
 
 	if fs.NArg() == 0 {
-		fmt.Fprintln(os.Stderr, "usage: marvindocs search QUERY [--doc SLUG] [--limit N] [--json]")
+		fmt.Fprintln(os.Stderr, "usage: marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body]")
 		os.Exit(2)
 	}
 	query := fs.Arg(0)
@@ -39,6 +40,28 @@ func runSearch(args []string) {
 		fatal(err)
 	}
 	defer idx.Close()
+
+	if *body {
+		hits, err := idx.SearchPages(context.Background(), query, *docSlug, *limit)
+		if err != nil {
+			fatal(err)
+		}
+		if *asJSON {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			_ = enc.Encode(hits)
+			return
+		}
+		if len(hits) == 0 {
+			fmt.Fprintln(os.Stderr, "no results (if the index was built without --fulltext, page-body search is empty)")
+			return
+		}
+		for _, h := range hits {
+			fmt.Printf("%-20s  %-40s  %s\n", h.DocSlug, h.Path, h.Snippet)
+		}
+		fmt.Fprintf(os.Stderr, "\n%d result(s)\n", len(hits))
+		return
+	}
 
 	hits, err := idx.Search(context.Background(), query, *docSlug, *limit)
 	if err != nil {

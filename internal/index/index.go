@@ -45,13 +45,14 @@ func (i *Index) Path() string { return i.path }
 // DB exposes the underlying *sql.DB for advanced callers (tests, search).
 func (i *Index) DB() *sql.DB { return i.db }
 
-// Reset drops all rows from docs/entries and rebuilds the FTS table.
-// Safe to call on an empty index.
+// Reset drops all rows from docs/entries/pages_fts and rebuilds the FTS
+// tables. Safe to call on an empty index.
 func (i *Index) Reset() error {
 	stmts := []string{
 		`DELETE FROM entries`,
 		`DELETE FROM docs`,
 		`INSERT INTO entries_fts(entries_fts) VALUES('rebuild')`,
+		`DELETE FROM pages_fts`,
 	}
 	for _, s := range stmts {
 		if _, err := i.db.Exec(s); err != nil {

@@ -2,6 +2,7 @@ package index
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 )
@@ -68,6 +69,67 @@ func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([
 		hits = append(hits, h)
 	}
 	return hits, rows.Err()
+}
+
+// SearchPages queries pages_fts for pages whose body text matches the
+// query. Requires that the index was built with Fulltext=true; otherwise
+// it returns an empty slice. Snippet is a short excerpt around the match
+// (~20 tokens, with HTML-ish highlight markers). docSlug restricts the
+// search to a single doc when non-empty.
+func (i *Index) SearchPages(ctx context.Context, query, docSlug string, limit int) ([]PageHit, error) {
+	q := sanitizeFTSQuery(query)
+	if q == "" {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if docSlug == "" {
+		rows, err = i.db.QueryContext(ctx, `
+			SELECT doc_slug, path,
+			       snippet(pages_fts, 2, '[', ']', ' … ', 16) AS snip,
+			       bm25(pages_fts) AS score
+			FROM pages_fts
+			WHERE pages_fts MATCH ?
+			ORDER BY score
+			LIMIT ?`, q, limit)
+	} else {
+		rows, err = i.db.QueryContext(ctx, `
+			SELECT doc_slug, path,
+			       snippet(pages_fts, 2, '[', ']', ' … ', 16) AS snip,
+			       bm25(pages_fts) AS score
+			FROM pages_fts
+			WHERE pages_fts MATCH ? AND doc_slug = ?
+			ORDER BY score
+			LIMIT ?`, q, docSlug, limit)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("search pages: %w", err)
+	}
+	defer rows.Close()
+
+	var hits []PageHit
+	for rows.Next() {
+		var h PageHit
+		if err := rows.Scan(&h.DocSlug, &h.Path, &h.Snippet, &h.Score); err != nil {
+			return nil, err
+		}
+		hits = append(hits, h)
+	}
+	return hits, rows.Err()
+}
+
+// PageHit is one result from SearchPages.
+type PageHit struct {
+	DocSlug string  `json:"doc_slug"`
+	Path    string  `json:"path"`
+	Snippet string  `json:"snippet"`
+	Score   float64 `json:"score"`
 }
 
 // ListDocs returns all indexed documents ordered by slug.
