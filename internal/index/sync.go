@@ -127,23 +127,11 @@ func (i *Index) Sync(ctx context.Context, s *docstore.Store, opts BuildOptions) 
 		}
 
 		if opts.Fulltext {
-			err := s.StreamPages(p.doc.Slug, func(path, html string) error {
-				if err := ctx.Err(); err != nil {
-					return err
-				}
-				body := docstore.ToPlainText(html)
-				if body == "" {
-					return nil
-				}
-				if _, err := pageIns.ExecContext(ctx, p.doc.Slug, path, body); err != nil {
-					return fmt.Errorf("insert page %s/%s: %w", p.doc.Slug, path, err)
-				}
-				stats.Pages++
-				return nil
-			})
+			n, err := indexDocPages(ctx, s, p.doc.Slug, pageIns)
 			if err != nil {
 				return stats, err
 			}
+			stats.Pages += n
 			s.EvictDB(p.doc.Slug)
 		}
 	}

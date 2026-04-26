@@ -101,24 +101,12 @@ func (i *Index) BuildWithOptions(ctx context.Context, s *docstore.Store, opts Bu
 		}
 
 		if opts.Fulltext {
-			err := s.StreamPages(d.Slug, func(path, html string) error {
-				if err := ctx.Err(); err != nil {
-					return err
-				}
-				body := docstore.ToPlainText(html)
-				if body == "" {
-					return nil
-				}
-				if _, err := pageStmt.ExecContext(ctx, d.Slug, path, body); err != nil {
-					return fmt.Errorf("insert page %s/%s: %w", d.Slug, path, err)
-				}
-				stats.Pages++
-				return nil
-			})
+			n, err := indexDocPages(ctx, s, d.Slug, pageStmt)
 			// db.json missing is non-fatal (some docs ship only index.json).
 			if err != nil {
 				return stats, err
 			}
+			stats.Pages += n
 			s.EvictDB(d.Slug)
 		}
 	}
