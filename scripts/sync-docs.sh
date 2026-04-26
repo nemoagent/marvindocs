@@ -20,7 +20,7 @@
 #   --no-index       do not run marvindocs index build when finished
 #   --list-remote    fetch devdocs.io catalog and print slug/name/version table
 #   --search-remote Q  filter the remote catalog by substring (case-insensitive)
-#   --jobs N         parallel downloads (default 4)
+#   --jobs N         parallel downloads (default 8)
 #   --help           show this message
 #
 # Update detection
@@ -43,7 +43,7 @@ BINARY="$REPO_DIR/bin/marvindocs"
 
 # ---- defaults ---------------------------------------------------------------
 RUN_INDEX=true
-PARALLEL_JOBS=4
+PARALLEL_JOBS=8
 MODE="list"      # list | all | slugs
 CHECK_ONLY=false # --check: print status table, do not download
 FORCE=false      # --force: ignore If-Modified-Since
