@@ -55,3 +55,27 @@ func TestIndexAndPage(t *testing.T) {
 		t.Fatalf("expected non-trivial page html, got %d bytes", len(html))
 	}
 }
+
+func TestStreamPages(t *testing.T) {
+	s, err := Open(dataRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	var sample string
+	if err := s.StreamPages("angular", func(path, html string) error {
+		count++
+		if path == "index" {
+			sample = html
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if count == 0 {
+		t.Fatal("expected at least one streamed page")
+	}
+	if len(sample) < 100 {
+		t.Fatalf("index page should be non-trivial, got %d bytes", len(sample))
+	}
+}

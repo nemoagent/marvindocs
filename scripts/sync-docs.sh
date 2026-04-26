@@ -25,12 +25,13 @@
 #
 # Update detection
 #
-# Each devdocs archive ships a meta.json with an `mtime` field (unix timestamp
-# of the server-side build). The script reads that timestamp from the local
-# data/public/docs/<slug>/meta.json, converts it to HTTP date and passes it
-# to `curl -z` — the server then returns 304 Not Modified if the archive
-# hasn't been rebuilt, and the slug is reported as UP-TO-DATE without
-# downloading a single byte.
+# devdocs.io publishes a single catalog at https://devdocs.io/docs.json
+# that lists every documentation set together with its build `mtime`
+# (unix timestamp). The script fetches that catalog once per run and
+# compares each slug's catalog mtime to a local stamp file
+# (data/public/docs/<slug>/.last-modified). Equal mtimes -> SKIP
+# without any network roundtrip. One GET replaces N HEAD requests,
+# which used to dominate runtime for `--check` and large slug lists.
 
 set -euo pipefail
 
@@ -57,25 +58,24 @@ DEFAULT_SLUGS=(
 	c
 	cpp
 	css
-	django
+	django~5.2
 	docker
 	go
 	html
 	http
 	javascript
-	jinja
+	jinja~3.1
 	jquery
 	kubernetes
-	linux
 	markdown
 	nginx
 	node
 	npm
-	postgresql
+	postgresql~17
 	python~3.13
 	react
 	redis
-	ruby
+	ruby~3.4
 	rust
 	sqlite
 	typescript
@@ -221,42 +221,66 @@ mkdir -p "$DATA_DIR"
 # ---- helpers ---------------------------------------------------------------
 
 # local_mtime <slug>  -> echoes unix timestamp, empty if none.
-#
-# We trust the .last-modified stamp file (fs mtime == server Last-Modified)
-# because the in-archive meta.json mtime is the devdocs *build* time, which
-# can differ from the S3 upload time by a few seconds — using it would leave
-# every doc forever OUTDATED after the first sync.
 local_mtime() {
 	local stamp="$DATA_DIR/$1/.last-modified"
 	[ -f "$stamp" ] || return 0
 	stat -c %Y "$stamp" 2>/dev/null || stat -f %m "$stamp" 2>/dev/null
 }
 
-# unix_to_http <timestamp>  -> HTTP-date format (RFC 7231, always GMT)
-# Works on both GNU coreutils and BSD date (macOS). TZ=UTC forces the
-# output timezone regardless of the user's locale.
-unix_to_http() {
-	local ts="$1"
-	TZ=UTC date -d "@$ts" "+%a, %d %b %Y %H:%M:%S GMT" 2>/dev/null ||
-		TZ=UTC date -r "$ts" "+%a, %d %b %Y %H:%M:%S GMT"
-}
+# ---- fetch remote catalog (one GET for all slugs) --------------------------
+#
+# Produces a TSV file CATALOG_TSV with rows: <slug>\t<mtime>.
+# Used by both --check and the parallel download path so the
+# whole run makes exactly one HTTPS request to devdocs.io for
+# metadata, regardless of how many slugs are processed.
+CATALOG_TSV="$(mktemp)"
+trap 'rm -f "$CATALOG_TSV"' EXIT
 
-# http_to_unix <http-date-string>  -> unix timestamp
-http_to_unix() {
-	local lm="$1"
-	date -u -d "$lm" +%s 2>/dev/null ||
-		date -u -jf "%a, %d %b %Y %H:%M:%S %Z" "$lm" +%s 2>/dev/null
-}
+echo "==> fetching catalog from https://devdocs.io/docs.json"
+if ! curl -sSLf "https://devdocs.io/docs.json" |
+	awk '
+		BEGIN { depth=0; buf="" }
+		{
+			n=length($0)
+			for (i=1; i<=n; i++) {
+				c=substr($0,i,1)
+				if (c=="{") { if (depth==0) buf=""; depth++; buf=buf c; continue }
+				if (c=="}") { depth--; buf=buf c; if (depth==0) print buf; continue }
+				if (depth>0) buf=buf c
+			}
+		}' | awk '
+		{
+			s=$0; slug=""; mt=""
+			if (match(s, /"slug":[[:space:]]*"[^"]*"/)) { t=substr(s,RSTART,RLENGTH); sub(/"slug":[[:space:]]*"/,"",t); sub(/"$/,"",t); slug=t }
+			if (match(s, /"mtime":[[:space:]]*[0-9]+/))  { t=substr(s,RSTART,RLENGTH); sub(/"mtime":[[:space:]]*/,"",t); mt=t }
+			if (slug != "" && mt != "") printf "%s\t%s\n", slug, mt
+		}' >"$CATALOG_TSV"; then
+	echo "ERROR: failed to fetch devdocs catalog" >&2
+	exit 1
+fi
+catalog_count=$(wc -l <"$CATALOG_TSV" | tr -d ' ')
+echo "    $catalog_count docs in catalog"
+echo ""
 
-# remote_mtime <slug>  -> unix timestamp of the archive's Last-Modified,
-# empty on error. Uses HEAD only; no bytes transferred.
+# remote_mtime <slug>  -> unix timestamp from cached catalog, empty if absent.
+# Falls back to a single HEAD against downloads.devdocs.io for slugs that
+# are served from S3 but not listed in the public catalog (e.g. unversioned
+# django, ruby, jinja). The result is appended to the catalog so subsequent
+# lookups in the same run hit the cache.
 remote_mtime() {
-	local slug="$1"
-	local lm
-	lm=$(curl -sI --fail "https://downloads.devdocs.io/${slug}.tar.gz" 2>/dev/null |
+	local slug="$1" lm ts
+	ts=$(awk -F'\t' -v s="$slug" '$1==s { print $2; exit }' "$CATALOG_TSV")
+	if [ -n "$ts" ]; then
+		printf '%s' "$ts"
+		return
+	fi
+	lm=$(curl -sI --fail --max-time 10 "https://downloads.devdocs.io/${slug}.tar.gz" 2>/dev/null |
 		grep -i '^last-modified:' | sed 's/^[^:]*: *//; s/\r$//')
 	[ -n "$lm" ] || return 0
-	http_to_unix "$lm"
+	ts=$(date -u -d "$lm" +%s 2>/dev/null || date -u -jf "%a, %d %b %Y %H:%M:%S %Z" "$lm" +%s 2>/dev/null)
+	[ -n "$ts" ] || return 0
+	printf '%s\t%s\n' "$slug" "$ts" >>"$CATALOG_TSV"
+	printf '%s' "$ts"
 }
 
 # ---- dry-run: --check ------------------------------------------------------
@@ -290,39 +314,56 @@ if [ "$CHECK_ONLY" = true ]; then
 fi
 
 # ---- download one slug (called via xargs in parallel) ----------------------
+#
+# Skips network entirely when the local stamp matches catalog mtime.
+# Otherwise unconditionally downloads (HTTP 200) — no `curl -z` because
+# we already know from the catalog that the archive changed.
 download_slug() {
 	local slug="$1"
 	local dir="$DATA_DIR/$slug"
 	local url="https://downloads.devdocs.io/${slug}.tar.gz"
 	local stamp="$dir/.last-modified"
 
-	# Conditional GET if we have a stamp file and --force wasn't set.
-	# curl -z <file> sends the file's mtime as If-Modified-Since.
-	local zflag=()
-	if [ "$FORCE" != true ] && [ -f "$stamp" ]; then
-		zflag=(--time-cond "$stamp")
+	local remote_ts local_ts lm
+	remote_ts=$(awk -F'\t' -v s="$slug" '$1==s { print $2; exit }' "$CATALOG_TSV")
+	if [ -z "$remote_ts" ]; then
+		# Slug not in catalog (e.g. unversioned django/ruby/jinja).
+		# Probe S3 with a single HEAD so we still get conditional skip.
+		lm=$(curl -sI --fail --max-time 10 "$url" 2>/dev/null |
+			grep -i '^last-modified:' | sed 's/^[^:]*: *//; s/\r$//')
+		if [ -n "$lm" ]; then
+			remote_ts=$(date -u -d "$lm" +%s 2>/dev/null || date -u -jf "%a, %d %b %Y %H:%M:%S %Z" "$lm" +%s 2>/dev/null)
+		fi
+	fi
+	if [ -z "$remote_ts" ]; then
+		echo "  FAIL    $slug (not found)"
+		return
 	fi
 
-	# Download to a temp file with -R so curl sets its mtime from Last-Modified.
+	if [ "$FORCE" != true ] && [ -f "$stamp" ]; then
+		local_ts=$(stat -c %Y "$stamp" 2>/dev/null || stat -f %m "$stamp" 2>/dev/null)
+		if [ -n "$local_ts" ] && [ "$local_ts" -ge "$remote_ts" ]; then
+			echo "  SKIP    $slug (up-to-date)"
+			return
+		fi
+	fi
+
 	local tmp
 	tmp="$(mktemp)"
 	local code
-	code=$(curl -sS --fail-with-body -R -o "$tmp" -w '%{http_code}' -L \
-		"${zflag[@]}" "$url" 2>/dev/null || true)
+	code=$(curl -sS --fail-with-body -o "$tmp" -w '%{http_code}' -L \
+		"$url" 2>/dev/null || true)
 
 	case "$code" in
 	200)
 		mkdir -p "$dir"
 		if tar -xzf "$tmp" -C "$dir" 2>/dev/null; then
-			# Preserve the server's Last-Modified as our local stamp.
-			touch -r "$tmp" "$stamp"
+			# Stamp mtime = catalog mtime so subsequent runs compare cleanly.
+			touch -d "@$remote_ts" "$stamp" 2>/dev/null || touch -t "$(date -r "$remote_ts" +%Y%m%d%H%M.%S)" "$stamp"
 			echo "  UPDATED $slug"
 		else
 			echo "  FAIL    $slug (tar error)"
 		fi
-		;;
-	304)
-		echo "  SKIP    $slug (up-to-date)"
 		;;
 	"" | 000)
 		echo "  FAIL    $slug (network error)"
@@ -333,8 +374,8 @@ download_slug() {
 	esac
 	rm -f "$tmp"
 }
-export -f download_slug local_mtime unix_to_http http_to_unix
-export DATA_DIR FORCE
+export -f download_slug
+export DATA_DIR FORCE CATALOG_TSV
 
 # ---- parallel download ------------------------------------------------------
 printf '%s\n' "${SLUGS[@]}" |

@@ -161,13 +161,42 @@ func (s *Store) loadDB(slug string) (map[string]string, error) {
 
 // StreamPages calls fn for every page in db.json without holding the whole
 // file in the store cache. Intended for the indexer.
+//
+// Decoding is streamed key-by-key, so peak memory is O(largest single
+// page) instead of O(whole db.json). For multi-hundred-MB devdocs dumps
+// this is the difference between a few MB and several GB of RSS.
 func (s *Store) StreamPages(slug string, fn func(path, html string) error) error {
-	db, err := s.loadDB(slug)
-	if err != nil {
-		return err
+	if _, ok := s.bySlug[slug]; !ok {
+		return fmt.Errorf("unknown slug: %s", slug)
 	}
-	for p, h := range db {
-		if err := fn(p, h); err != nil {
+	f, err := os.Open(filepath.Join(s.root, slug, "db.json"))
+	if err != nil {
+		return fmt.Errorf("open db.json for %s: %w", slug, err)
+	}
+	defer f.Close()
+
+	dec := json.NewDecoder(f)
+	tok, err := dec.Token()
+	if err != nil {
+		return fmt.Errorf("decode db.json for %s: %w", slug, err)
+	}
+	if d, ok := tok.(json.Delim); !ok || d != '{' {
+		return fmt.Errorf("decode db.json for %s: expected object, got %v", slug, tok)
+	}
+	for dec.More() {
+		keyTok, err := dec.Token()
+		if err != nil {
+			return fmt.Errorf("decode db.json for %s: %w", slug, err)
+		}
+		key, ok := keyTok.(string)
+		if !ok {
+			return fmt.Errorf("decode db.json for %s: non-string key %v", slug, keyTok)
+		}
+		var html string
+		if err := dec.Decode(&html); err != nil {
+			return fmt.Errorf("decode db.json for %s/%s: %w", slug, key, err)
+		}
+		if err := fn(key, html); err != nil {
 			return err
 		}
 	}
