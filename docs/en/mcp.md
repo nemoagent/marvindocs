@@ -26,7 +26,10 @@ Use this first to discover available slugs; pass any `slug` value as
 
 ### `search`
 
-Full-text search over entry names and paths, ranked by SQLite FTS5 BM25.
+Full-text search over entry names and paths, ranked by SQLite FTS5 BM25
+with `name` weighted 2x over `path`. Results from popular docs (the
+default sync set: postgresql, python, react, go, ...) get a small score
+boost as a tiebreaker for cross-doc queries.
 
 - **Input:**
   - `query` *(string, required)* — user query. Tokens are prefix-matched
@@ -52,6 +55,21 @@ Example (pseudo-JSON):
   ]
 }
 ```
+
+### `search_pages`
+
+Full-text search across **page bodies** (not just entry names). Use
+this when `search` returns no hits because your query mentions concepts
+that aren't entry names — `jsonb operators`, `connection pool size`,
+`context manager with statement`.
+
+Requires the index to be built with `--fulltext`; on a non-fulltext
+index the tool returns `{ hits: [] }`.
+
+- **Input:** same shape as `search`.
+- **Output:** `{ hits: [{ doc_slug, path, snippet, score }] }`.
+  `snippet` is a short excerpt around the match (~16 tokens) with the
+  matched terms wrapped in `[ ]`.
 
 ### `get_page`
 
@@ -79,8 +97,8 @@ See **[clients.md](clients.md)** for ready-to-paste configuration for:
 - VS Code / GitHub Copilot Chat (stdio and HTTP)
 - Generic HTTP client (Go SDK example)
 
-All clients use the same three tools once connected: `list_docs`,
-`search`, `get_page`.
+All clients use the same four tools once connected: `list_docs`,
+`search`, `search_pages`, `get_page`.
 
 ## Security
 
