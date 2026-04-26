@@ -5,10 +5,13 @@ This page takes you from a fresh checkout to a running MCP server.
 ## 1. Prerequisites
 
 - **Docker** — the default `Makefile` runs Go inside `golang:1.25` so you
-  don't need Go installed locally.
+  don't need Go or a C toolchain installed locally.
 - **~20 GB disk** — 17 GB for the devdocs dump, ~500 MB for the index.
-- *(Optional)* **Go 1.25+** — if you prefer native builds, set
-  `CGO_ENABLED=0` and run `go build ./cmd/marvindocs`.
+- *(Optional)* **Go 1.25+ and a C toolchain** — if you prefer native
+  builds, the SQLite driver is CGo-based, so build with
+  `CGO_ENABLED=1 go build -tags sqlite_fts5 ./cmd/marvindocs`. Without
+  the `sqlite_fts5` build tag the FTS5 extension is missing and the
+  index will not open.
 
 ## 2. Get the devdocs data
 
@@ -47,8 +50,9 @@ data/public/docs/
 make build
 ```
 
-This runs the build inside Docker and drops a single static binary at
-`./bin/marvindocs` (about 9 MB).
+This runs the build inside Docker and drops a single binary at
+`./bin/marvindocs` (about 19 MB; dynamically linked against the system
+libc because the SQLite driver uses CGo).
 
 ## 4. Build the search index
 

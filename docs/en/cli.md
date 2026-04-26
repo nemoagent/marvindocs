@@ -28,10 +28,16 @@ marvindocs index build [--docs-path DIR] [--index-path FILE] [--fulltext]
 |---|---|---|
 | `--docs-path` | `data/public/docs` | Must contain `docs.json` and `<slug>/{index,db}.json`. |
 | `--index-path` | `marvindocs.db` | Output SQLite file. Overwritten in place. |
-| `--fulltext` | `false` | Reserved. Currently accepted but ignored. |
+| `--fulltext` | `false` | Also index page body text into `pages_fts`. Much slower; the index file grows by roughly the combined size of every `db.json`. |
 
 Exit codes: `0` on success, `1` on any error (data not found, SQLite
 write failure, etc.), `2` on usage error.
+
+> **Build requirement.** The SQLite driver is `github.com/mattn/go-sqlite3`,
+> which is CGo-based. The provided `Makefile` builds inside the
+> `golang:1.25` container with `CGO_ENABLED=1` and `-tags sqlite_fts5`.
+> If you build by hand, both are required — without `sqlite_fts5` the
+> FTS5 extension is not compiled in and the index will fail to open.
 
 ## `marvindocs index stats`
 

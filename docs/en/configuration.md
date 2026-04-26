@@ -34,7 +34,7 @@ You must specify at least one of `--stdio` or `--http`.
 
 | Flag | Default | Description |
 |---|---|---|
-| `--fulltext` | `false` | *(Reserved)* also index page body text. Not implemented yet — the flag is accepted but ignored with a warning. |
+| `--fulltext` | `false` | Also index page body text into `pages_fts`. Substantially slower and the resulting index file grows by roughly the combined size of every `db.json`. |
 
 ## Build-time configuration
 
