@@ -22,7 +22,7 @@ const usage = `marvindocs - MCP server and web UI for the DevDocs archive.
 
 Usage:
   marvindocs serve [--http ADDR] [--stdio] [--docs-path DIR] [--index-path FILE]
-  marvindocs index build [--fulltext] [--docs-path DIR] [--index-path FILE]
+  marvindocs index build [--fulltext] [--full] [--docs-path DIR] [--index-path FILE]
   marvindocs index stats [--index-path FILE]
   marvindocs search QUERY [--doc SLUG] [--limit N] [--json]
   marvindocs get SLUG PATH [--format FORMAT]
@@ -170,10 +170,11 @@ func runIndex(args []string) {
 	case "build":
 		fs := flag.NewFlagSet("index build", flag.ExitOnError)
 		fullText := fs.Bool("fulltext", false, "Also index page body text into pages_fts (adds GBs, much slower)")
+		full := fs.Bool("full", false, "Force full rebuild instead of incremental sync (default is incremental by mtime)")
 		docsPath := fs.String("docs-path", "data/public/docs", "Path to devdocs data")
 		indexPath := fs.String("index-path", "marvindocs.db", "Output SQLite file")
 		_ = fs.Parse(args[1:])
-		if err := runIndexBuild(*docsPath, *indexPath, *fullText); err != nil {
+		if err := runIndexBuild(*docsPath, *indexPath, *fullText, *full); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
 		}
@@ -191,7 +192,7 @@ func runIndex(args []string) {
 	}
 }
 
-func runIndexBuild(docsPath, indexPath string, fullText bool) error {
+func runIndexBuild(docsPath, indexPath string, fullText, full bool) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
@@ -210,16 +211,27 @@ func runIndexBuild(docsPath, indexPath string, fullText bool) error {
 	if fullText {
 		fmt.Fprintln(os.Stderr, "full-text body indexing enabled; this is slow and the index will be large")
 	}
-	stats, err := idx.BuildWithOptions(ctx, store, index.BuildOptions{Fulltext: fullText})
+
+	opts := index.BuildOptions{Fulltext: fullText}
+	var stats index.BuildStats
+	if full {
+		stats, err = idx.BuildWithOptions(ctx, store, opts)
+	} else {
+		stats, err = idx.Sync(ctx, store, opts)
+	}
 	if err != nil {
 		return err
 	}
+	mode := "synced"
+	if full {
+		mode = "indexed"
+	}
 	if stats.Pages > 0 {
-		fmt.Fprintf(os.Stderr, "indexed %d docs, %d entries, %d pages in %s -> %s\n",
-			stats.Docs, stats.Entries, stats.Pages, stats.Duration.Round(1e6), indexPath)
+		fmt.Fprintf(os.Stderr, "%s %d docs, %d entries, %d pages in %s -> %s\n",
+			mode, stats.Docs, stats.Entries, stats.Pages, stats.Duration.Round(1e6), indexPath)
 	} else {
-		fmt.Fprintf(os.Stderr, "indexed %d docs, %d entries in %s -> %s\n",
-			stats.Docs, stats.Entries, stats.Duration.Round(1e6), indexPath)
+		fmt.Fprintf(os.Stderr, "%s %d docs, %d entries in %s -> %s\n",
+			mode, stats.Docs, stats.Entries, stats.Duration.Round(1e6), indexPath)
 	}
 	return nil
 }

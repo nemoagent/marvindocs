@@ -18,17 +18,22 @@ marvindocs version
 
 ## `marvindocs index build`
 
-Rebuilds the SQLite FTS5 index from the devdocs dump.
+Updates the SQLite FTS5 index from the devdocs dump. By default the
+build is **incremental**: docs whose `mtime` (from `meta.json`) hasn't
+changed are skipped, and docs that disappeared from the dump are
+removed. The first run on an empty index file is equivalent to a full
+build.
 
 ```bash
-marvindocs index build [--docs-path DIR] [--index-path FILE] [--fulltext]
+marvindocs index build [--docs-path DIR] [--index-path FILE] [--fulltext] [--full]
 ```
 
 | Flag | Default | Notes |
 |---|---|---|
 | `--docs-path` | `data/public/docs` | Must contain `docs.json` and `<slug>/{index,db}.json`. |
-| `--index-path` | `marvindocs.db` | Output SQLite file. Overwritten in place. |
+| `--index-path` | `marvindocs.db` | Output SQLite file. Updated in place. |
 | `--fulltext` | `false` | Also index page body text into `pages_fts`. Much slower; the index file grows by roughly the combined size of every `db.json`. |
+| `--full` | `false` | Force a full rebuild (drop everything and reinsert). Useful after schema changes or to defragment. |
 
 Exit codes: `0` on success, `1` on any error (data not found, SQLite
 write failure, etc.), `2` on usage error.
