@@ -19,6 +19,16 @@ type SearchHit struct {
 // Search queries the FTS index for entries whose name/path match the query.
 // If docSlug is non-empty, results are restricted to that doc.
 // Limit must be > 0.
+//
+// Ranking notes:
+//   - bm25(entries_fts, 2.0, 1.0) gives the entry name twice the weight
+//     of the path. Name matches are usually what users want
+//     (e.g. searching "useState" should rank the function above pages
+//     that merely mention "useState" in their URL path).
+//   - Without a doc filter, BM25 alone tends to surface short paths from
+//     exotic docs (Pony, Nim) above mainstream ones. We bias the score
+//     by a small constant for "popular" docs so that, all else equal,
+//     a hit in postgresql/python/react/go beats one in haxe/pony.
 func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([]SearchHit, error) {
 	q := sanitizeFTSQuery(query)
 	if q == "" {
@@ -26,6 +36,17 @@ func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([
 	}
 	if limit <= 0 {
 		limit = 20
+	}
+
+	// Over-fetch when ranking globally so the popularity boost has
+	// candidates to reorder. With a doc filter, no boost is applied
+	// and the FTS LIMIT is enough.
+	fetchLimit := limit
+	if docSlug == "" {
+		fetchLimit = limit * 4
+		if fetchLimit < 50 {
+			fetchLimit = 50
+		}
 	}
 
 	var (
@@ -40,15 +61,15 @@ func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([
 
 	if docSlug == "" {
 		rows, err = i.db.QueryContext(ctx, `
-			SELECT e.doc_slug, e.name, e.path, e.type, bm25(entries_fts) AS score
+			SELECT e.doc_slug, e.name, e.path, e.type, bm25(entries_fts, 2.0, 1.0) AS score
 			FROM entries_fts
 			JOIN entries e ON e.id = entries_fts.rowid
 			WHERE entries_fts MATCH ?
 			ORDER BY score
-			LIMIT ?`, q, limit)
+			LIMIT ?`, q, fetchLimit)
 	} else {
 		rows, err = i.db.QueryContext(ctx, `
-			SELECT e.doc_slug, e.name, e.path, e.type, bm25(entries_fts) AS score
+			SELECT e.doc_slug, e.name, e.path, e.type, bm25(entries_fts, 2.0, 1.0) AS score
 			FROM entries_fts
 			JOIN entries e ON e.id = entries_fts.rowid
 			WHERE entries_fts MATCH ? AND e.doc_slug = ?
@@ -66,9 +87,31 @@ func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([
 		if err := rows.Scan(&h.DocSlug, &h.Name, &h.Path, &h.Type, &h.Score); err != nil {
 			return nil, err
 		}
+		if docSlug == "" {
+			h.Score -= popularityBoost(h.DocSlug)
+		}
 		hits = append(hits, h)
 	}
-	return hits, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if docSlug == "" {
+		// Re-sort and trim after applying the boost.
+		sortHitsByScore(hits)
+		if len(hits) > limit {
+			hits = hits[:limit]
+		}
+	}
+	return hits, nil
+}
+
+// sortHitsByScore sorts hits ascending (lower bm25 = better).
+func sortHitsByScore(hits []SearchHit) {
+	for i := 1; i < len(hits); i++ {
+		for j := i; j > 0 && hits[j-1].Score > hits[j].Score; j-- {
+			hits[j-1], hits[j] = hits[j], hits[j-1]
+		}
+	}
 }
 
 // SearchPages queries pages_fts for pages whose body text matches the
