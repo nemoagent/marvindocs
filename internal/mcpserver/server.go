@@ -19,6 +19,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/piligrim/marvindocs/internal/docstore"
 	"github.com/piligrim/marvindocs/internal/index"
+	"github.com/piligrim/marvindocs/internal/mdcache"
 )
 
 // Deps is the bundle of state the MCP tools need. Constructed by the CLI
@@ -26,6 +27,9 @@ import (
 type Deps struct {
 	Store *docstore.Store
 	Index *index.Index
+	// MDCache caches HTML→Markdown conversions across get_page calls.
+	// Optional: a nil cache is treated as disabled.
+	MDCache *mdcache.Cache
 }
 
 // New builds a configured mcp.Server with all marvindocs tools registered.
@@ -143,11 +147,22 @@ func registerGetPage(s *mcp.Server, d Deps) {
 			out.Content = html
 		case "markdown", "md":
 			out.Format = "markdown"
-			md, err := docstore.ToMarkdown(html)
-			if err != nil {
-				return nil, getPageOutput{}, fmt.Errorf("convert to markdown: %w", err)
+			doc := d.Store.Doc(in.DocSlug)
+			var release string
+			if doc != nil {
+				release = doc.Release
 			}
-			out.Content = md
+			key := mdcache.Key(in.DocSlug, in.Path, release)
+			if md, ok := d.MDCache.Get(key); ok {
+				out.Content = md
+			} else {
+				md, err := docstore.ToMarkdown(html)
+				if err != nil {
+					return nil, getPageOutput{}, fmt.Errorf("convert to markdown: %w", err)
+				}
+				d.MDCache.Add(key, md)
+				out.Content = md
+			}
 		default:
 			return nil, getPageOutput{}, fmt.Errorf("unknown format %q (use 'markdown' or 'html')", in.Format)
 		}

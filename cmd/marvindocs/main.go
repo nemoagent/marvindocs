@@ -15,6 +15,7 @@ import (
 	"github.com/piligrim/marvindocs/internal/docstore"
 	"github.com/piligrim/marvindocs/internal/index"
 	"github.com/piligrim/marvindocs/internal/mcpserver"
+	"github.com/piligrim/marvindocs/internal/mdcache"
 	"github.com/piligrim/marvindocs/internal/web"
 )
 
@@ -101,7 +102,12 @@ func runServeWith(httpAddr string, stdio bool, docsPath, indexPath string) error
 	}
 	defer idx.Close()
 
-	srv := mcpserver.New(mcpserver.Deps{Store: store, Index: idx}, version)
+	// Cache HTML→Markdown for hot pages. 1024 entries ~= a few MB at
+	// typical doc page sizes; tuned for MCP agents that re-fetch the
+	// same APIs many times in a session.
+	mdc := mdcache.New(1024)
+
+	srv := mcpserver.New(mcpserver.Deps{Store: store, Index: idx, MDCache: mdc}, version)
 
 	errCh := make(chan error, 2)
 
