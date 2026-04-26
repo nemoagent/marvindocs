@@ -234,7 +234,7 @@ local_mtime() {
 # whole run makes exactly one HTTPS request to devdocs.io for
 # metadata, regardless of how many slugs are processed.
 CATALOG_TSV="$(mktemp)"
-trap 'rm -f "$CATALOG_TSV"' EXIT
+trap 'rm -f "$CATALOG_TSV" "${DOWNLOAD_LOG:-}"' EXIT
 
 echo "==> fetching catalog from https://devdocs.io/docs.json"
 if ! curl -sSLf "https://devdocs.io/docs.json" |
@@ -348,60 +348,57 @@ download_slug() {
 		fi
 	fi
 
-	local tmp
-	tmp="$(mktemp)"
-	local code
-	code=$(curl -sS --fail-with-body -o "$tmp" -w '%{http_code}' -L \
-		"$url" 2>/dev/null || true)
-
-	case "$code" in
-	200)
-		mkdir -p "$dir"
-		if tar -xzf "$tmp" -C "$dir" 2>/dev/null; then
-			# Stamp mtime = catalog mtime so subsequent runs compare cleanly.
-			touch -d "@$remote_ts" "$stamp" 2>/dev/null || touch -t "$(date -r "$remote_ts" +%Y%m%d%H%M.%S)" "$stamp"
-			echo "  UPDATED $slug"
-		else
-			echo "  FAIL    $slug (tar error)"
-		fi
-		;;
-	"" | 000)
-		echo "  FAIL    $slug (network error)"
-		;;
-	*)
-		echo "  FAIL    $slug (HTTP $code)"
-		;;
-	esac
-	rm -f "$tmp"
+	# Stream the archive straight into tar so extraction overlaps with
+	# download — saves both wall time and a tmpfile. pipefail makes
+	# curl errors (4xx/5xx, network) fail the whole pipeline, so we
+	# don't end up with a half-extracted tree being stamped.
+	mkdir -p "$dir"
+	if (set -o pipefail; curl -sSfL --max-time 300 "$url" | tar -xz -C "$dir") 2>/dev/null; then
+		touch -d "@$remote_ts" "$stamp" 2>/dev/null || touch -t "$(date -r "$remote_ts" +%Y%m%d%H%M.%S)" "$stamp"
+		echo "  UPDATED $slug"
+	else
+		echo "  FAIL    $slug (download or extract error)"
+	fi
 }
 export -f download_slug
 export DATA_DIR FORCE CATALOG_TSV
 
 # ---- parallel download ------------------------------------------------------
+# Tee xargs output so we can both display progress and count UPDATED lines.
+DOWNLOAD_LOG="$(mktemp)"
+
 printf '%s\n' "${SLUGS[@]}" |
-	xargs -P "$PARALLEL_JOBS" -I{} bash -c 'download_slug "$@"' _ {}
+	xargs -P "$PARALLEL_JOBS" -I{} bash -c 'download_slug "$@"' _ {} |
+	tee "$DOWNLOAD_LOG"
+
+updated_count=$(grep -c '^  UPDATED ' "$DOWNLOAD_LOG" || true)
 
 # ---- rebuild docs.json from meta.json files (pure bash) --------------------
 echo ""
-echo "==> rebuilding docs.json from meta.json files..."
+if [ "$updated_count" -eq 0 ] && [ -f "$DATA_DIR/docs.json" ]; then
+	echo "==> nothing changed, keeping existing docs.json"
+	count=$(grep -oE '"slug":[[:space:]]*"[^"]*"' "$DATA_DIR/docs.json" | wc -l | tr -d ' ')
+else
+	echo "==> rebuilding docs.json from meta.json files..."
 
-DOCS_JSON="$DATA_DIR/docs.json"
-TMP_JSON="$DOCS_JSON.tmp"
-count=0
-sep=""
+	DOCS_JSON="$DATA_DIR/docs.json"
+	TMP_JSON="$DOCS_JSON.tmp"
+	count=0
+	sep=""
 
-printf '[' >"$TMP_JSON"
-for slug in $(ls -1 "$DATA_DIR" | LC_ALL=C sort); do
-	meta="$DATA_DIR/$slug/meta.json"
-	[ -f "$meta" ] || continue
-	printf '%s' "$sep" >>"$TMP_JSON"
-	cat "$meta" >>"$TMP_JSON"
-	sep=","
-	count=$((count + 1))
-done
-printf ']' >>"$TMP_JSON"
-mv "$TMP_JSON" "$DOCS_JSON"
-echo "  $count docs -> $DOCS_JSON"
+	printf '[' >"$TMP_JSON"
+	for slug in $(ls -1 "$DATA_DIR" | LC_ALL=C sort); do
+		meta="$DATA_DIR/$slug/meta.json"
+		[ -f "$meta" ] || continue
+		printf '%s' "$sep" >>"$TMP_JSON"
+		cat "$meta" >>"$TMP_JSON"
+		sep=","
+		count=$((count + 1))
+	done
+	printf ']' >>"$TMP_JSON"
+	mv "$TMP_JSON" "$DOCS_JSON"
+	echo "  $count docs -> $DOCS_JSON"
+fi
 
 # ---- rebuild index ----------------------------------------------------------
 if [ "$RUN_INDEX" = true ]; then
