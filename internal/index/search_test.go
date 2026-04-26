@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -124,6 +125,48 @@ func TestListDocs(t *testing.T) {
 	for i := 1; i < len(docs); i++ {
 		if docs[i-1].Slug > docs[i].Slug {
 			t.Fatalf("docs not ordered: %s > %s", docs[i-1].Slug, docs[i].Slug)
+		}
+	}
+}
+
+// TestSearchSubstringFallback verifies that LIKE-based fallback finds
+// names whose tokens don't start with the query (e.g. 'cancel' inside
+// 'WithCancel'), which FTS5's prefix-only matcher misses.
+func TestSearchSubstringFallback(t *testing.T) {
+	idx := sharedIndex(t)
+	hits, err := idx.Search(context.Background(), "context cancel", "go", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundWithCancel bool
+	for _, h := range hits {
+		if strings.Contains(h.Name, "WithCancel") {
+			foundWithCancel = true
+			break
+		}
+	}
+	if !foundWithCancel {
+		names := make([]string, 0, len(hits))
+		for _, h := range hits {
+			names = append(names, h.Name)
+		}
+		t.Fatalf("expected WithCancel in results, got %v", names)
+	}
+}
+
+func TestEscapeLike(t *testing.T) {
+	cases := map[string]string{
+		``:       ``,
+		`foo`:    `foo`,
+		`a%b`:    `a\%b`,
+		`a_b`:    `a\_b`,
+		`a\b`:    `a\\b`,
+		`50%_x`:  `50\%\_x`,
+	}
+	for in, want := range cases {
+		got := escapeLike(in)
+		if got != want {
+			t.Errorf("escapeLike(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

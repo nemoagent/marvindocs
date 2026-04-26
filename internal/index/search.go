@@ -102,7 +102,116 @@ func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([
 			hits = hits[:limit]
 		}
 	}
+
+	// Always augment with substring matches on entries.name, then
+	// dedupe. Prefix-tokenized FTS misses things like 'cancel' inside
+	// 'WithCancel' (one token 'withcancel'), but LIKE on the entries
+	// table catches them. FTS hits keep their negative bm25 scores
+	// and rank above the substring hits (positive synthetic scores).
+	fb, err := i.searchSubstring(ctx, query, docSlug, limit)
+	if err != nil {
+		return nil, err
+	}
+	hits = mergeHits(hits, fb, limit)
 	return hits, nil
+}
+
+// mergeHits concatenates FTS and substring hits, dedupes by
+// (doc_slug, path), and trims to limit. FTS results are kept first
+// because they carry a real bm25 score; substring fallbacks fill the
+// remaining slots.
+func mergeHits(primary, fallback []SearchHit, limit int) []SearchHit {
+	seen := make(map[string]struct{}, len(primary)+len(fallback))
+	out := make([]SearchHit, 0, limit)
+	for _, h := range primary {
+		key := h.DocSlug + "\x00" + h.Path
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, h)
+		if len(out) >= limit {
+			return out
+		}
+	}
+	for _, h := range fallback {
+		key := h.DocSlug + "\x00" + h.Path
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, h)
+		if len(out) >= limit {
+			return out
+		}
+	}
+	return out
+}
+
+// searchSubstring is the LIKE-based fallback used to augment FTS
+// prefix-match hits. For each whitespace-separated token in the query,
+// it looks for the token as a case-insensitive substring inside
+// entries.name. Multi-token queries are AND'd together, so
+// 'context cancel' matches names that contain both substrings (e.g.
+// 'context.WithCancel'). The synthetic score (length-based, always
+// positive) sorts these below real FTS hits whose bm25 is negative.
+func (i *Index) searchSubstring(ctx context.Context, query, docSlug string, limit int) ([]SearchHit, error) {
+	tokens := strings.Fields(query)
+	if len(tokens) == 0 {
+		return nil, nil
+	}
+
+	var clauses []string
+	args := make([]any, 0, len(tokens)+2)
+	for _, t := range tokens {
+		clauses = append(clauses, `name LIKE ? ESCAPE '\'`)
+		args = append(args, "%"+escapeLike(t)+"%")
+	}
+	where := strings.Join(clauses, " AND ")
+	if docSlug != "" {
+		where += " AND doc_slug = ?"
+		args = append(args, docSlug)
+	}
+	args = append(args, limit*4)
+
+	rows, err := i.db.QueryContext(ctx,
+		`SELECT doc_slug, name, path, type FROM entries WHERE `+where+` LIMIT ?`,
+		args...)
+	if err != nil {
+		return nil, fmt.Errorf("search substring: %w", err)
+	}
+	defer rows.Close()
+
+	var hits []SearchHit
+	for rows.Next() {
+		var h SearchHit
+		if err := rows.Scan(&h.DocSlug, &h.Name, &h.Path, &h.Type); err != nil {
+			return nil, err
+		}
+		// Synthetic positive score: shorter names beat longer ones.
+		// Always greater than any real (negative) bm25 score, so
+		// FTS hits keep precedence after merge.
+		h.Score = float64(len(h.Name))
+		if docSlug == "" {
+			h.Score -= popularityBoost(h.DocSlug)
+		}
+		hits = append(hits, h)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sortHitsByScore(hits)
+	if len(hits) > limit {
+		hits = hits[:limit]
+	}
+	return hits, nil
+}
+
+// escapeLike protects the user query from LIKE metacharacters so a
+// literal underscore or percent doesn't act as a wildcard.
+func escapeLike(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return r.Replace(s)
 }
 
 // sortHitsByScore sorts hits ascending (lower bm25 = better).
