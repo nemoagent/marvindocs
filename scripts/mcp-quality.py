@@ -148,6 +148,14 @@ CASES = [
     ("Vague: 'how to read file'", "read file", None, None),
 ]
 
+# search_pages cases — only meaningful when index built with --fulltext.
+# Query the page-body FTS for things that aren't entry names.
+SEARCH_PAGES_CASES = [
+    ("PG fulltext: jsonb operators",     "jsonb operators",     "postgresql~17"),
+    ("PG fulltext: connection pool",     "connection pool",     "postgresql~17"),
+    ("Python fulltext: with statement",  "context manager with","python~3.13"),
+]
+
 
 def find_postgresql_jsonb_path():
     """Help: discover the actual jsonb page slug — devdocs paths vary."""
@@ -248,6 +256,35 @@ print("\n" + "=" * 78)
 print(
     f" SUMMARY: {found}/{total} returned hits, "
     f"{with_page} pages fetched, {all_kw} pages had all expected keyword groups"
+)
+
+# search_pages probes (only useful on a --fulltext index)
+print("\n" + "=" * 78)
+print(" SEARCH_PAGES (requires --fulltext build)")
+print("=" * 78)
+sp_total = len(SEARCH_PAGES_CASES)
+sp_found = 0
+for desc, query, slug in SEARCH_PAGES_CASES:
+    args = {"query": query, "limit": 3}
+    if slug:
+        args["doc_slug"] = slug
+    sr = call(
+        "tools/call",
+        {"name": "search_pages", "arguments": args},
+        f"sp:{desc}",
+    )
+    hits = sr.get("result", {}).get("structuredContent", {}).get("hits", []) or []
+    print(f"\n[{desc}]")
+    print(f"  query: {query!r}  scope: {slug or '(all)'}  hits: {len(hits)}")
+    if hits:
+        sp_found += 1
+        for h in hits:
+            snip = (h.get("snippet", "") or "")[:120].replace("\n", " ")
+            print(f"  bm25={h['score']:.2f}  {h['doc_slug']}/{h['path']}")
+            print(f"    {snip}")
+print(
+    f"\n SUMMARY: {sp_found}/{sp_total} fulltext queries returned hits "
+    f"(0 means the index was built without --fulltext)"
 )
 print("=" * 78)
 
