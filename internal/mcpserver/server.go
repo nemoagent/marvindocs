@@ -41,6 +41,7 @@ func New(deps Deps, version string) *mcp.Server {
 	}, nil)
 	registerListDocs(s, deps)
 	registerSearch(s, deps)
+	registerSearchPages(s, deps)
 	registerGetPage(s, deps)
 	return s
 }
@@ -101,8 +102,53 @@ func registerSearch(s *mcp.Server, d Deps) {
 		if err != nil {
 			return nil, searchOutput{}, err
 		}
+		if hits == nil {
+			hits = []index.SearchHit{}
+		}
 		return textResult(fmt.Sprintf("%d hits for %q", len(hits), in.Query)),
 			searchOutput{Hits: hits}, nil
+	})
+}
+
+// -------------------------------------------------------------------------
+// search_pages
+// -------------------------------------------------------------------------
+
+type searchPagesInput struct {
+	Query   string `json:"query" jsonschema:"the search query (matched against full page text)"`
+	DocSlug string `json:"doc_slug,omitempty" jsonschema:"optional: restrict results to this doc slug"`
+	Limit   int    `json:"limit,omitempty" jsonschema:"max number of hits (default 20, max 100)"`
+}
+
+type searchPagesOutput struct {
+	Hits []index.PageHit `json:"hits"`
+}
+
+func registerSearchPages(s *mcp.Server, d Deps) {
+	mcp.AddTool(s, &mcp.Tool{
+		Name: "search_pages",
+		Description: "Full-text search across page bodies (not just symbol names). " +
+			"Use this when the 'search' tool returns no hits because your query " +
+			"references concepts that aren't entry names — e.g. 'jsonb operators', " +
+			"'connection pool size'. Each hit includes a snippet around the match. " +
+			"Requires the index to be built with --fulltext; returns no hits otherwise.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in searchPagesInput) (*mcp.CallToolResult, searchPagesOutput, error) {
+		limit := in.Limit
+		if limit <= 0 {
+			limit = 20
+		}
+		if limit > 100 {
+			limit = 100
+		}
+		hits, err := d.Index.SearchPages(ctx, in.Query, in.DocSlug, limit)
+		if err != nil {
+			return nil, searchPagesOutput{}, err
+		}
+		if hits == nil {
+			hits = []index.PageHit{}
+		}
+		return textResult(fmt.Sprintf("%d page hits for %q", len(hits), in.Query)),
+			searchPagesOutput{Hits: hits}, nil
 	})
 }
 
