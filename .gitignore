@@ -19,3 +19,4 @@
 # Docker build cache
 /.gocache/
 /.gomodcache/
+/.nemo/
