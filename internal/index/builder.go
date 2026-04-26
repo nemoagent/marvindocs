@@ -42,6 +42,12 @@ func (i *Index) BuildWithOptions(ctx context.Context, s *docstore.Store, opts Bu
 		return stats, err
 	}
 
+	// Bulk-load PRAGMAs: trade durability for speed during the build.
+	// If the process is killed mid-build the index will be corrupt, but
+	// it is fully rebuildable. Restored after commit.
+	restorePragmas := applyBulkPragmas(i.db)
+	defer restorePragmas()
+
 	tx, err := i.db.BeginTx(ctx, nil)
 	if err != nil {
 		return stats, fmt.Errorf("begin tx: %w", err)
