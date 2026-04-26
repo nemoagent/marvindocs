@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/piligrim/marvindocs/internal/docstore"
 	"github.com/piligrim/marvindocs/internal/index"
@@ -24,16 +25,36 @@ func runSearch(args []string) {
 	asJSON := fs.Bool("json", false, "Print results as JSON instead of a table")
 	body := fs.Bool("body", false, "Search page bodies (requires index built with --fulltext)")
 	indexPath := fs.String("index-path", "marvindocs.db", "SQLite index file")
-	_ = fs.Parse(args)
+	// Split positional query tokens from flags so users can mix them
+	// freely: `search jsonb --doc postgresql~17` works the same as
+	// `search --doc postgresql~17 jsonb`. flag.Parse stops on the
+	// first non-flag, so we collect non-flag args manually.
+	var positional, flagArgs []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if strings.HasPrefix(a, "-") {
+			flagArgs = append(flagArgs, a)
+			// `--key value` consumes the next arg too.
+			if !strings.Contains(a, "=") && i+1 < len(args) {
+				next := args[i+1]
+				// Treat as a flag value unless the next token also
+				// starts with "-" (then it's a separate flag).
+				if !strings.HasPrefix(next, "-") {
+					flagArgs = append(flagArgs, next)
+					i++
+				}
+			}
+			continue
+		}
+		positional = append(positional, a)
+	}
+	_ = fs.Parse(flagArgs)
 
-	if fs.NArg() == 0 {
+	if len(positional) == 0 {
 		fmt.Fprintln(os.Stderr, "usage: marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body]")
 		os.Exit(2)
 	}
-	query := fs.Arg(0)
-	for _, a := range fs.Args()[1:] {
-		query += " " + a
-	}
+	query := strings.Join(positional, " ")
 
 	idx, err := openIndexForRead(*indexPath)
 	if err != nil {
