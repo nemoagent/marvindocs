@@ -54,11 +54,22 @@ func Handler(d Deps) (http.Handler, error) {
 	s := &server{deps: d, tpl: tpl}
 
 	mux := http.NewServeMux()
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(static))))
+	staticHandler := http.StripPrefix("/static/", http.FileServer(http.FS(static)))
+	mux.Handle("GET /static/", cacheStaticHandler(staticHandler))
 	mux.HandleFunc("GET /", s.handleIndex)
 	mux.HandleFunc("GET /search", s.handleSearch)
 	mux.HandleFunc("GET /docs/", s.handleDocPath)
-	return mux, nil
+	return gzipHandler(mux), nil
+}
+
+// cacheStaticHandler adds a long-lived Cache-Control to embedded
+// assets. The asset bytes are baked into the binary, so they only
+// change on redeploy.
+func cacheStaticHandler(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		h.ServeHTTP(w, r)
+	})
 }
 
 type server struct {
@@ -135,6 +146,18 @@ func (s *server) handleDocPath(w http.ResponseWriter, r *http.Request) {
 	// /docs/{slug}/ or /docs/{slug} -> default to "index" page.
 	if pagePath == "" {
 		pagePath = "index"
+	}
+
+	// Strong ETag: doc release identifies the dump version, the path
+	// identifies the page within it. If the dump is reindexed, the
+	// release changes (devdocs bumps it on every rebuild) and the ETag
+	// invalidates without us needing to track per-page mtimes.
+	etag := `"` + doc.Release + ":" + pagePath + `"`
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	if match := r.Header.Get("If-None-Match"); match != "" && strings.Contains(match, etag) {
+		w.WriteHeader(http.StatusNotModified)
+		return
 	}
 
 	html, err := s.deps.Store.Page(slug, pagePath)
