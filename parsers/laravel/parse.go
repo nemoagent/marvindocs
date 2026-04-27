@@ -103,23 +103,32 @@ func httpGet(url string) (string, error) {
 	return string(body), nil
 }
 
-// parseTOC walks documentation.md (a Markdown bullet list) and
-// pulls out one page per "[Title](/docs/{{version}}/<slug>)" link,
-// remembering the most recent "## Section" so each page knows where
-// it belongs.
+// parseTOC walks documentation.md (a Markdown bullet list) and pulls
+// out one page per "[Title](/docs/<version-or-placeholder>/<slug>)"
+// link, remembering the most recent section heading so each page
+// knows where it belongs.
 //
-// We do NOT use a real markdown parser here on purpose: the TOC is
-// idiomatic and a single regex pass is both faster and more
-// transparent than walking an AST. If Laravel ever changes the TOC
-// shape, this is the only place to adjust.
+// The TOC format has changed across Laravel releases:
+//
+//   - Old (4.x): "- Section" without "##", links use literal version
+//     ("/docs/4.0/routing").
+//   - New (5.x+): "- ## Section", links use placeholder
+//     ("/docs/{{version}}/routing").
+//
+// We accept both. Section is matched as either "- ## NAME" or
+// "- NAME" at the start of a line (top-level bullet). Page links
+// use a permissive path component so any version literal works.
 func parseTOC(md string) []page {
-	sectionRe := regexp.MustCompile(`(?m)^- ## (.+)$`)
-	linkRe := regexp.MustCompile(`\[([^\]]+)\]\(/docs/\{\{version\}\}/([^)#]+)\)`)
+	sectionRe := regexp.MustCompile(`(?m)^- (?:## )?(.+)$`)
+	linkRe := regexp.MustCompile(`\[([^\]]+)\]\(/docs/[^/)]+/([^)#]+)\)`)
 
 	var pages []page
 	currentSection := ""
 	for _, line := range strings.Split(md, "\n") {
-		if m := sectionRe.FindStringSubmatch(line); m != nil {
+		// A top-level "- ..." line that has no link is a section header.
+		// A line with a link is a page entry.
+		hasLink := linkRe.MatchString(line)
+		if m := sectionRe.FindStringSubmatch(line); m != nil && !hasLink {
 			currentSection = strings.TrimSpace(m[1])
 			continue
 		}
@@ -187,11 +196,17 @@ func anchorID(s string) string {
 	return strings.Trim(s, "-")
 }
 
-// shortVersion turns "12.x" into "12" for the slug suffix. Falls
-// back to the input if it doesn't match the X.x pattern.
+// shortVersion derives the slug suffix from a Laravel branch name.
+//
+// Branches like "12.x" become "12" — the ".x" is just a placeholder
+// for "current minor" so we drop it. Older Laravel releases use real
+// dotted versions like "4.0", "5.1" — keep those intact, otherwise
+// every minor would collide on a single "<major>" slug.
+//
+// Special branches like "master" pass through unchanged.
 func shortVersion(v string) string {
-	if i := strings.Index(v, "."); i > 0 {
-		return v[:i]
+	if strings.HasSuffix(v, ".x") {
+		return strings.TrimSuffix(v, ".x")
 	}
 	return v
 }
