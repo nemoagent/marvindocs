@@ -32,6 +32,7 @@ joins the rest. No marvindocs code change required.
 | Parser | Source | Output slug | README |
 |---|---|---|---|
 | `laravel` | github.com/laravel/docs (markdown) | `laravel~<short>` (e.g. `laravel~12`, `laravel~5.8`) | [parsers/laravel/README.md](laravel/README.md) |
+| `go-dev` | go.dev/doc/ (HTML) | `go-dev` (overview) and `go-dev~1.X` (release notes) | [parsers/go-dev/README.md](go-dev/README.md) |
 
 ## Build
 

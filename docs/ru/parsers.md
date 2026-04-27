@@ -28,6 +28,7 @@ DevDocs.
 | Парсер | Источник | Output slug | README |
 |---|---|---|---|
 | `laravel` | github.com/laravel/docs | `laravel~<short>` (например `laravel~12`, `laravel~5.8`) | `parsers/laravel/README.md` |
+| `go-dev` | go.dev/doc/ | `go-dev` (обзор) и `go-dev~1.X` (release notes конкретной версии) | `parsers/go-dev/README.md` |
 
 ## Workflow
 

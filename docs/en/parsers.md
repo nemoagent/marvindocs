@@ -28,6 +28,7 @@ path that handles upstream DevDocs dumps.
 | Parser | Source | Output slug | README |
 |---|---|---|---|
 | `laravel` | github.com/laravel/docs | `laravel~<short>` (e.g. `laravel~12`, `laravel~5.8`) | `parsers/laravel/README.md` |
+| `go-dev` | go.dev/doc/ | `go-dev` (overview) and `go-dev~1.X` (release notes) | `parsers/go-dev/README.md` |
 
 ## Workflow
 
