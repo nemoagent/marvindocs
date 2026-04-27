@@ -103,16 +103,17 @@ func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([
 		}
 	}
 
-	// Always augment with substring matches on entries.name, then
-	// dedupe. Prefix-tokenized FTS misses things like 'cancel' inside
-	// 'WithCancel' (one token 'withcancel'), but LIKE on the entries
-	// table catches them. FTS hits keep their negative bm25 scores
-	// and rank above the substring hits (positive synthetic scores).
-	fb, err := i.searchSubstring(ctx, query, docSlug, limit)
-	if err != nil {
-		return nil, err
+	// Augment with substring matches on entries.name only when the
+	// FTS prefix-tokenizer didn't already saturate the result set.
+	// Calling LIKE on every search adds ~30 ms on cold queries; we
+	// skip it when FTS already returned at least limit/2 hits.
+	if len(hits) < limit/2 || len(hits) == 0 {
+		fb, err := i.searchSubstring(ctx, query, docSlug, limit)
+		if err != nil {
+			return nil, err
+		}
+		hits = mergeHits(hits, fb, limit)
 	}
-	hits = mergeHits(hits, fb, limit)
 	return hits, nil
 }
 
