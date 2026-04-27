@@ -43,8 +43,8 @@ Pulls the release notes for one specific Go release at
                     --out data/public/docs/go-dev~1.22 --force
 ```
 
-Verified versions: `1.21`–`1.26`. Older minors should also work as long
-as go.dev keeps them online; check by hand.
+Verified versions: `1.1` through `1.26` (every Go release notes page
+that go.dev currently serves). `1.0` returns 404.
 
 ## Flags
 
