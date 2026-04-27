@@ -35,7 +35,9 @@ func runRelease(flags devdocsfmt.Flags) error {
 	})
 
 	// Single page; everything lives at "release".
+	// Also add "index" alias so /docs/<slug>/ can resolve landing page.
 	w.AddPage("release", body)
+	w.AddPage("index", body)
 	w.AddEntry("Go "+flags.Version+" Release Notes", "release", "Overview")
 
 	// Use the most recent h2 as the section for any h3/h4 hits.

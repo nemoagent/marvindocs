@@ -58,7 +58,52 @@ func run(flags devdocsfmt.Flags) error {
 		}
 	}
 
+	// Marvindocs (and DevDocs) expect an "index" page that web UI
+	// hits when you open /docs/<slug>/. Build one from the TOC so
+	// users land on a real landing page instead of a 404.
+	w.AddPage("index", buildIndexPage(w.Doc.Name, w.Doc.Version, pages))
+
 	return w.Flush(flags.Out, flags.Force)
+}
+
+// buildIndexPage renders a static landing page that mirrors the
+// upstream documentation.md TOC: one section per "## Section",
+// links to every page in the section. Generated server-side once,
+// no JS, plain HTML compatible with marvindocs' page renderer.
+func buildIndexPage(name, version string, pages []page) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "<h1>%s</h1>\n", htmlEscape(name))
+	if version != "" {
+		fmt.Fprintf(&b, "<p class=\"_attribution-p\">Version %s</p>\n", htmlEscape(version))
+	}
+
+	currentSection := ""
+	listOpen := false
+	for _, p := range pages {
+		if p.Section != currentSection {
+			if listOpen {
+				b.WriteString("</ul>\n")
+				listOpen = false
+			}
+			fmt.Fprintf(&b, "<h2>%s</h2>\n<ul>\n", htmlEscape(p.Section))
+			listOpen = true
+			currentSection = p.Section
+		}
+		fmt.Fprintf(&b, "  <li><a href=\"%s\">%s</a></li>\n",
+			htmlEscape(p.Slug), htmlEscape(p.Title))
+	}
+	if listOpen {
+		b.WriteString("</ul>\n")
+	}
+	return b.String()
+}
+
+// htmlEscape is a minimal escape for the small set of characters we
+// can encounter in TOC titles and slugs. Stays inline so we don't
+// add a dependency on text/template just for this.
+func htmlEscape(s string) string {
+	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;")
+	return r.Replace(s)
 }
 
 // stderr is a package-level alias so run() can be redirected in
