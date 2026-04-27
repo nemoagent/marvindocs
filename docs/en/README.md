@@ -11,3 +11,5 @@
 - [Web UI](web.md) — routes, navigation, styling
 - [Data format](data-format.md) — authoritative spec of the on-disk
   layout, for writing your own scraper / parser
+- [Parsers](parsers.md) — bundled parser binaries that produce the
+  data format from custom sources (Laravel docs, internal handbooks)
