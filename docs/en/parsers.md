@@ -27,7 +27,7 @@ path that handles upstream DevDocs dumps.
 
 | Parser | Source | Output slug | README |
 |---|---|---|---|
-| `laravel` | github.com/laravel/docs | `laravel~<major>` | `parsers/laravel/README.md` |
+| `laravel` | github.com/laravel/docs | `laravel~<short>` (e.g. `laravel~12`, `laravel~5.8`) | `parsers/laravel/README.md` |
 
 ## Workflow
 
