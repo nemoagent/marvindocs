@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/piligrim/marvindocs/internal/docstore"
@@ -160,7 +161,9 @@ func runServeWith(httpAddr string, stdio bool, docsPath, indexPath string) error
 	}
 
 	if httpServer != nil {
-		shutdownCtx, cancelShutdown := context.WithCancel(context.Background())
+		// Give in-flight requests up to 10s to finish (longer than the
+		// slowest realistic get_page conversion). Past that, force-close.
+		shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancelShutdown()
 		_ = httpServer.Shutdown(shutdownCtx)
 	}
