@@ -1,0 +1,16 @@
+# Files Docker shouldn't waste time copying into the build context.
+# Keeps the image build fast and reproducible.
+.git
+.github
+.gocache
+.gomodcache
+.nemo
+bin
+data
+*.db
+*.db-shm
+*.db-wal
+docs
+README.md
+CLAUDE.md
+scripts

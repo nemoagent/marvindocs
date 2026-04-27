@@ -1,0 +1,29 @@
+# Compose file for running marvindocs locally with persistent volumes.
+#
+#   docker compose up -d         # build and start
+#   docker compose logs -f       # tail logs
+#   docker compose down          # stop
+#
+# Bring your own data: scripts/sync-docs.sh writes into ./data/public/docs,
+# and the SQLite index lands in ./data/index/. Both are bind-mounted so
+# rebuilds are persistent across container recreates.
+
+services:
+  marvindocs:
+    build: .
+    image: marvindocs:latest
+    container_name: marvindocs
+    restart: unless-stopped
+    ports:
+      - "3333:3333"
+    volumes:
+      - ./data/public/docs:/data:ro
+      - ./data/index:/index
+    environment:
+      MARVINDOCS_LOG_FORMAT: json
+      MARVINDOCS_LOG_LEVEL: info
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3333/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
