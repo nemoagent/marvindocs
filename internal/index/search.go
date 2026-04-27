@@ -272,9 +272,27 @@ func (i *Index) SearchPages(ctx context.Context, query, docSlug string, limit in
 		if err := rows.Scan(&h.DocSlug, &h.Path, &h.Snippet, &h.Score); err != nil {
 			return nil, err
 		}
+		if docSlug == "" {
+			h.Score -= popularityBoost(h.DocSlug)
+		}
 		hits = append(hits, h)
 	}
-	return hits, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if docSlug == "" {
+		sortPageHitsByScore(hits)
+	}
+	return hits, nil
+}
+
+// sortPageHitsByScore sorts ascending (lower bm25 = better).
+func sortPageHitsByScore(hits []PageHit) {
+	for i := 1; i < len(hits); i++ {
+		for j := i; j > 0 && hits[j-1].Score > hits[j].Score; j-- {
+			hits[j-1], hits[j] = hits[j], hits[j-1]
+		}
+	}
 }
 
 // PageHit is one result from SearchPages.
