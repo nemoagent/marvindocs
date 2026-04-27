@@ -18,13 +18,14 @@ go build -o ../../bin/laravel-parser .
 ## Run
 
 ```bash
+./bin/laravel-parser --version 13.x --out data/public/docs/laravel~13 --force
 ./bin/laravel-parser --version 12.x --out data/public/docs/laravel~12 --force
 ```
 
 | Flag | Default | Notes |
 |---|---|---|
 | `--source` | `https://raw.githubusercontent.com/laravel/docs` | Override only if mirroring the repo elsewhere. |
-| `--version` | `12.x` | The branch name in `laravel/docs` (e.g. `11.x`, `10.x`). |
+| `--version` | `12.x` | Branch in `laravel/docs`. Verified versions: `13.x`, `12.x`, `11.x`, `10.x`. The slug suffix is derived automatically (`12.x` -> `laravel~12`). |
 | `--release` | (empty -> version) | Free-form label written to `meta.json`. |
 | `--out` | (required) | Output directory. Convention: `data/public/docs/laravel~<major>`. |
 | `--force` | `false` | Overwrite existing files. |
