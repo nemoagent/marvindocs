@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,6 +16,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/piligrim/marvindocs/internal/docstore"
 	"github.com/piligrim/marvindocs/internal/index"
+	"github.com/piligrim/marvindocs/internal/logging"
 	"github.com/piligrim/marvindocs/internal/mcpserver"
 	"github.com/piligrim/marvindocs/internal/mdcache"
 	"github.com/piligrim/marvindocs/internal/web"
@@ -43,6 +45,7 @@ Examples:
 var version = "dev"
 
 func main() {
+	logging.Setup()
 	if len(os.Args) < 2 {
 		fmt.Fprint(os.Stderr, usage)
 		os.Exit(2)
@@ -114,7 +117,7 @@ func runServeWith(httpAddr string, stdio bool, docsPath, indexPath string) error
 
 	if stdio {
 		go func() {
-			fmt.Fprintln(os.Stderr, "marvindocs MCP stdio server: ready")
+			slog.Info("MCP stdio server ready")
 			errCh <- srv.Run(ctx, &mcp.StdioTransport{})
 		}()
 	}
@@ -140,10 +143,10 @@ func runServeWith(httpAddr string, stdio bool, docsPath, indexPath string) error
 		// /healthz take precedence on the ServeMux pattern tree).
 		mux.Handle("/", webHandler)
 
-		httpServer = &http.Server{Addr: httpAddr, Handler: mux}
+		httpServer = &http.Server{Addr: httpAddr, Handler: web.AccessLogHandler(mux)}
 
 		go func() {
-			fmt.Fprintf(os.Stderr, "marvindocs HTTP server: listening on %s (web at /, MCP at /mcp)\n", httpAddr)
+			slog.Info("HTTP server listening", "addr", httpAddr, "web", "/", "mcp", "/mcp")
 			err := httpServer.ListenAndServe()
 			if errors.Is(err, http.ErrServerClosed) {
 				err = nil
@@ -209,7 +212,7 @@ func runIndexBuild(docsPath, indexPath string, fullText, full bool) error {
 	if err != nil {
 		return fmt.Errorf("open docstore: %w", err)
 	}
-	fmt.Fprintf(os.Stderr, "loaded docs.json: %d docs from %s\n", len(store.Docs()), docsPath)
+	slog.Info("loaded docstore", "docs", len(store.Docs()), "path", docsPath)
 
 	idx, err := index.Open(indexPath)
 	if err != nil {
@@ -218,7 +221,7 @@ func runIndexBuild(docsPath, indexPath string, fullText, full bool) error {
 	defer idx.Close()
 
 	if fullText {
-		fmt.Fprintln(os.Stderr, "full-text body indexing enabled; this is slow and the index will be large")
+		slog.Info("full-text body indexing enabled; build will be slow and index large")
 	}
 
 	opts := index.BuildOptions{Fulltext: fullText}
@@ -235,13 +238,12 @@ func runIndexBuild(docsPath, indexPath string, fullText, full bool) error {
 	if full {
 		mode = "indexed"
 	}
-	if stats.Pages > 0 {
-		fmt.Fprintf(os.Stderr, "%s %d docs, %d entries, %d pages in %s -> %s\n",
-			mode, stats.Docs, stats.Entries, stats.Pages, stats.Duration.Round(1e6), indexPath)
-	} else {
-		fmt.Fprintf(os.Stderr, "%s %d docs, %d entries in %s -> %s\n",
-			mode, stats.Docs, stats.Entries, stats.Duration.Round(1e6), indexPath)
-	}
+	slog.Info("index "+mode,
+		"docs", stats.Docs,
+		"entries", stats.Entries,
+		"pages", stats.Pages,
+		"duration", stats.Duration.Round(1e6).String(),
+		"path", indexPath)
 	return nil
 }
 
