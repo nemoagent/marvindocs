@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      # The mattn/go-sqlite3 driver is CGO-based and requires a C
+      # toolchain plus the sqlite_fts5 build tag. ubuntu-latest already
+      # ships gcc; we just need to ensure CGO is enabled.
+      - name: build
+        env:
+          CGO_ENABLED: '1'
+        run: go build -tags sqlite_fts5 ./...
+
+      - name: vet
+        env:
+          CGO_ENABLED: '1'
+        run: go vet -tags sqlite_fts5 ./...
+
+      # Tests that require the full devdocs dump (data/public/docs) skip
+      # automatically when the directory is missing, so they are safe to
+      # run in CI without 17 GB of fixtures.
+      - name: test
+        env:
+          CGO_ENABLED: '1'
+        run: go test -tags sqlite_fts5 ./...
