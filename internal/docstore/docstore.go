@@ -59,17 +59,29 @@ type Store struct {
 	indexMu  sync.Mutex
 	indexMem map[string]*Index // cached per-slug index.json
 
-	dbMu  sync.Mutex
-	dbMem map[string]map[string]string // cached per-slug db.json (optional, lazy)
+	// dbMem caches db.json contents per slug. Loaded on demand by
+	// Page() and bounded by dbCacheCap so RSS stays predictable when
+	// many docs get hit (each db.json is 1-50 MiB; PostgreSQL is
+	// ~30 MiB on its own).
+	dbMu       sync.Mutex
+	dbMem      map[string]map[string]string
+	dbLRU      []string // slugs in MRU→LRU order (front = most recent)
+	dbCacheCap int
 }
+
+// dbCacheCapacity is the default number of full db.json blobs kept
+// resident in memory. Five popular docs (~150 MiB total) is enough
+// to keep web UI navigation fast without unbounded growth.
+const dbCacheCapacity = 5
 
 // Open loads docs.json. Per-doc index/db files are loaded lazily.
 func Open(root string) (*Store, error) {
 	s := &Store{
-		root:     root,
-		bySlug:   make(map[string]*Doc),
-		indexMem: make(map[string]*Index),
-		dbMem:    make(map[string]map[string]string),
+		root:       root,
+		bySlug:     make(map[string]*Doc),
+		indexMem:   make(map[string]*Index),
+		dbMem:      make(map[string]map[string]string),
+		dbCacheCap: dbCacheCapacity,
 	}
 	f, err := os.Open(filepath.Join(root, "docs.json"))
 	if err != nil {
@@ -119,12 +131,14 @@ func (s *Store) Index(slug string) (*Index, error) {
 }
 
 // Page returns the raw HTML fragment for the given path inside a doc.
-// The whole db.json is read once per doc and cached in memory (cheap for
-// one-off requests, heavy if you load many docs — prefer StreamPages for
-// indexing).
+// db.json is read once per doc and cached in a small LRU; older slugs
+// are evicted when more than dbCacheCap docs have been loaded.
 func (s *Store) Page(slug, path string) (string, error) {
 	s.dbMu.Lock()
 	db, ok := s.dbMem[slug]
+	if ok {
+		s.touchLRU(slug)
+	}
 	s.dbMu.Unlock()
 	if !ok {
 		var err error
@@ -134,6 +148,8 @@ func (s *Store) Page(slug, path string) (string, error) {
 		}
 		s.dbMu.Lock()
 		s.dbMem[slug] = db
+		s.touchLRU(slug)
+		s.evictLRU()
 		s.dbMu.Unlock()
 	}
 	html, ok := db[path]
@@ -141,6 +157,32 @@ func (s *Store) Page(slug, path string) (string, error) {
 		return "", fmt.Errorf("page not found: %s/%s", slug, path)
 	}
 	return html, nil
+}
+
+// touchLRU moves slug to the front (MRU) of the LRU list. Caller
+// must hold dbMu.
+func (s *Store) touchLRU(slug string) {
+	for i, x := range s.dbLRU {
+		if x == slug {
+			if i == 0 {
+				return
+			}
+			copy(s.dbLRU[1:i+1], s.dbLRU[:i])
+			s.dbLRU[0] = slug
+			return
+		}
+	}
+	s.dbLRU = append([]string{slug}, s.dbLRU...)
+}
+
+// evictLRU drops the oldest cached db.json blobs until the cache fits
+// within dbCacheCap. Caller must hold dbMu.
+func (s *Store) evictLRU() {
+	for len(s.dbLRU) > s.dbCacheCap {
+		oldest := s.dbLRU[len(s.dbLRU)-1]
+		s.dbLRU = s.dbLRU[:len(s.dbLRU)-1]
+		delete(s.dbMem, oldest)
+	}
 }
 
 func (s *Store) loadDB(slug string) (map[string]string, error) {
@@ -208,5 +250,11 @@ func (s *Store) StreamPages(slug string, fn func(path, html string) error) error
 func (s *Store) EvictDB(slug string) {
 	s.dbMu.Lock()
 	delete(s.dbMem, slug)
+	for i, x := range s.dbLRU {
+		if x == slug {
+			s.dbLRU = append(s.dbLRU[:i], s.dbLRU[i+1:]...)
+			break
+		}
+	}
 	s.dbMu.Unlock()
 }

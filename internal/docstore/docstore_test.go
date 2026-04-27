@@ -79,3 +79,35 @@ func TestStreamPages(t *testing.T) {
 		t.Fatalf("index page should be non-trivial, got %d bytes", len(sample))
 	}
 }
+
+func TestPageDBLRUEviction(t *testing.T) {
+	s, err := Open(dataRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Pick a few small docs that should always be present.
+	s.dbCacheCap = 2
+	for _, slug := range []string{"angular", "go", "react"} {
+		if s.Doc(slug) == nil {
+			t.Skipf("doc %s missing in dataset", slug)
+		}
+		if _, err := s.Page(slug, "index"); err != nil {
+			// some docs use a different homepage path; touch any page
+			idx, _ := s.Index(slug)
+			if idx == nil || len(idx.Entries) == 0 {
+				t.Skipf("doc %s has no entries", slug)
+			}
+			if _, err := s.Page(slug, idx.Entries[0].Path); err != nil {
+				t.Fatalf("first page load for %s: %v", slug, err)
+			}
+		}
+	}
+	s.dbMu.Lock()
+	defer s.dbMu.Unlock()
+	if len(s.dbMem) > 2 {
+		t.Fatalf("LRU should hold at most 2 entries, got %d (%v)", len(s.dbMem), s.dbLRU)
+	}
+	if len(s.dbLRU) != len(s.dbMem) {
+		t.Fatalf("dbLRU and dbMem out of sync: lru=%v mem=%d", s.dbLRU, len(s.dbMem))
+	}
+}
