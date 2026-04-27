@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"flag"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -73,23 +75,62 @@ func main() {
 
 func runServe(args []string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
-	httpAddr := fs.String("http", "", "HTTP listen address (e.g. :3333). Empty = disabled")
+	httpAddr := fs.String("http", "", "HTTP listen address. Bare ':3333' binds 127.0.0.1 only; '0.0.0.0:3333' for public. Empty = disabled")
 	stdio := fs.Bool("stdio", false, "Run MCP server over stdio")
 	docsPath := fs.String("docs-path", "data/public/docs", "Path to the devdocs data directory")
 	indexPath := fs.String("index-path", "marvindocs.db", "Path to the SQLite index file")
+	authToken := fs.String("auth-token", "", "If set, HTTP requests must carry 'Authorization: Bearer <token>'. Reads MARVINDOCS_AUTH_TOKEN if empty")
 	_ = fs.Parse(args)
 
 	if *httpAddr == "" && !*stdio {
 		fmt.Fprintln(os.Stderr, "error: specify --http ADDR and/or --stdio")
 		os.Exit(2)
 	}
-	if err := runServeWith(*httpAddr, *stdio, *docsPath, *indexPath); err != nil {
+	token := *authToken
+	if token == "" {
+		token = os.Getenv("MARVINDOCS_AUTH_TOKEN")
+	}
+	if err := runServeWith(normalizeListenAddr(*httpAddr), *stdio, *docsPath, *indexPath, token); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
 }
 
-func runServeWith(httpAddr string, stdio bool, docsPath, indexPath string) error {
+// normalizeListenAddr keeps explicit hosts ('0.0.0.0:3333',
+// '192.168.1.5:3333') verbatim but rewrites the bare-port shorthand
+// (':3333') to bind localhost only. This avoids accidentally exposing
+// the unauthenticated server on every interface.
+func normalizeListenAddr(addr string) string {
+	if addr == "" {
+		return ""
+	}
+	if strings.HasPrefix(addr, ":") {
+		return "127.0.0.1" + addr
+	}
+	return addr
+}
+
+// bearerAuthHandler enforces 'Authorization: Bearer <token>' on every
+// HTTP request except /healthz (which stays open for liveness probes).
+// Matching is constant-time to avoid timing leaks of the token.
+func bearerAuthHandler(token string, next http.Handler) http.Handler {
+	expected := "Bearer " + token
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		got := r.Header.Get("Authorization")
+		if len(got) != len(expected) || subtle.ConstantTimeCompare([]byte(got), []byte(expected)) != 1 {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="marvindocs"`)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func runServeWith(httpAddr string, stdio bool, docsPath, indexPath, authToken string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
@@ -143,7 +184,12 @@ func runServeWith(httpAddr string, stdio bool, docsPath, indexPath string) error
 		// /healthz take precedence on the ServeMux pattern tree).
 		mux.Handle("/", webHandler)
 
-		httpServer = &http.Server{Addr: httpAddr, Handler: web.AccessLogHandler(mux)}
+		var handler http.Handler = web.AccessLogHandler(mux)
+		if authToken != "" {
+			handler = bearerAuthHandler(authToken, handler)
+			slog.Info("HTTP auth enabled (Bearer)")
+		}
+		httpServer = &http.Server{Addr: httpAddr, Handler: handler}
 
 		go func() {
 			slog.Info("HTTP server listening", "addr", httpAddr, "web", "/", "mcp", "/mcp")
