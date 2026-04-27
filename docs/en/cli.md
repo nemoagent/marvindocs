@@ -46,11 +46,19 @@ write failure, etc.), `2` on usage error.
 
 ## `marvindocs index stats`
 
-Prints counts from an existing index.
+Prints counts from an existing index. Pass `--by-doc` for a per-doc
+breakdown sorted by entry count (descending), useful for spotting
+outliers.
 
 ```bash
-marvindocs index stats [--index-path FILE]
+marvindocs index stats [--index-path FILE] [--by-doc] [--top N]
 ```
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--index-path` | `marvindocs.db` | SQLite index file. |
+| `--by-doc` | off | Print per-doc table after the summary. |
+| `--top` | 0 (all) | When combined with `--by-doc`, limit to top N rows. |
 
 Example output:
 
@@ -59,6 +67,12 @@ index:   marvindocs.db
 size:    476532736 bytes
 docs:    791
 entries: 2677981
+pages:   0
+
+SLUG                               ENTRIES       PAGES
+openjdk~25                           49730           0
+scala~3.1                            48073           0
+qt~6.9                               45235           0
 ```
 
 ## `marvindocs search`

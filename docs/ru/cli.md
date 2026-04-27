@@ -45,11 +45,19 @@ SQLite и т.д.), `2` — ошибка использования.
 
 ## `marvindocs index stats`
 
-Выводит счётчики из готового индекса.
+Выводит счётчики из готового индекса. С флагом `--by-doc` — таблица по
+каждому документу, отсортированная по числу записей (по убыванию).
+Помогает найти выбросы.
 
 ```bash
-marvindocs index stats [--index-path FILE]
+marvindocs index stats [--index-path FILE] [--by-doc] [--top N]
 ```
+
+| Флаг | По умолчанию | Примечание |
+|---|---|---|
+| `--index-path` | `marvindocs.db` | Файл SQLite-индекса. |
+| `--by-doc` | off | Печатать таблицу по документам после сводки. |
+| `--top` | 0 (все) | В паре с `--by-doc` — ограничить топ N строк. |
 
 Пример вывода:
 
@@ -58,6 +66,12 @@ index:   marvindocs.db
 size:    476532736 bytes
 docs:    791
 entries: 2677981
+pages:   0
+
+SLUG                               ENTRIES       PAGES
+openjdk~25                           49730           0
+scala~3.1                            48073           0
+qt~6.9                               45235           0
 ```
 
 ## `marvindocs search`

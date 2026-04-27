@@ -29,7 +29,7 @@ const usage = `marvindocs - MCP server and web UI for the DevDocs archive.
 Usage:
   marvindocs serve [--http ADDR] [--stdio] [--docs-path DIR] [--index-path FILE]
   marvindocs index build [--fulltext] [--full] [--docs-path DIR] [--index-path FILE]
-  marvindocs index stats [--index-path FILE]
+  marvindocs index stats [--index-path FILE] [--by-doc] [--top N]
   marvindocs search QUERY [--doc SLUG] [--limit N] [--json]
   marvindocs get SLUG PATH [--format FORMAT]
   marvindocs list [--json]
@@ -239,8 +239,10 @@ func runIndex(args []string) {
 	case "stats":
 		fs := flag.NewFlagSet("index stats", flag.ExitOnError)
 		indexPath := fs.String("index-path", "marvindocs.db", "SQLite file")
+		byDoc := fs.Bool("by-doc", false, "Print per-doc breakdown sorted by entry count")
+		topN := fs.Int("top", 0, "Limit per-doc output to top N rows (0 = all)")
 		_ = fs.Parse(args[1:])
-		if err := runIndexStats(*indexPath); err != nil {
+		if err := runIndexStats(*indexPath, *byDoc, *topN); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
 		}
@@ -293,7 +295,7 @@ func runIndexBuild(docsPath, indexPath string, fullText, full bool) error {
 	return nil
 }
 
-func runIndexStats(indexPath string) error {
+func runIndexStats(indexPath string, byDoc bool, topN int) error {
 	if _, err := os.Stat(indexPath); err != nil {
 		return fmt.Errorf("index file not found: %s (run `marvindocs index build` first)", indexPath)
 	}
@@ -315,5 +317,19 @@ func runIndexStats(indexPath string) error {
 	fmt.Printf("docs:    %d\n", st.Docs)
 	fmt.Printf("entries: %d\n", st.Entries)
 	fmt.Printf("pages:   %d\n", st.Pages)
+
+	if byDoc {
+		rows, err := idx.PerDocStats(context.Background())
+		if err != nil {
+			return err
+		}
+		if topN > 0 && topN < len(rows) {
+			rows = rows[:topN]
+		}
+		fmt.Printf("\n%-30s  %10s  %10s\n", "SLUG", "ENTRIES", "PAGES")
+		for _, r := range rows {
+			fmt.Printf("%-30s  %10d  %10d\n", r.Slug, r.Entries, r.Pages)
+		}
+	}
 	return nil
 }

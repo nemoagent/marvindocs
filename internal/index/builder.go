@@ -153,3 +153,79 @@ func (i *Index) Stats(ctx context.Context) (Stats, error) {
 	}
 	return st, nil
 }
+
+// DocStat is the per-doc breakdown returned by PerDocStats.
+type DocStat struct {
+	Slug    string
+	Entries int
+	Pages   int
+}
+
+// PerDocStats returns one DocStat per indexed doc, sorted by entry
+// count (descending). Useful for spotting outliers and verifying
+// which docs ship with full-text bodies.
+func (i *Index) PerDocStats(ctx context.Context) ([]DocStat, error) {
+	rows, err := i.db.QueryContext(ctx,
+		`SELECT slug FROM docs ORDER BY slug`)
+	if err != nil {
+		return nil, fmt.Errorf("list slugs: %w", err)
+	}
+	var out []DocStat
+	for rows.Next() {
+		var d DocStat
+		if err := rows.Scan(&d.Slug); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	entRows, err := i.db.QueryContext(ctx,
+		`SELECT doc_slug, COUNT(*) FROM entries GROUP BY doc_slug`)
+	if err != nil {
+		return nil, fmt.Errorf("entries per doc: %w", err)
+	}
+	entries := make(map[string]int)
+	for entRows.Next() {
+		var slug string
+		var n int
+		if err := entRows.Scan(&slug, &n); err != nil {
+			entRows.Close()
+			return nil, err
+		}
+		entries[slug] = n
+	}
+	entRows.Close()
+
+	pageRows, err := i.db.QueryContext(ctx,
+		`SELECT doc_slug, COUNT(*) FROM pages_fts GROUP BY doc_slug`)
+	pages := make(map[string]int)
+	if err == nil {
+		for pageRows.Next() {
+			var slug string
+			var n int
+			if err := pageRows.Scan(&slug, &n); err != nil {
+				pageRows.Close()
+				return nil, err
+			}
+			pages[slug] = n
+		}
+		pageRows.Close()
+	}
+
+	for i := range out {
+		out[i].Entries = entries[out[i].Slug]
+		out[i].Pages = pages[out[i].Slug]
+	}
+	// sort descending by entries
+	for i := 1; i < len(out); i++ {
+		for j := i; j > 0 && out[j-1].Entries < out[j].Entries; j-- {
+			out[j-1], out[j] = out[j], out[j-1]
+		}
+	}
+	return out, nil
+}
