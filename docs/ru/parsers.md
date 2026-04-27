@@ -29,6 +29,8 @@ DevDocs.
 |---|---|---|---|
 | `laravel` | github.com/laravel/docs | `laravel~<short>` (например `laravel~12`, `laravel~5.8`) | `parsers/laravel/README.md` |
 | `go-dev` | go.dev/doc/ | `go-dev` (обзор) и `go-dev~1.X` (release notes конкретной версии) | `parsers/go-dev/README.md` |
+| `go-std` | `go doc` внутри Docker-образа Go | `go-std~<version>` (например `go-std~1.25`) | `parsers/go-std/README.md` |
+| `mongodb` | github.com/mongodb/docs (reST-исходники Manual) | `mongodb~<version>` (например `mongodb~8.0`) | `parsers/mongodb/README.md` |
 
 ## Workflow
 
