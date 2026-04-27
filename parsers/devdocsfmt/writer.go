@@ -110,7 +110,50 @@ func (w *Writer) Flush(outputDir string, force bool) error {
 	if err := os.Chtimes(stamp, t, t); err != nil {
 		return fmt.Errorf("touch stamp: %w", err)
 	}
+	if err := upsertCatalog(outputDir, doc); err != nil {
+		return fmt.Errorf("update docs.json: %w", err)
+	}
 	return nil
+}
+
+// upsertCatalog adds or replaces the doc entry in <root>/docs.json,
+// where <root> is the parent directory of outputDir. If docs.json
+// does not exist it is created. Entries are sorted by slug.
+func upsertCatalog(outputDir string, doc Doc) error {
+	root := filepath.Dir(outputDir)
+	catalogPath := filepath.Join(root, "docs.json")
+
+	var docs []Doc
+	if data, err := os.ReadFile(catalogPath); err == nil {
+		if err := json.Unmarshal(data, &docs); err != nil {
+			return fmt.Errorf("parse %s: %w", catalogPath, err)
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("read %s: %w", catalogPath, err)
+	}
+
+	replaced := false
+	for i := range docs {
+		if docs[i].Slug == doc.Slug {
+			docs[i] = doc
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		docs = append(docs, doc)
+	}
+	sort.SliceStable(docs, func(i, j int) bool { return docs[i].Slug < docs[j].Slug })
+
+	data, err := json.MarshalIndent(docs, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := catalogPath + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, catalogPath)
 }
 
 // sortedEntries returns a stable copy ordered by (Type, Name) so
