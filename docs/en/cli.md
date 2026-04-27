@@ -141,14 +141,15 @@ when `version` is empty). The summary line goes to stderr.
 Runs the MCP server.
 
 ```bash
-marvindocs serve [--stdio] [--http ADDR] \
+marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] \
                  [--docs-path DIR] [--index-path FILE]
 ```
 
 | Flag | Default | Notes |
 |---|---|---|
 | `--stdio` | `false` | Serve MCP over stdin/stdout. |
-| `--http` | empty | Serve the web UI at `<addr>/` and MCP Streamable HTTP at `<addr>/mcp`. |
+| `--http` | empty | Serve the web UI at `<addr>/` and MCP Streamable HTTP at `<addr>/mcp`. Bare `:3333` binds `127.0.0.1` only; use `0.0.0.0:3333` for public exposure. |
+| `--auth-token` | empty | Require `Authorization: Bearer TOKEN` on all HTTP requests except `/healthz`. Falls back to `MARVINDOCS_AUTH_TOKEN` env var. |
 | `--docs-path` | `data/public/docs` | Needed by `get_page` to read `db.json` on demand. |
 | `--index-path` | `marvindocs.db` | Must already exist (run `index build` first). |
 
@@ -156,7 +157,19 @@ You must pass at least one of `--stdio` / `--http`. Both can be set at
 once — the same server instance handles both transports.
 
 The process listens for `SIGINT` and `SIGTERM` and performs a clean
-shutdown on either.
+shutdown on either, with up to 10s grace for in-flight HTTP requests.
+
+### Logging
+
+All commands honor two environment variables:
+
+| Variable | Values | Default |
+|---|---|---|
+| `MARVINDOCS_LOG_LEVEL` | `debug`, `info`, `warn`, `error` | `info` |
+| `MARVINDOCS_LOG_FORMAT` | `text`, `json` | `text` |
+
+Logs are written to stderr. The HTTP server emits one line per request
+(method, path, status, duration_ms, remote).
 
 ## Exit codes (all commands)
 

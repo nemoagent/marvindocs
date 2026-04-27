@@ -140,14 +140,15 @@ marvindocs list [--json] [--index-path FILE]
 Запускает MCP-сервер.
 
 ```bash
-marvindocs serve [--stdio] [--http ADDR] \
+marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] \
                  [--docs-path DIR] [--index-path FILE]
 ```
 
 | Флаг | По умолчанию | Примечание |
 |---|---|---|
 | `--stdio` | `false` | MCP через stdin/stdout. |
-| `--http` | пусто | Web UI на `<addr>/` и MCP Streamable HTTP на `<addr>/mcp`. |
+| `--http` | пусто | Web UI на `<addr>/` и MCP Streamable HTTP на `<addr>/mcp`. Голый `:3333` слушает только `127.0.0.1`; для публичного доступа — `0.0.0.0:3333`. |
+| `--auth-token` | пусто | Требовать `Authorization: Bearer TOKEN` на все HTTP-запросы кроме `/healthz`. Если флаг пуст — читается из `MARVINDOCS_AUTH_TOKEN`. |
 | `--docs-path` | `data/public/docs` | Нужен `get_page`, чтобы читать `db.json` по требованию. |
 | `--index-path` | `marvindocs.db` | Файл должен уже существовать (сначала `index build`). |
 
@@ -156,7 +157,19 @@ marvindocs serve [--stdio] [--http ADDR] \
 оба транспорта.
 
 Процесс слушает `SIGINT` и `SIGTERM` и при любом из них корректно
-завершает работу.
+завершает работу, давая до 10 секунд in-flight HTTP-запросам.
+
+### Логирование
+
+Все команды учитывают две переменные окружения:
+
+| Переменная | Значения | По умолчанию |
+|---|---|---|
+| `MARVINDOCS_LOG_LEVEL` | `debug`, `info`, `warn`, `error` | `info` |
+| `MARVINDOCS_LOG_FORMAT` | `text`, `json` | `text` |
+
+Логи пишутся в stderr. HTTP-сервер выводит одну строку на запрос
+(method, path, status, duration_ms, remote).
 
 ## Коды выхода (для всех команд)
 
