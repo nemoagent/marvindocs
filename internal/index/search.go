@@ -16,6 +16,148 @@ type SearchHit struct {
 	Score   float64 `json:"score"` // lower = better (bm25)
 }
 
+// docCatalog loads all doc slugs once and caches them.
+func (i *Index) docCatalog(ctx context.Context) (slugs map[string]bool, names map[string]string, err error) {
+	i.catalogOnce.Do(func() {
+		docs, e := i.ListDocs(ctx)
+		if e != nil {
+			i.catalogErr = e
+			return
+		}
+		i.catalogSlugs = make(map[string]bool, len(docs))
+		i.catalogNames = make(map[string]string, len(docs))
+		for _, d := range docs {
+			i.catalogSlugs[d.Slug] = true
+			norm := strings.ToLower(d.Slug)
+			if idx := strings.Index(norm, "~"); idx >= 0 {
+				prefix := norm[:idx]
+				i.catalogNames[prefix] = prefix
+				if dash := strings.LastIndex(prefix, "-"); dash >= 0 {
+					base := prefix[:dash]
+					if base != "" {
+						if _, exists := i.catalogNames[base]; !exists {
+							i.catalogNames[base] = base
+						}
+					}
+				}
+			}
+		}
+	})
+	return i.catalogSlugs, i.catalogNames, i.catalogErr
+}
+
+// docAliases maps short tokens to canonical slug prefixes.
+var docAliases = map[string]string{
+	"js":    "javascript",
+	"py":    "python",
+	"ts":    "typescript",
+	"pg":    "postgresql",
+	"mongo": "mongodb",
+}
+
+// extractDocFilter inspects query tokens and returns a cleaned query
+// and matched doc slugs. If no token matches a known doc, matchedSlugs is nil.
+// If the caller already passed a non-empty callerDocSlug, auto-filter is skipped.
+func extractDocFilter(query string, knownSlugs map[string]bool, callerDocSlug string) (cleanQuery string, matchedSlugs []string) {
+	if callerDocSlug != "" {
+		return query, nil
+	}
+	tokens := strings.Fields(query)
+	if len(tokens) == 0 {
+		return query, nil
+	}
+
+	matchIdx := -1
+	var matchedPrefix string
+
+	for idx, tok := range tokens {
+		t := strings.ToLower(tok)
+		if alias, ok := docAliases[t]; ok {
+			t = alias
+		}
+		for slug := range knownSlugs {
+			sl := strings.ToLower(slug)
+			if sl == t {
+				matchIdx = idx
+				matchedPrefix = t
+				goto found
+			}
+			if tilde := strings.Index(sl, "~"); tilde >= 0 {
+				pre := sl[:tilde]
+				if pre == t {
+					matchIdx = idx
+					matchedPrefix = pre
+					goto found
+				}
+				if dash := strings.Index(pre, "-"); dash >= 0 {
+					base := pre[:dash]
+					if base == t {
+						matchIdx = idx
+						matchedPrefix = base
+						goto found
+					}
+				}
+			} else {
+				if dash := strings.Index(sl, "-"); dash >= 0 {
+					base := sl[:dash]
+					if base == t {
+						matchIdx = idx
+						matchedPrefix = base
+						goto found
+					}
+				}
+			}
+		}
+		continue
+	found:
+		break
+	}
+
+	if matchIdx < 0 {
+		return query, nil
+	}
+
+	remaining := make([]string, 0, len(tokens)-1)
+	for idx, tok := range tokens {
+		if idx != matchIdx {
+			remaining = append(remaining, tok)
+		}
+	}
+	if len(remaining) == 0 {
+		return query, nil
+	}
+	cleanQuery = strings.Join(remaining, " ")
+
+	for slug := range knownSlugs {
+		sl := strings.ToLower(slug)
+		if sl == matchedPrefix {
+			matchedSlugs = append(matchedSlugs, slug)
+			continue
+		}
+		if tilde := strings.Index(sl, "~"); tilde >= 0 {
+			pre := sl[:tilde]
+			if pre == matchedPrefix {
+				matchedSlugs = append(matchedSlugs, slug)
+				continue
+			}
+			if dash := strings.Index(pre, "-"); dash >= 0 {
+				if pre[:dash] == matchedPrefix {
+					matchedSlugs = append(matchedSlugs, slug)
+					continue
+				}
+			}
+		} else {
+			if dash := strings.Index(sl, "-"); dash >= 0 {
+				if sl[:dash] == matchedPrefix {
+					matchedSlugs = append(matchedSlugs, slug)
+					continue
+				}
+			}
+		}
+	}
+	return cleanQuery, matchedSlugs
+}
+
 // Search queries the FTS index for entries whose name/path match the query.
 // If docSlug is non-empty, results are restricted to that doc.
 // Limit must be > 0.
@@ -38,11 +180,27 @@ func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([
 		limit = 20
 	}
 
+	// Auto-detect doc filter from query tokens when no explicit filter given.
+	autoSlugs := []string{docSlug}
+	hasDocFilter := docSlug != ""
+	if docSlug == "" {
+		slugMap, _, catErr := i.docCatalog(ctx)
+		if catErr == nil && len(slugMap) > 0 {
+			cleanQ, matched := extractDocFilter(query, slugMap, docSlug)
+			if len(matched) > 0 {
+				query = cleanQ
+				q = sanitizeFTSQuery(cleanQ)
+				autoSlugs = matched
+				hasDocFilter = true
+			}
+		}
+	}
+
 	// Over-fetch when ranking globally so the popularity boost has
 	// candidates to reorder. With a doc filter, no boost is applied
 	// and the FTS LIMIT is enough.
 	fetchLimit := limit
-	if docSlug == "" {
+	if !hasDocFilter {
 		fetchLimit = limit * 4
 		if fetchLimit < 50 {
 			fetchLimit = 50
@@ -59,7 +217,7 @@ func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([
 		err error
 	)
 
-	if docSlug == "" {
+	if !hasDocFilter {
 		rows, err = i.db.QueryContext(ctx, `
 			SELECT e.doc_slug, e.name, e.path, e.type, bm25(entries_fts, 2.0, 1.0) AS score
 			FROM entries_fts
@@ -68,13 +226,22 @@ func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([
 			ORDER BY score
 			LIMIT ?`, q, fetchLimit)
 	} else {
-		rows, err = i.db.QueryContext(ctx, `
-			SELECT e.doc_slug, e.name, e.path, e.type, bm25(entries_fts, 2.0, 1.0) AS score
+		placeholders := strings.Repeat("?,", len(autoSlugs))
+		placeholders = placeholders[:len(placeholders)-1]
+		args := make([]any, 0, 2+len(autoSlugs))
+		args = append(args, q)
+		for _, s := range autoSlugs {
+			args = append(args, s)
+		}
+		args = append(args, limit)
+		rows, err = i.db.QueryContext(ctx,
+			`SELECT e.doc_slug, e.name, e.path, e.type, bm25(entries_fts, 2.0, 1.0) AS score
 			FROM entries_fts
 			JOIN entries e ON e.id = entries_fts.rowid
-			WHERE entries_fts MATCH ? AND e.doc_slug = ?
+			WHERE entries_fts MATCH ? AND e.doc_slug IN (`+placeholders+`)
 			ORDER BY score
-			LIMIT ?`, q, docSlug, limit)
+			LIMIT ?`,
+			args...)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("search: %w", err)
@@ -87,7 +254,7 @@ func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([
 		if err := rows.Scan(&h.DocSlug, &h.Name, &h.Path, &h.Type, &h.Score); err != nil {
 			return nil, err
 		}
-		if docSlug == "" {
+		if !hasDocFilter {
 			h.Score -= popularityBoost(h.DocSlug)
 		}
 		hits = append(hits, h)
@@ -95,7 +262,7 @@ func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	if docSlug == "" {
+	if !hasDocFilter {
 		// Re-sort and trim after applying the boost.
 		sortHitsByScore(hits)
 		if len(hits) > limit {
@@ -105,10 +272,8 @@ func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([
 
 	// Augment with substring matches on entries.name only when the
 	// FTS prefix-tokenizer didn't already saturate the result set.
-	// Calling LIKE on every search adds ~30 ms on cold queries; we
-	// skip it when FTS already returned at least limit/2 hits.
 	if len(hits) < limit/2 || len(hits) == 0 {
-		fb, err := i.searchSubstring(ctx, query, docSlug, limit)
+		fb, err := i.searchSubstring(ctx, query, autoSlugs, limit)
 		if err != nil {
 			return nil, err
 		}
@@ -150,28 +315,35 @@ func mergeHits(primary, fallback []SearchHit, limit int) []SearchHit {
 }
 
 // searchSubstring is the LIKE-based fallback used to augment FTS
-// prefix-match hits. For each whitespace-separated token in the query,
-// it looks for the token as a case-insensitive substring inside
-// entries.name. Multi-token queries are AND'd together, so
-// 'context cancel' matches names that contain both substrings (e.g.
-// 'context.WithCancel'). The synthetic score (length-based, always
-// positive) sorts these below real FTS hits whose bm25 is negative.
-func (i *Index) searchSubstring(ctx context.Context, query, docSlug string, limit int) ([]SearchHit, error) {
+// prefix-match hits. docSlugs restricts results; empty/nil means no filter.
+func (i *Index) searchSubstring(ctx context.Context, query string, docSlugs []string, limit int) ([]SearchHit, error) {
 	tokens := strings.Fields(query)
 	if len(tokens) == 0 {
 		return nil, nil
 	}
 
+	// Determine effective filter: remove empty strings
+	var filteredSlugs []string
+	for _, s := range docSlugs {
+		if s != "" {
+			filteredSlugs = append(filteredSlugs, s)
+		}
+	}
+
 	var clauses []string
-	args := make([]any, 0, len(tokens)+2)
+	args := make([]any, 0, len(tokens)+len(filteredSlugs)+1)
 	for _, t := range tokens {
 		clauses = append(clauses, `name LIKE ? ESCAPE '\'`)
 		args = append(args, "%"+escapeLike(t)+"%")
 	}
 	where := strings.Join(clauses, " AND ")
-	if docSlug != "" {
-		where += " AND doc_slug = ?"
-		args = append(args, docSlug)
+	if len(filteredSlugs) > 0 {
+		placeholders := strings.Repeat("?,", len(filteredSlugs))
+		placeholders = placeholders[:len(placeholders)-1]
+		where += " AND doc_slug IN (" + placeholders + ")"
+		for _, s := range filteredSlugs {
+			args = append(args, s)
+		}
 	}
 	args = append(args, limit*4)
 
@@ -183,17 +355,15 @@ func (i *Index) searchSubstring(ctx context.Context, query, docSlug string, limi
 	}
 	defer rows.Close()
 
+	noFilter := len(filteredSlugs) == 0
 	var hits []SearchHit
 	for rows.Next() {
 		var h SearchHit
 		if err := rows.Scan(&h.DocSlug, &h.Name, &h.Path, &h.Type); err != nil {
 			return nil, err
 		}
-		// Synthetic positive score: shorter names beat longer ones.
-		// Always greater than any real (negative) bm25 score, so
-		// FTS hits keep precedence after merge.
 		h.Score = float64(len(h.Name))
-		if docSlug == "" {
+		if noFilter {
 			h.Score -= popularityBoost(h.DocSlug)
 		}
 		hits = append(hits, h)
@@ -238,11 +408,26 @@ func (i *Index) SearchPages(ctx context.Context, query, docSlug string, limit in
 		limit = 20
 	}
 
+	// Auto-detect doc filter from query tokens when no explicit filter given.
+	autoSlugs := []string{docSlug}
+	hasDocFilter := docSlug != ""
+	if docSlug == "" {
+		slugMap, _, catErr := i.docCatalog(ctx)
+		if catErr == nil && len(slugMap) > 0 {
+			cleanQ, matched := extractDocFilter(query, slugMap, docSlug)
+			if len(matched) > 0 {
+				q = sanitizeFTSQuery(cleanQ)
+				autoSlugs = matched
+				hasDocFilter = true
+			}
+		}
+	}
+
 	var (
 		rows *sql.Rows
 		err  error
 	)
-	if docSlug == "" {
+	if !hasDocFilter {
 		rows, err = i.db.QueryContext(ctx, `
 			SELECT doc_slug, path,
 			       snippet(pages_fts, 2, '[', ']', ' … ', 16) AS snip,
@@ -252,14 +437,23 @@ func (i *Index) SearchPages(ctx context.Context, query, docSlug string, limit in
 			ORDER BY score
 			LIMIT ?`, q, limit)
 	} else {
-		rows, err = i.db.QueryContext(ctx, `
-			SELECT doc_slug, path,
+		placeholders := strings.Repeat("?,", len(autoSlugs))
+		placeholders = placeholders[:len(placeholders)-1]
+		args := make([]any, 0, 2+len(autoSlugs))
+		args = append(args, q)
+		for _, s := range autoSlugs {
+			args = append(args, s)
+		}
+		args = append(args, limit)
+		rows, err = i.db.QueryContext(ctx,
+			`SELECT doc_slug, path,
 			       snippet(pages_fts, 2, '[', ']', ' … ', 16) AS snip,
 			       bm25(pages_fts) AS score
 			FROM pages_fts
-			WHERE pages_fts MATCH ? AND doc_slug = ?
+			WHERE pages_fts MATCH ? AND doc_slug IN (`+placeholders+`)
 			ORDER BY score
-			LIMIT ?`, q, docSlug, limit)
+			LIMIT ?`,
+			args...)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("search pages: %w", err)
@@ -272,7 +466,7 @@ func (i *Index) SearchPages(ctx context.Context, query, docSlug string, limit in
 		if err := rows.Scan(&h.DocSlug, &h.Path, &h.Snippet, &h.Score); err != nil {
 			return nil, err
 		}
-		if docSlug == "" {
+		if !hasDocFilter {
 			h.Score -= popularityBoost(h.DocSlug)
 		}
 		hits = append(hits, h)
@@ -280,7 +474,7 @@ func (i *Index) SearchPages(ctx context.Context, query, docSlug string, limit in
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	if docSlug == "" {
+	if !hasDocFilter {
 		sortPageHitsByScore(hits)
 	}
 	return hits, nil
@@ -345,7 +539,6 @@ func sanitizeFTSQuery(q string) string {
 	}
 	parts := make([]string, 0, len(fields))
 	for _, f := range fields {
-		// drop tokens that become empty after quote-escaping
 		escaped := strings.ReplaceAll(f, `"`, `""`)
 		if escaped == "" {
 			continue

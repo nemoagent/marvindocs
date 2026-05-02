@@ -170,3 +170,104 @@ func TestEscapeLike(t *testing.T) {
 		}
 	}
 }
+
+func TestSearch_AutoDocFilter(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	idx, err := Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = idx.Close() })
+
+	// Insert docs
+	docs := []struct{ slug, name string }{
+		{"python~3.13", "Python"},
+		{"go-std~1.25", "Go"},
+		{"react", "React"},
+	}
+	for _, d := range docs {
+		_, err := idx.db.Exec(`INSERT INTO docs(slug, name, type, version, release, mtime) VALUES(?,?,'lib','','',0)`, d.slug, d.name)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Insert entries
+	entries := []struct{ slug, name, path, typ string }{
+		{"python~3.13", "requests.get", "requests/get", "Method"},
+		{"python~3.13", "requests.post", "requests/post", "Method"},
+		{"go-std~1.25", "context.Background", "context/Background", "Function"},
+		{"go-std~1.25", "context.WithCancel", "context/WithCancel", "Function"},
+		{"react", "useState", "hooks/useState", "Function"},
+		{"react", "useEffect", "hooks/useEffect", "Function"},
+	}
+	for _, e := range entries {
+		_, err := idx.db.Exec(`INSERT INTO entries(doc_slug, name, path, type) VALUES(?,?,?,?)`, e.slug, e.name, e.path, e.typ)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Rebuild FTS
+	_, err = idx.db.Exec(`INSERT INTO entries_fts(entries_fts) VALUES('rebuild')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+
+	t.Run("python request", func(t *testing.T) {
+		hits, err := idx.Search(ctx, "python request", "", 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(hits) == 0 {
+			t.Fatal("expected hits for 'python request'")
+		}
+		for _, h := range hits {
+			if !strings.HasPrefix(h.DocSlug, "python") {
+				t.Errorf("expected python doc, got %s", h.DocSlug)
+			}
+		}
+	})
+
+	t.Run("go context", func(t *testing.T) {
+		hits, err := idx.Search(ctx, "go context", "", 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(hits) == 0 {
+			t.Fatal("expected hits for 'go context'")
+		}
+		for _, h := range hits {
+			if !strings.HasPrefix(h.DocSlug, "go") {
+				t.Errorf("expected go doc, got %s", h.DocSlug)
+			}
+		}
+	})
+
+	t.Run("useState react", func(t *testing.T) {
+		hits, err := idx.Search(ctx, "useState react", "", 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(hits) == 0 {
+			t.Fatal("expected hits for 'useState react'")
+		}
+		for _, h := range hits {
+			if h.DocSlug != "react" {
+				t.Errorf("expected react doc, got %s", h.DocSlug)
+			}
+		}
+	})
+
+	t.Run("useState no prefix", func(t *testing.T) {
+		hits, err := idx.Search(ctx, "useState", "", 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(hits) == 0 {
+			t.Fatal("expected hits for 'useState'")
+		}
+	})
+}

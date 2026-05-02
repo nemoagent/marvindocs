@@ -4,14 +4,19 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"sync"
 
 	_ "github.com/mattn/go-sqlite3" // CGo SQLite driver (faster bulk inserts; requires CGO_ENABLED=1 and -tags sqlite_fts5)
 )
 
 // Index is a handle to an open SQLite index file.
 type Index struct {
-	db   *sql.DB
-	path string
+	db           *sql.DB
+	path         string
+	catalogOnce  sync.Once
+	catalogSlugs map[string]bool
+	catalogNames map[string]string
+	catalogErr   error
 }
 
 // Open opens (or creates) an index file and ensures the schema exists.
