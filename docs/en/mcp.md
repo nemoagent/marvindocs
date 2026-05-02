@@ -36,6 +36,11 @@ boost as a tiebreaker for cross-doc queries.
     (`use` matches `useState`). Special FTS characters are escaped, so
     arbitrary input is safe.
   - `doc_slug` *(string, optional)* — restrict results to a single doc.
+    If not set, query tokens are checked against known slugs (and their
+    prefixes up to `~`/`-`): a matching token is removed from the query
+    and the search is automatically scoped to that doc or group (e.g.
+    `python~*`). Supported aliases: `js`, `py`, `ts`, `pg`, `mongo`.
+    Example: `{"query": "python requests"}` → scoped to python docs only.
   - `limit` *(int, optional)* — default `20`, max `100`.
 - **Output:**
   `{ hits: [{ doc_slug, name, path, type, score }] }`. Lower `score`
@@ -66,7 +71,8 @@ that aren't entry names — `jsonb operators`, `connection pool size`,
 Requires the index to be built with `--fulltext`; on a non-fulltext
 index the tool returns `{ hits: [] }`.
 
-- **Input:** same shape as `search`.
+- **Input:** same shape as `search`; the doc-filter auto-detection from
+  query tokens works the same way.
 - **Output:** `{ hits: [{ doc_slug, path, snippet, score }] }`.
   `snippet` is a short excerpt around the match (~16 tokens) with the
   matched terms wrapped in `[ ]`.
