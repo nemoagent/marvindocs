@@ -13,3 +13,5 @@
   layout, for writing your own scraper / parser
 - [Parsers](parsers.md) — bundled parser binaries that produce the
   data format from custom sources (Laravel docs, internal handbooks)
+- [Consistency checks](consistency-checks.md) — scripts that validate
+  docs/en <-> docs/ru parity and devdocs dump integrity
