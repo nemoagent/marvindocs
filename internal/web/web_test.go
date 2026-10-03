@@ -130,7 +130,14 @@ func TestDocPathETag(t *testing.T) {
 	}
 	// Without a matching validator the handler proceeds to load the page;
 	// the fixture has no db.json, so a 404 proves it did not short-circuit.
-	if rec := get(h, "/docs/go/fmt/Println", "If-None-Match", `"stale"`); rec.Code != http.StatusNotFound {
+	// A 404 must not carry cache validators.
+	rec = get(h, "/docs/go/fmt/Println", "If-None-Match", `"stale"`)
+	if rec.Code != http.StatusNotFound {
 		t.Errorf("stale ETag: status %d, want 404", rec.Code)
+	}
+	for _, k := range []string{"ETag", "Cache-Control"} {
+		if v := rec.Header().Get(k); v != "" {
+			t.Errorf("404 has %s=%q, want none", k, v)
+		}
 	}
 }

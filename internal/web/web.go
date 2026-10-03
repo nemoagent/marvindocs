@@ -172,18 +172,21 @@ func (s *server) handleDocPath(w http.ResponseWriter, r *http.Request) {
 	// release changes (devdocs bumps it on every rebuild) and the ETag
 	// invalidates without us needing to track per-page mtimes.
 	etag := `"` + doc.Release + ":" + pagePath + `"`
-	w.Header().Set("ETag", etag)
-	w.Header().Set("Cache-Control", "public, max-age=300")
 	if match := r.Header.Get("If-None-Match"); match != "" && strings.Contains(match, etag) {
+		w.Header().Set("ETag", etag)
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
 
 	html, err := s.deps.Store.Page(slug, pagePath)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		http.NotFound(w, r)
 		return
 	}
+	// Set caching headers only for pages that exist; a 404 must not be
+	// cached as public for five minutes.
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Cache-Control", "public, max-age=300")
 
 	// Build a sidebar of entries for navigation. Cheap: index.json is
 	// cached after the first load.
