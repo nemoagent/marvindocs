@@ -15,3 +15,5 @@
   data format from custom sources (Laravel docs, internal handbooks)
 - [Consistency checks](consistency-checks.md) — scripts that validate
   docs/en <-> docs/ru parity and devdocs dump integrity
+- [Audit 2026-05](audit-2026-05.md) — static analysis, vulnerable deps,
+  index size and search latency findings, prioritized improvement plan
