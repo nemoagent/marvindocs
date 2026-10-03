@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 	"sync"
-
-	_ "github.com/mattn/go-sqlite3" // CGo SQLite driver (faster bulk inserts; requires CGO_ENABLED=1 and -tags sqlite_fts5)
 )
 
 // Index is a handle to an open SQLite index file.
@@ -25,7 +23,7 @@ func Open(path string) (*Index, error) {
 	// Use WAL for better concurrent reads; busy_timeout to avoid spurious
 	// "database is locked" errors when the indexer and server run together.
 	dsn := "file:" + path + "?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=1"
-	db, err := sql.Open("sqlite3", dsn)
+	db, err := sql.Open(driverName, dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open index %s: %w", path, err)
 	}
