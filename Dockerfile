@@ -28,9 +28,7 @@ COPY --from=builder /out/marvindocs /usr/local/bin/marvindocs
 # Default mount points. Override with bind mounts at runtime:
 #   docker run -v /host/docs:/data -v /host/index:/index marvindocs
 WORKDIR /app
-ENV MARVINDOCS_DOCS_PATH=/data \
-    MARVINDOCS_INDEX_PATH=/index/marvindocs.db
 
 EXPOSE 3333
 ENTRYPOINT ["/usr/local/bin/marvindocs"]
-CMD ["serve", "--http", ":3333", "--docs-path", "/data", "--index-path", "/index/marvindocs.db"]
+CMD ["serve", "--http", "0.0.0.0:3333", "--docs-path", "/data", "--index-path", "/index/marvindocs.db"]
