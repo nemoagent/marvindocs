@@ -4,12 +4,12 @@
 marvindocs <command> [flags]
 ```
 
-Run `marvindocs help` or `marvindocs --help` to see the built-in summary.
+Run `marvindocs help` (also `--help` / `-h`) to see the built-in summary.
 
 ## `marvindocs version`
 
 Prints the build version (defaults to `dev`; overridable with
-`-ldflags "-X main.version=..."`).
+`-ldflags "-X main.version=..."`). Also accepted as `--version` / `-v`.
 
 ```bash
 marvindocs version
@@ -60,7 +60,7 @@ marvindocs index stats [--index-path FILE] [--by-doc] [--top N]
 | `--by-doc` | off | Print per-doc table after the summary. |
 | `--top` | 0 (all) | When combined with `--by-doc`, limit to top N rows. |
 
-Example output:
+Example output (sample; the numbers depend on your dump):
 
 ```
 index:   marvindocs.db
@@ -81,7 +81,7 @@ Runs a full-text search against the index and prints hits. Useful for
 shell pipelines and quick lookups without starting a server.
 
 ```bash
-marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--index-path FILE]
+marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body] [--index-path FILE]
 ```
 
 | Flag | Default | Notes |
@@ -89,12 +89,14 @@ marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--index-path FILE]
 | `--doc` | empty | Restrict results to a single doc slug (e.g. `react`, `python~3.13`). If omitted, a query token matching a known slug or its prefix (up to `~`/`-`) is removed and applied as an automatic filter. Aliases: `js`, `py`, `ts`, `pg`, `mongo`. |
 | `--limit` | `20` | Maximum number of results (1–100). |
 | `--json` | `false` | Emit the raw hit list as JSON on stdout. |
+| `--body` | `false` | Search page bodies instead of entry names. Requires an index built with `index build --fulltext`; otherwise there are no results. |
 | `--index-path` | `marvindocs.db` | SQLite index file (must exist). |
 
 Positional arguments after the flags are joined with spaces, so
 `marvindocs search http server` is equivalent to `marvindocs search "http server"`.
 
-Plain text output columns: `DOC_SLUG  NAME  PATH`. The trailing
+Plain text output columns: `DOC_SLUG  NAME  PATH` (with `--body`:
+`DOC_SLUG  PATH  SNIPPET`). The trailing
 `N result(s)` summary is written to stderr so it is easy to pipe the
 data portion into other tools.
 
@@ -149,7 +151,7 @@ marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] \
 |---|---|---|
 | `--stdio` | `false` | Serve MCP over stdin/stdout. |
 | `--http` | empty | Serve the web UI at `<addr>/` and MCP Streamable HTTP at `<addr>/mcp`. Bare `:3333` binds `127.0.0.1` only; use `0.0.0.0:3333` for public exposure. |
-| `--auth-token` | empty | Require `Authorization: Bearer TOKEN` on all HTTP requests except `/healthz`. Falls back to `MARVINDOCS_AUTH_TOKEN` env var. |
+| `--auth-token` | empty | When set, every HTTP request (including `/mcp` and the web UI) must carry `Authorization: Bearer TOKEN`; only `/healthz` is exempt. Falls back to the `MARVINDOCS_AUTH_TOKEN` env var. |
 | `--docs-path` | `data/public/docs` | Needed by `get_page` to read `db.json` on demand. |
 | `--index-path` | `marvindocs.db` | Must already exist (run `index build` first). |
 
@@ -169,7 +171,7 @@ All commands honor two environment variables:
 | `MARVINDOCS_LOG_FORMAT` | `text`, `json` | `text` |
 
 Logs are written to stderr. The HTTP server emits one line per request
-(method, path, status, duration_ms, remote).
+(method, path, status, dur_ms, remote).
 
 ## Exit codes (all commands)
 

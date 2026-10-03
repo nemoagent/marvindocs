@@ -4,12 +4,12 @@
 marvindocs <command> [flags]
 ```
 
-Краткая справка — `marvindocs help` или `marvindocs --help`.
+Краткая справка — `marvindocs help` (также `--help` / `-h`).
 
 ## `marvindocs version`
 
 Выводит версию сборки (по умолчанию `dev`, перезаписывается через
-`-ldflags "-X main.version=..."`).
+`-ldflags "-X main.version=..."`). Также принимается как `--version` / `-v`.
 
 ```bash
 marvindocs version
@@ -59,7 +59,7 @@ marvindocs index stats [--index-path FILE] [--by-doc] [--top N]
 | `--by-doc` | off | Печатать таблицу по документам после сводки. |
 | `--top` | 0 (все) | В паре с `--by-doc` — ограничить топ N строк. |
 
-Пример вывода:
+Пример вывода (образец; числа зависят от вашего дампа):
 
 ```
 index:   marvindocs.db
@@ -80,7 +80,7 @@ qt~6.9                               45235           0
 Удобно для shell-пайплайнов и быстрых проверок без запуска сервера.
 
 ```bash
-marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--index-path FILE]
+marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body] [--index-path FILE]
 ```
 
 | Флаг | По умолчанию | Примечание |
@@ -88,12 +88,14 @@ marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--index-path FILE]
 | `--doc` | пусто | Ограничить поиск одним slug (например, `react`, `python~3.13`). Если флаг не задан, поиск авто-определяет doc-фильтр по токенам запроса: токен, совпадающий со slug'ом или его префиксом (до `~`/`-`), удаляется и применяется как фильтр. Алиасы: `js`, `py`, `ts`, `pg`, `mongo`. |
 | `--limit` | `20` | Максимум результатов (1–100). |
 | `--json` | `false` | Выводить сырой список результатов как JSON в stdout. |
+| `--body` | `false` | Искать по телу страниц, а не по именам записей. Нужен индекс, собранный с `index build --fulltext`; иначе результатов не будет. |
 | `--index-path` | `marvindocs.db` | Файл SQLite-индекса (должен существовать). |
 
 Позиционные аргументы после флагов склеиваются через пробел, то есть
 `marvindocs search http server` эквивалентно `marvindocs search "http server"`.
 
-Текстовый вывод — колонки `DOC_SLUG  NAME  PATH`. Итоговая строка
+Текстовый вывод — колонки `DOC_SLUG  NAME  PATH` (с `--body`:
+`DOC_SLUG  PATH  SNIPPET`). Итоговая строка
 `N result(s)` пишется в stderr, чтобы было удобно передавать данные
 по пайпу.
 
@@ -148,7 +150,7 @@ marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] \
 |---|---|---|
 | `--stdio` | `false` | MCP через stdin/stdout. |
 | `--http` | пусто | Web UI на `<addr>/` и MCP Streamable HTTP на `<addr>/mcp`. Голый `:3333` слушает только `127.0.0.1`; для публичного доступа — `0.0.0.0:3333`. |
-| `--auth-token` | пусто | Требовать `Authorization: Bearer TOKEN` на все HTTP-запросы кроме `/healthz`. Если флаг пуст — читается из `MARVINDOCS_AUTH_TOKEN`. |
+| `--auth-token` | пусто | Если задан, каждый HTTP-запрос (включая `/mcp` и веб-интерфейс) должен содержать `Authorization: Bearer TOKEN`; исключение — только `/healthz`. Если флаг пуст — читается `MARVINDOCS_AUTH_TOKEN`. |
 | `--docs-path` | `data/public/docs` | Нужен `get_page`, чтобы читать `db.json` по требованию. |
 | `--index-path` | `marvindocs.db` | Файл должен уже существовать (сначала `index build`). |
 
@@ -169,7 +171,7 @@ marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] \
 | `MARVINDOCS_LOG_FORMAT` | `text`, `json` | `text` |
 
 Логи пишутся в stderr. HTTP-сервер выводит одну строку на запрос
-(method, path, status, duration_ms, remote).
+(method, path, status, dur_ms, remote).
 
 ## Коды выхода (для всех команд)
 

@@ -1,8 +1,9 @@
 # Configuration
 
-marvindocs is configured entirely through command-line flags. There are
-no environment variables and no configuration file — on purpose, to keep
-the tool trivial to deploy in containers and to reason about in scripts.
+marvindocs is configured through command-line flags and a few
+environment variables (see [Environment variables](#environment-variables)).
+There is no configuration file — on purpose, to keep the tool trivial to
+deploy in containers and to reason about in scripts.
 
 ## Directory layout
 
@@ -26,28 +27,74 @@ Both `data/public/` and `marvindocs.db*` are in `.gitignore`.
 | Flag | Default | Description |
 |---|---|---|
 | `--stdio` | `false` | Run MCP server over stdin/stdout (newline-delimited JSON-RPC). |
-| `--http ADDR` | empty | Listen for HTTP clients on `ADDR`. MCP Streamable transport is at `/mcp`. |
+| `--http ADDR` | empty | Listen for HTTP clients on `ADDR`. MCP Streamable transport is at `/mcp`. A bare `:3333` binds `127.0.0.1` only; use `0.0.0.0:3333` for public access. |
+| `--auth-token TOKEN` | empty | Require `Authorization: Bearer TOKEN` on every HTTP request (web UI and `/mcp` included) except `/healthz`. Falls back to `MARVINDOCS_AUTH_TOKEN`. |
 
 You must specify at least one of `--stdio` or `--http`.
+
+## Environment variables
+
+| Variable | Values | Default | Description |
+|---|---|---|---|
+| `MARVINDOCS_AUTH_TOKEN` | any string | empty | Bearer token for HTTP; used when `--auth-token` is not given. |
+| `MARVINDOCS_LOG_LEVEL` | `debug`, `info`, `warn`, `error` | `info` | Log level. |
+| `MARVINDOCS_LOG_FORMAT` | `text`, `json` | `text` | Log format. Logs go to stderr. |
 
 ## `index build`-only flags
 
 | Flag | Default | Description |
 |---|---|---|
 | `--fulltext` | `false` | Also index page body text into `pages_fts`. Substantially slower and the resulting index file grows by roughly the combined size of every `db.json`. |
+| `--full` | `false` | Force a full rebuild instead of the default incremental sync (only changed docs are re-indexed). |
 
 ## Build-time configuration
 
 The Docker image and Go flags live in the `Makefile`:
 
 ```make
-GO_IMAGE   = golang:1.25
-CGO_ENABLED = 0            # pure-Go build, no glibc dependency
+GO_IMAGE = golang:1.25
+# docker run ... -e CGO_ENABLED=1 $(GO_IMAGE)
+#   go build -tags sqlite_fts5 -buildvcs=false -o bin/marvindocs ./cmd/marvindocs
 ```
 
-SQLite is provided by the pure-Go driver `modernc.org/sqlite`; there is
-no CGO, no external SQLite library, no dynamic linking. The resulting
-binary runs on any Linux box matching the target arch.
+SQLite is provided by the CGo driver `github.com/mattn/go-sqlite3`, so
+the build needs `CGO_ENABLED=1` and the `sqlite_fts5` build tag
+(without it FTS5 is missing and the index will not open). The resulting
+binary is dynamically linked against the system libc.
+
+## Makefile targets
+
+All Go targets run inside the `golang:1.25` container.
+
+| Target | What it does |
+|---|---|
+| `build` | Build `./bin/marvindocs` (CGO, `-tags sqlite_fts5`). |
+| `tidy` | `go mod tidy`. |
+| `test` | `go test -tags sqlite_fts5 ./...`. |
+| `vet` | `go vet -tags sqlite_fts5 ./...`. |
+| `fmt` | `gofmt -w cmd internal parsers`. |
+| `index` | `build`, then `./bin/marvindocs index build`. |
+| `run-http` | `build`, then `serve --http :3333`. |
+| `run-stdio` | `build`, then `serve --stdio`. |
+| `parsers` | Build each `parsers/*` module (except `devdocsfmt`) into `bin/<name>-parser` without CGO. |
+| `parsers-test` | Run `go test ./...` in each parser module. |
+| `clean` | Remove `bin`, `.gocache`, `.gomodcache` and `marvindocs.db*`. |
+
+## Docker
+
+The `Dockerfile` builds the binary in `golang:1.25-alpine` (CGO,
+`sqlite_fts5`) and ships it in a small `alpine` image. `docker compose up -d`
+builds the image and serves HTTP on port 3333, with bind mounts
+`./data/public/docs` to `/data` (read-only) and `./data/index` to `/index`.
+Build the index beforehand so that `./data/index/marvindocs.db` exists, e.g.
+`./bin/marvindocs index build --index-path data/index/marvindocs.db`.
+The compose file sets `MARVINDOCS_LOG_FORMAT=json` and
+`MARVINDOCS_LOG_LEVEL=info`.
+
+The image `CMD` is `serve --http 0.0.0.0:3333 --docs-path /data
+--index-path /index/marvindocs.db`. Compose publishes port 3333 on all
+host interfaces; set `MARVINDOCS_AUTH_TOKEN` in its `environment` if the
+host is reachable by others.
 
 ## Where things are written
 

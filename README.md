@@ -9,7 +9,7 @@ documentation sets (React, Python, Go, Rust, …) from a local SQLite index.
 | Feature | How |
 |---|---|
 | **Web UI** | Browse and search all docs in a browser at `http://localhost:3333/` |
-| **MCP server** | Expose three tools to AI agents over stdio or HTTP |
+| **MCP server** | Expose four tools to AI agents over stdio or HTTP |
 | **HTML→Markdown** | `get_page` converts devdocs HTML to clean Markdown on the fly |
 | **Full-text search** | SQLite FTS5, BM25 ranking, prefix matching |
 
@@ -25,7 +25,7 @@ documentation sets (React, Python, Go, Rust, …) from a local SQLite index.
 # 1. Build the binary
 make build
 
-# 2. Download documentation (~29 popular docs, ~1-2 GB, a few minutes)
+# 2. Download documentation (27 popular docs, ~0.6 GB on disk)
 ./scripts/sync-docs.sh
 
 # 3. Start
@@ -34,6 +34,14 @@ make build
 
 Open <http://localhost:3333/> to browse docs.
 The MCP endpoint is at <http://localhost:3333/mcp>.
+
+> `--http :3333` binds `127.0.0.1` only. Use `--http 0.0.0.0:3333` to
+> accept connections from other hosts, and set `--auth-token` (or
+> `MARVINDOCS_AUTH_TOKEN`) when you do.
+
+By default `sync-docs.sh` also runs `index build` when it finishes (skip with
+`--no-index`). For page-body search run
+`./bin/marvindocs index build --fulltext` yourself.
 
 ### Download specific docs or everything
 
@@ -103,12 +111,13 @@ For all agents including Zed, Continue, VS Code Copilot Chat — see
 
 ## MCP tools
 
-Once connected, the agent has three tools:
+Once connected, the agent has four tools:
 
 | Tool | What it does |
 |---|---|
 | `list_docs` | List all indexed docs with slug, name, version |
 | `search` | FTS search over entry names/paths; returns ranked hits with `doc_slug` and `path` |
+| `search_pages` | Full-text search over page bodies; returns hits with a snippet. Requires an index built with `index build --fulltext`, otherwise returns no hits |
 | `get_page` | Fetch a page as Markdown (default) or HTML by `doc_slug` + `path` |
 
 Verify the server with the bundled smoke test (needs `curl` + `jq`):
@@ -121,14 +130,43 @@ Verify the server with the bundled smoke test (needs `curl` + `jq`):
 ## CLI reference
 
 ```
-marvindocs index build   [--docs-path DIR] [--index-path FILE]  # build/rebuild index
-marvindocs index stats   [--index-path FILE]                    # show counts
-marvindocs serve         [--stdio] [--http ADDR]                # start server
-marvindocs search QUERY  [--doc SLUG] [--limit N] [--json]      # search the index
-marvindocs get SLUG PATH [--format markdown|html]               # fetch one page
-marvindocs list          [--json]                               # list indexed docs
+marvindocs index build   [--docs-path DIR] [--index-path FILE] [--fulltext] [--full]
+                                                                # incremental sync by default; --full rebuilds
+marvindocs index stats   [--index-path FILE] [--by-doc] [--top N]  # show counts
+marvindocs serve         [--stdio] [--http ADDR] [--auth-token TOKEN]
+                         [--docs-path DIR] [--index-path FILE]  # start server
+marvindocs search QUERY  [--doc SLUG] [--limit N] [--json] [--body] [--index-path FILE]
+                                                                # --body searches page bodies
+marvindocs get SLUG PATH [--format markdown|html] [--docs-path DIR]  # fetch one page
+marvindocs list          [--json] [--index-path FILE]           # list indexed docs
 marvindocs version
 ```
+
+`--fulltext` also indexes page bodies (needed for `search_pages` and
+`search --body`); it is much slower and makes the index many times larger.
+
+### Environment variables
+
+| Variable | Values | Default |
+|---|---|---|
+| `MARVINDOCS_AUTH_TOKEN` | any string | empty (no auth). Used when `--auth-token` is not given; with a token set, every HTTP request except `/healthz` needs `Authorization: Bearer <token>` |
+| `MARVINDOCS_LOG_LEVEL` | `debug`, `info`, `warn`, `error` | `info` |
+| `MARVINDOCS_LOG_FORMAT` | `text`, `json` | `text` |
+
+### Docker
+
+`docker compose up -d` builds the image and serves HTTP on port 3333.
+The compose file bind-mounts `./data/public/docs` to `/data` (read-only)
+and `./data/index` to `/index`. The index file `./data/index/marvindocs.db`
+must be built beforehand, for example:
+
+```bash
+./bin/marvindocs index build --index-path data/index/marvindocs.db
+```
+
+> The image listens on `0.0.0.0:3333` inside the container and compose
+> publishes the port on all host interfaces. Set `MARVINDOCS_AUTH_TOKEN`
+> in the compose `environment` if the host is reachable by others.
 
 ## Layout
 
@@ -136,11 +174,11 @@ marvindocs version
 scripts/sync-docs.sh     download docs (curl + tar, no Docker)
 scripts/mcp-smoke.sh     verify the MCP server end-to-end
 data/public/docs/        devdocs dump (not in git, ~17 GB)
-marvindocs.db            SQLite FTS5 index (~455 MB for all docs)
+marvindocs.db            SQLite FTS5 index (size depends on the doc set; much larger with --fulltext)
 cmd/marvindocs/          CLI entrypoint
 internal/docstore/       read-only data accessor + HTML→Markdown
 internal/index/          indexer and FTS search
-internal/mcpserver/      MCP tools (list_docs, search, get_page)
+internal/mcpserver/      MCP tools (list_docs, search, search_pages, get_page)
 internal/web/            browser UI (templates + CSS, embedded in binary)
 docs/en/                 English documentation
 docs/ru/                 Russian documentation

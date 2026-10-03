@@ -6,7 +6,8 @@ This page takes you from a fresh checkout to a running MCP server.
 
 - **Docker** — the default `Makefile` runs Go inside `golang:1.25` so you
   don't need Go or a C toolchain installed locally.
-- **~20 GB disk** — 17 GB for the devdocs dump, ~500 MB for the index.
+- **~20 GB disk** — 17 GB for the full devdocs dump; the index size depends
+  on the doc set and grows a lot with `--fulltext`.
 - *(Optional)* **Go 1.25+ and a C toolchain** — if you prefer native
   builds, the SQLite driver is CGo-based, so build with
   `CGO_ENABLED=1 go build -tags sqlite_fts5 ./cmd/marvindocs`. Without
@@ -60,15 +61,19 @@ libc because the SQLite driver uses CGo).
 ./bin/marvindocs index build
 ```
 
-Expected output:
+Expected output (illustrative numbers):
 
 ```
-loaded docs.json: 791 docs from data/public/docs
-indexed 791 docs, 2677981 entries in 2m31s -> marvindocs.db
+level=INFO msg="loaded docstore" docs=27 path=data/public/docs
+level=INFO msg="index synced" docs=27 entries=120000 pages=0 duration=15s path=marvindocs.db
 ```
 
-The command creates `marvindocs.db` (~455 MB with 791 docs). It is safe
-to rerun — the previous contents are replaced atomically.
+The command creates `marvindocs.db`; its size depends on the doc set.
+Add `--fulltext` to also index page bodies (needed for `search_pages` and
+`search --body`) — this is much slower and the index grows by gigabytes
+on a large dump. It is safe to rerun: by default the build is
+incremental, so only changed docs are re-indexed. Pass `--full` to
+rebuild everything (the last line then reads `index indexed`).
 
 Check the result:
 
