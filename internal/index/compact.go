@@ -11,7 +11,7 @@ import (
 const compactThreshold = 0.10
 
 // Compact reclaims free pages left behind by deletes (incremental sync,
-// --full rebuilds, dropping --fulltext page bodies). It runs VACUUM only
+// --full rebuilds). It runs VACUUM only
 // when more than compactThreshold of the file is free. Returns the
 // number of bytes reclaimed, or 0 if nothing was done.
 func (i *Index) Compact(ctx context.Context) (int64, error) {

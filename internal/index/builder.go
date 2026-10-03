@@ -9,32 +9,19 @@ import (
 	"github.com/piligrim/marvindocs/internal/docstore"
 )
 
-// BuildOptions controls optional work done by Build.
-type BuildOptions struct {
-	// Fulltext, when true, also populates pages_fts with the plain-text
-	// body of every page from db.json. This is slower and the resulting
-	// index file grows to roughly the combined size of all dumps.
-	Fulltext bool
-}
-
 // BuildStats is returned from Build to describe what was indexed.
 type BuildStats struct {
 	Docs     int
 	Entries  int
-	Pages    int // 0 unless Fulltext was requested
+	Pages    int
 	Duration time.Duration
 }
 
-// Build (re)populates the index from the given docstore with default
-// options (symbols only, no page bodies).
+// Build (re)populates the index from the given docstore: symbols from
+// index.json into entries and the plain-text body of every page from
+// db.json into pages_fts. It replaces any existing rows; see Sync for
+// the incremental variant.
 func (i *Index) Build(ctx context.Context, s *docstore.Store) (BuildStats, error) {
-	return i.BuildWithOptions(ctx, s, BuildOptions{})
-}
-
-// BuildWithOptions (re)populates the index from the given docstore using
-// the provided options. It replaces any existing rows — incremental
-// updates are not supported yet.
-func (i *Index) BuildWithOptions(ctx context.Context, s *docstore.Store, opts BuildOptions) (BuildStats, error) {
 	start := time.Now()
 	var stats BuildStats
 
@@ -68,15 +55,12 @@ func (i *Index) BuildWithOptions(ctx context.Context, s *docstore.Store, opts Bu
 	}
 	defer entStmt.Close()
 
-	var pageStmt *sql.Stmt
-	if opts.Fulltext {
-		pageStmt, err = tx.PrepareContext(ctx,
-			`INSERT INTO pages_fts(doc_slug, path, body) VALUES (?, ?, ?)`)
-		if err != nil {
-			return stats, fmt.Errorf("prepare pages_fts: %w", err)
-		}
-		defer pageStmt.Close()
+	pageStmt, err := tx.PrepareContext(ctx,
+		`INSERT INTO pages_fts(doc_slug, path, body) VALUES (?, ?, ?)`)
+	if err != nil {
+		return stats, fmt.Errorf("prepare pages_fts: %w", err)
 	}
+	defer pageStmt.Close()
 
 	for _, d := range s.Docs() {
 		if err := ctx.Err(); err != nil {
@@ -100,15 +84,12 @@ func (i *Index) BuildWithOptions(ctx context.Context, s *docstore.Store, opts Bu
 			stats.Entries++
 		}
 
-		if opts.Fulltext {
-			n, err := indexDocPages(ctx, s, d.Slug, pageStmt)
-			// db.json missing is non-fatal (some docs ship only index.json).
-			if err != nil {
-				return stats, err
-			}
-			stats.Pages += n
-			s.EvictDB(d.Slug)
+		n, err := indexDocPages(ctx, s, d.Slug, pageStmt)
+		if err != nil {
+			return stats, err
 		}
+		stats.Pages += n
+		s.EvictDB(d.Slug)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -117,9 +98,6 @@ func (i *Index) BuildWithOptions(ctx context.Context, s *docstore.Store, opts Bu
 
 	// Post-build optimizations: FTS optimize + ANALYZE. Not fatal if they fail.
 	_, _ = i.db.Exec(`INSERT INTO entries_fts(entries_fts) VALUES('optimize')`)
-	// Always optimize pages_fts: deletes (sync, Reset) leave dead segments
-	// behind even when this run didn't index bodies, and only a merge
-	// frees them for Compact.
 	_, _ = i.db.Exec(`INSERT INTO pages_fts(pages_fts) VALUES('optimize')`)
 	_, _ = i.db.Exec(`ANALYZE`)
 

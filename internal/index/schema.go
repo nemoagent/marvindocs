@@ -11,11 +11,10 @@
 //	entries_fts(name, path, content='entries', content_rowid='id')
 //	pages_fts(doc_slug UNINDEXED, path UNINDEXED, body)
 //
-// entries_fts is always populated (one row per symbol in index.json).
-// pages_fts is populated only when Build is called with Fulltext=true;
-// otherwise it stays empty. Triggers keep entries_fts in sync on
-// insert/delete; pages_fts is a standalone contentless table, managed
-// directly by the builder.
+// entries_fts holds one row per symbol in index.json; pages_fts holds the
+// plain-text body of every page in db.json. Triggers keep entries_fts in
+// sync on insert/delete; pages_fts is a standalone table managed directly
+// by the builder.
 package index
 
 // schemaSQL is executed once when a new index file is created.

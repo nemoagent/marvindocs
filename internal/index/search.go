@@ -429,8 +429,7 @@ func sortHitsByScore(hits []SearchHit) {
 }
 
 // SearchPages queries pages_fts for pages whose body text matches the
-// query. Requires that the index was built with Fulltext=true; otherwise
-// it returns an empty slice. Snippet is a short excerpt around the match
+// query. Snippet is a short excerpt around the match
 // (~20 tokens, with HTML-ish highlight markers). docSlug restricts the
 // search to a single doc when non-empty.
 func (i *Index) SearchPages(ctx context.Context, query, docSlug string, limit int) ([]PageHit, error) {

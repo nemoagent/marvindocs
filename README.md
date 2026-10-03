@@ -40,8 +40,8 @@ The MCP endpoint is at <http://localhost:3333/mcp>.
 > `MARVINDOCS_AUTH_TOKEN`) when you do.
 
 By default `sync-docs.sh` also runs `index build` when it finishes (skip with
-`--no-index`). For page-body search run
-`./bin/marvindocs index build --fulltext` yourself.
+`--no-index`). Page bodies are indexed too, so `search_pages` works out of
+the box.
 
 ### Download specific docs or everything
 
@@ -117,7 +117,7 @@ Once connected, the agent has four tools:
 |---|---|
 | `list_docs` | List all indexed docs with slug, name, version |
 | `search` | FTS search over entry names/paths; returns ranked hits with `doc_slug` and `path` |
-| `search_pages` | Full-text search over page bodies; returns hits with a snippet. Requires an index built with `index build --fulltext`, otherwise returns no hits |
+| `search_pages` | Full-text search over page bodies; returns hits with a snippet. |
 | `get_page` | Fetch a page as Markdown (default) or HTML by `doc_slug` + `path` |
 
 Verify the server with the bundled smoke test (needs `curl` + `jq`):
@@ -130,7 +130,7 @@ Verify the server with the bundled smoke test (needs `curl` + `jq`):
 ## CLI reference
 
 ```
-marvindocs index build   [--docs-path DIR] [--index-path FILE] [--fulltext] [--full]
+marvindocs index build   [--docs-path DIR] [--index-path FILE] [--full]
                                                                 # incremental sync by default; --full rebuilds
 marvindocs index stats   [--index-path FILE] [--by-doc] [--top N]  # show counts
 marvindocs serve         [--stdio] [--http ADDR] [--auth-token TOKEN]
@@ -142,8 +142,8 @@ marvindocs list          [--json] [--index-path FILE]           # list indexed d
 marvindocs version
 ```
 
-`--fulltext` also indexes page bodies (needed for `search_pages` and
-`search --body`); it is much slower and makes the index many times larger.
+Page bodies are indexed as well (needed for `search_pages` and
+`search --body`).
 
 ### Environment variables
 
@@ -174,7 +174,7 @@ must be built beforehand, for example:
 scripts/sync-docs.sh     download docs (curl + tar, no Docker)
 scripts/mcp-smoke.sh     verify the MCP server end-to-end
 data/public/docs/        devdocs dump (not in git, ~17 GB)
-marvindocs.db            SQLite FTS5 index (size depends on the doc set; much larger with --fulltext)
+marvindocs.db            SQLite FTS5 index (size depends on the doc set; includes page body text)
 cmd/marvindocs/          CLI entrypoint
 internal/docstore/       read-only data accessor + HTML→Markdown
 internal/index/          indexer and FTS search

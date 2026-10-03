@@ -130,8 +130,7 @@ func registerSearchPages(s *mcp.Server, d Deps) {
 		Description: "Full-text search across page bodies (not just symbol names). " +
 			"Use this when the 'search' tool returns no hits because your query " +
 			"references concepts that aren't entry names — e.g. 'jsonb operators', " +
-			"'connection pool size'. Each hit includes a snippet around the match. " +
-			"Requires the index to be built with --fulltext; returns no hits otherwise.",
+			"'connection pool size'. Each hit includes a snippet around the match.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in searchPagesInput) (*mcp.CallToolResult, searchPagesOutput, error) {
 		limit := in.Limit
 		if limit <= 0 {

@@ -25,20 +25,19 @@ removed. The first run on an empty index file is equivalent to a full
 build.
 
 ```bash
-marvindocs index build [--docs-path DIR] [--index-path FILE] [--fulltext] [--full]
+marvindocs index build [--docs-path DIR] [--index-path FILE] [--full]
 ```
 
 | Flag | Default | Notes |
 |---|---|---|
 | `--docs-path` | `data/public/docs` | Must contain `docs.json` and `<slug>/{index,db}.json`. |
 | `--index-path` | `marvindocs.db` | Output SQLite file. Updated in place. |
-| `--fulltext` | `false` | Also index page body text into `pages_fts`. Much slower; the index file grows by roughly the combined size of every `db.json`. |
 | `--full` | `false` | Force a full rebuild (drop everything and reinsert). Useful after schema changes. |
 
 After a successful build the index is compacted: FTS5 segments are
 merged and, if more than 10% of the file is free pages, `VACUUM` is run
-and the WAL is checkpointed. Deleted docs, `--full` rebuilds and dropped
-`--fulltext` bodies otherwise leave the file at its peak size. A
+and the WAL is checkpointed. Deleted docs and `--full` rebuilds otherwise
+leave the file at its peak size. A
 compaction is logged as `index compacted reclaimed_mb=N`; when there is
 nothing to reclaim it is skipped. Expect roughly 30 s per 4 GB.
 
@@ -96,7 +95,7 @@ marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body] [--index-path
 | `--doc` | empty | Restrict results to a single doc slug (e.g. `react`, `python~3.13`). If omitted, a query token matching a known slug or its prefix (up to `~`/`-`) is removed and applied as an automatic filter; if that finds nothing, the full query is searched globally. Aliases: `js`, `py`, `ts`, `pg`, `mongo`. |
 | `--limit` | `20` | Maximum number of results (1–100). |
 | `--json` | `false` | Emit the raw hit list as JSON on stdout. |
-| `--body` | `false` | Search page bodies instead of entry names. Requires an index built with `index build --fulltext`; otherwise there are no results. |
+| `--body` | `false` | Search page bodies instead of entry names. |
 | `--index-path` | `marvindocs.db` | SQLite index file (must exist). |
 
 Positional arguments after the flags are joined with spaces, so

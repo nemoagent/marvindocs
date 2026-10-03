@@ -22,7 +22,7 @@ func TestSyncIncrementalSkipsUnchangedDocs(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = idx.Close() })
 
-	first, err := idx.Sync(context.Background(), store, BuildOptions{})
+	first, err := idx.Sync(context.Background(), store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestSyncIncrementalSkipsUnchangedDocs(t *testing.T) {
 
 	// Second sync without any changes: should report the same totals,
 	// taking far less wall time (no new inserts).
-	second, err := idx.Sync(context.Background(), store, BuildOptions{})
+	second, err := idx.Sync(context.Background(), store)
 	if err != nil {
 		t.Fatal(err)
 	}

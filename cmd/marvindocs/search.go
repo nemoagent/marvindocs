@@ -23,7 +23,7 @@ func runSearch(args []string) {
 	docSlug := fs.String("doc", "", "Restrict results to this doc slug (optional)")
 	limit := fs.Int("limit", 20, "Maximum number of results (1-100)")
 	asJSON := fs.Bool("json", false, "Print results as JSON instead of a table")
-	body := fs.Bool("body", false, "Search page bodies (requires index built with --fulltext)")
+	body := fs.Bool("body", false, "Search page bodies instead of entry names")
 	indexPath := fs.String("index-path", "marvindocs.db", "SQLite index file")
 	// Split positional query tokens from flags so users can mix them
 	// freely: `search jsonb --doc postgresql~17` works the same as
@@ -74,7 +74,7 @@ func runSearch(args []string) {
 			return
 		}
 		if len(hits) == 0 {
-			fmt.Fprintln(os.Stderr, "no results (if the index was built without --fulltext, page-body search is empty)")
+			fmt.Fprintln(os.Stderr, "no results")
 			return
 		}
 		for _, h := range hits {

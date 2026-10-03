@@ -148,12 +148,12 @@ CASES = [
     ("Vague: 'how to read file'", "read file", None, None),
 ]
 
-# search_pages cases — only meaningful when index built with --fulltext.
+# search_pages cases — query page bodies (pages_fts), always indexed.
 # Query the page-body FTS for things that aren't entry names.
 SEARCH_PAGES_CASES = [
-    ("PG fulltext: jsonb operators",     "jsonb operators",     "postgresql~17"),
-    ("PG fulltext: connection pool",     "connection pool",     "postgresql~17"),
-    ("Python fulltext: with statement",  "context manager with","python~3.13"),
+    ("PG full-text: jsonb operators",     "jsonb operators",     "postgresql~17"),
+    ("PG full-text: connection pool",     "connection pool",     "postgresql~17"),
+    ("Python full-text: with statement",  "context manager with","python~3.13"),
 ]
 
 
@@ -258,9 +258,9 @@ print(
     f"{with_page} pages fetched, {all_kw} pages had all expected keyword groups"
 )
 
-# search_pages probes (only useful on a --fulltext index)
+# search_pages probes
 print("\n" + "=" * 78)
-print(" SEARCH_PAGES (requires --fulltext build)")
+print(" SEARCH_PAGES")
 print("=" * 78)
 sp_total = len(SEARCH_PAGES_CASES)
 sp_found = 0
@@ -283,8 +283,8 @@ for desc, query, slug in SEARCH_PAGES_CASES:
             print(f"  bm25={h['score']:.2f}  {h['doc_slug']}/{h['path']}")
             print(f"    {snip}")
 print(
-    f"\n SUMMARY: {sp_found}/{sp_total} fulltext queries returned hits "
-    f"(0 means the index was built without --fulltext)"
+    f"\n SUMMARY: {sp_found}/{sp_total} full-text queries returned hits "
+    f"(0 means pages_fts is empty - rebuild the index)"
 )
 print("=" * 78)
 

@@ -60,7 +60,6 @@ never require a token.
 
 | Flag | Default | Description |
 |---|---|---|
-| `--fulltext` | `false` | Also index page body text into `pages_fts`. Substantially slower and the resulting index file grows by roughly the combined size of every `db.json`. |
 | `--full` | `false` | Force a full rebuild instead of the default incremental sync (only changed docs are re-indexed). |
 
 ## Build-time configuration

@@ -11,18 +11,14 @@ import (
 
 // Sync incrementally updates the index to match the docstore. Docs whose
 // mtime hasn't changed are left alone; new and modified docs are
-// re-indexed; docs that disappeared from docstore are removed.
-//
-// When opts.Fulltext is true, a doc is also re-indexed if its body rows
-// in pages_fts are missing (so toggling --fulltext on works without a
-// full rebuild). When opts.Fulltext is false, existing pages_fts rows
-// for changed docs are preserved if they belong to unchanged docs;
-// changed docs lose their page bodies until the next --fulltext run.
-func (i *Index) Sync(ctx context.Context, s *docstore.Store, opts BuildOptions) (BuildStats, error) {
+// re-indexed; docs that disappeared from docstore are removed. A doc
+// whose page bodies are missing from pages_fts (index built by an older
+// version without full-text) is re-indexed as well.
+func (i *Index) Sync(ctx context.Context, s *docstore.Store) (BuildStats, error) {
 	start := time.Now()
 	var stats BuildStats
 
-	existing, err := i.snapshotDocs(ctx, opts.Fulltext)
+	existing, err := i.snapshotDocs(ctx)
 	if err != nil {
 		return stats, err
 	}
@@ -41,7 +37,7 @@ func (i *Index) Sync(ctx context.Context, s *docstore.Store, opts BuildOptions) 
 			plans = append(plans, plan{d, true})
 		case ex.mtime != d.Mtime:
 			plans = append(plans, plan{d, true})
-		case opts.Fulltext && !ex.hasPages:
+		case !ex.hasPages:
 			plans = append(plans, plan{d, true})
 		default:
 			stats.Docs++
@@ -92,15 +88,12 @@ func (i *Index) Sync(ctx context.Context, s *docstore.Store, opts BuildOptions) 
 	}
 	defer entIns.Close()
 
-	var pageIns *sql.Stmt
-	if opts.Fulltext {
-		pageIns, err = tx.PrepareContext(ctx,
-			`INSERT INTO pages_fts(doc_slug, path, body) VALUES (?, ?, ?)`)
-		if err != nil {
-			return stats, fmt.Errorf("prepare pages_fts: %w", err)
-		}
-		defer pageIns.Close()
+	pageIns, err := tx.PrepareContext(ctx,
+		`INSERT INTO pages_fts(doc_slug, path, body) VALUES (?, ?, ?)`)
+	if err != nil {
+		return stats, fmt.Errorf("prepare pages_fts: %w", err)
 	}
+	defer pageIns.Close()
 
 	for _, p := range plans {
 		if err := ctx.Err(); err != nil {
@@ -126,14 +119,12 @@ func (i *Index) Sync(ctx context.Context, s *docstore.Store, opts BuildOptions) 
 			stats.Entries++
 		}
 
-		if opts.Fulltext {
-			n, err := indexDocPages(ctx, s, p.doc.Slug, pageIns)
-			if err != nil {
-				return stats, err
-			}
-			stats.Pages += n
-			s.EvictDB(p.doc.Slug)
+		n, err := indexDocPages(ctx, s, p.doc.Slug, pageIns)
+		if err != nil {
+			return stats, err
 		}
+		stats.Pages += n
+		s.EvictDB(p.doc.Slug)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -141,9 +132,6 @@ func (i *Index) Sync(ctx context.Context, s *docstore.Store, opts BuildOptions) 
 	}
 
 	_, _ = i.db.Exec(`INSERT INTO entries_fts(entries_fts) VALUES('optimize')`)
-	// Always optimize pages_fts: deletes (sync, Reset) leave dead segments
-	// behind even when this run didn't index bodies, and only a merge
-	// frees them for Compact.
 	_, _ = i.db.Exec(`INSERT INTO pages_fts(pages_fts) VALUES('optimize')`)
 	_, _ = i.db.Exec(`ANALYZE`)
 
@@ -160,9 +148,8 @@ type docSnapshot struct {
 }
 
 // snapshotDocs reads the current docs/entries/pages_fts counts grouped by
-// slug. countPages controls whether pages_fts is queried (skipping it
-// avoids touching the table when the caller doesn't care).
-func (i *Index) snapshotDocs(ctx context.Context, countPages bool) (map[string]docSnapshot, error) {
+// slug.
+func (i *Index) snapshotDocs(ctx context.Context) (map[string]docSnapshot, error) {
 	out := make(map[string]docSnapshot)
 
 	rows, err := i.db.QueryContext(ctx, `SELECT slug, mtime FROM docs`)
@@ -203,23 +190,25 @@ func (i *Index) snapshotDocs(ctx context.Context, countPages bool) (map[string]d
 		return nil, err
 	}
 
-	if countPages {
-		rows, err = i.db.QueryContext(ctx, `SELECT doc_slug, COUNT(*) FROM pages_fts GROUP BY doc_slug`)
-		if err == nil {
-			for rows.Next() {
-				var slug string
-				var n int
-				if err := rows.Scan(&slug, &n); err != nil {
-					rows.Close()
-					return nil, err
-				}
-				s := out[slug]
-				s.pages = n
-				s.hasPages = n > 0
-				out[slug] = s
-			}
+	rows, err = i.db.QueryContext(ctx, `SELECT doc_slug, COUNT(*) FROM pages_fts GROUP BY doc_slug`)
+	if err != nil {
+		return nil, fmt.Errorf("snapshot pages: %w", err)
+	}
+	for rows.Next() {
+		var slug string
+		var n int
+		if err := rows.Scan(&slug, &n); err != nil {
 			rows.Close()
+			return nil, err
 		}
+		s := out[slug]
+		s.pages = n
+		s.hasPages = n > 0
+		out[slug] = s
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return out, nil

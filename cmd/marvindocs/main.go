@@ -29,7 +29,7 @@ const usage = `marvindocs - MCP server and web UI for the DevDocs archive.
 
 Usage:
   marvindocs serve [--http ADDR] [--stdio] [--auth-token TOKEN] [--insecure] [--docs-path DIR] [--index-path FILE]
-  marvindocs index build [--fulltext] [--full] [--docs-path DIR] [--index-path FILE]
+  marvindocs index build [--full] [--docs-path DIR] [--index-path FILE]
   marvindocs index stats [--index-path FILE] [--by-doc] [--top N]
   marvindocs search QUERY [--doc SLUG] [--limit N] [--json]
   marvindocs get SLUG PATH [--format FORMAT]
@@ -39,7 +39,7 @@ Usage:
 Examples:
   marvindocs serve --http :3333
   marvindocs serve --stdio
-  marvindocs index build --fulltext
+  marvindocs index build
   marvindocs search useState --doc react
   marvindocs get react reference/react/usestate
 `
@@ -257,12 +257,11 @@ func runIndex(args []string) {
 	switch args[0] {
 	case "build":
 		fs := flag.NewFlagSet("index build", flag.ExitOnError)
-		fullText := fs.Bool("fulltext", false, "Also index page body text into pages_fts (adds GBs, much slower)")
 		full := fs.Bool("full", false, "Force full rebuild instead of incremental sync (default is incremental by mtime)")
 		docsPath := fs.String("docs-path", "data/public/docs", "Path to devdocs data")
 		indexPath := fs.String("index-path", "marvindocs.db", "Output SQLite file")
 		_ = fs.Parse(args[1:])
-		if err := runIndexBuild(*docsPath, *indexPath, *fullText, *full); err != nil {
+		if err := runIndexBuild(*docsPath, *indexPath, *full); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
 		}
@@ -282,7 +281,7 @@ func runIndex(args []string) {
 	}
 }
 
-func runIndexBuild(docsPath, indexPath string, fullText, full bool) error {
+func runIndexBuild(docsPath, indexPath string, full bool) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
@@ -298,22 +297,17 @@ func runIndexBuild(docsPath, indexPath string, fullText, full bool) error {
 	}
 	defer idx.Close()
 
-	if fullText {
-		slog.Info("full-text body indexing enabled; build will be slow and index large")
-	}
-
-	opts := index.BuildOptions{Fulltext: fullText}
 	var stats index.BuildStats
 	if full {
-		stats, err = idx.BuildWithOptions(ctx, store, opts)
+		stats, err = idx.Build(ctx, store)
 	} else {
-		stats, err = idx.Sync(ctx, store, opts)
+		stats, err = idx.Sync(ctx, store)
 	}
 	if err != nil {
 		return err
 	}
-	// Deletes (sync, --full, dropping --fulltext bodies) only move pages to
-	// the freelist; without VACUUM the file never shrinks.
+	// Deletes (sync, --full) only move pages to the freelist; without
+	// VACUUM the file never shrinks.
 	if reclaimed, err := idx.Compact(ctx); err != nil {
 		slog.Warn("index compact failed", "err", err)
 	} else if reclaimed > 0 {

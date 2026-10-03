@@ -3,7 +3,9 @@ package index
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"io/fs"
 	"runtime"
 	"sync"
 
@@ -27,8 +29,9 @@ func pageWorkers() int {
 // them in parallel, and inserts each non-empty result via pageStmt.
 // Returns the number of inserted rows.
 //
-// Errors from the docstore stream, plain-text conversion, or SQL insert
-// are surfaced through the returned error. Worker goroutines exit as
+// Errors from the docstore stream (other than a missing db.json),
+// plain-text conversion, or SQL insert are surfaced through the
+// returned error. Worker goroutines exit as
 // soon as ctx is cancelled or any error is observed.
 func indexDocPages(ctx context.Context, s *docstore.Store, slug string, pageStmt *sql.Stmt) (int, error) {
 	type job struct {
@@ -113,7 +116,8 @@ func indexDocPages(ctx context.Context, s *docstore.Store, slug string, pageStmt
 	if writeErr != nil {
 		return inserted, writeErr
 	}
-	if streamErr != nil {
+	// A doc without db.json ships only index.json: nothing to index.
+	if streamErr != nil && !errors.Is(streamErr, fs.ErrNotExist) {
 		return inserted, streamErr
 	}
 	return inserted, nil

@@ -83,9 +83,6 @@ this when `search` returns no hits because your query mentions concepts
 that aren't entry names — `jsonb operators`, `connection pool size`,
 `context manager with statement`.
 
-Requires the index to be built with `--fulltext`; on a non-fulltext
-index the tool returns `{ hits: [] }`.
-
 - **Input:** same shape as `search`; the doc-filter auto-detection from
   query tokens works the same way. The popularity boost is applied here
   too, again only when no doc filter is active.
