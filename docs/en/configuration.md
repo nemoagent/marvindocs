@@ -86,9 +86,12 @@ All Go targets run inside the `golang:1.25` container.
 |---|---|
 | `build` | Build `./bin/marvindocs` (CGO, `-tags sqlite_fts5`). |
 | `tidy` | `go mod tidy`. |
-| `test` | `go test -tags sqlite_fts5 ./...`. |
+| `test` | `go test -short -tags sqlite_fts5 ./...`: fixture-based tests only, finishes in seconds. |
+| `test-full` | `go test -tags sqlite_fts5 ./...`: also builds a full index from `data/public/docs` (minutes; skipped when the data is absent). |
 | `vet` | `go vet -tags sqlite_fts5 ./...`. |
 | `lint` | `golangci-lint run ./...` (v2.13.2, config in `.golangci.yml`). |
+| `vuln` | `govulncheck ./...` (v1.1.4) against the project and the toolchain in the image. |
+| `check` | `vet`, `lint`, `vuln`, `test` in sequence; the gate before a commit or PR. |
 | `fmt` | `gofmt -w cmd internal parsers`. |
 | `index` | `build`, then `./bin/marvindocs index build`. |
 | `run-http` | `build`, then `serve --http :3333`. |

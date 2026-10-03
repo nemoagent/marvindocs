@@ -8,9 +8,14 @@ import (
 )
 
 // dataRoot points at the project's data/public/docs directory. Tests are
-// skipped if the data isn't present.
+// skipped if the data isn't present or under -short: building the shared
+// index from a full devdocs tree takes minutes, so the fast suite relies
+// on the small fixture-based tests only.
 func dataRoot(t *testing.T) string {
 	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping full-index test in -short mode")
+	}
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)

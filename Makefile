@@ -7,7 +7,7 @@ DOCKER_RUN = docker run --rm \
 	-e CGO_ENABLED=1 \
 	$(GO_IMAGE)
 
-.PHONY: build tidy test vet lint fmt run-http run-stdio index parsers parsers-test clean
+.PHONY: build tidy test test-full vet lint vuln check fmt run-http run-stdio index parsers parsers-test clean
 
 build:
 	mkdir -p bin .gocache .gomodcache
@@ -18,6 +18,9 @@ tidy:
 	$(DOCKER_RUN) go mod tidy
 
 test:
+	$(DOCKER_RUN) go test -short -tags sqlite_fts5 ./...
+
+test-full:
 	$(DOCKER_RUN) go test -tags sqlite_fts5 ./...
 
 vet:
@@ -28,6 +31,12 @@ lint:
 	docker run --rm -v "$(PWD)":/src -v "$(PWD)/.gocache":/root/.cache/go-build \
 		-v "$(PWD)/.gomodcache":/go/pkg/mod -w /src -e CGO_ENABLED=1 \
 		golangci/golangci-lint:v2.13.2 golangci-lint run ./...
+
+vuln:
+	mkdir -p .gocache .gomodcache
+	$(DOCKER_RUN) go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 -tags sqlite_fts5 ./...
+
+check: vet lint vuln test
 
 fmt:
 	$(DOCKER_RUN) gofmt -w cmd internal parsers
