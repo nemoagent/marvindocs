@@ -55,13 +55,6 @@ func (i *Index) Build(ctx context.Context, s *docstore.Store) (BuildStats, error
 	}
 	defer entStmt.Close()
 
-	pageStmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO pages_fts(doc_slug, path, body) VALUES (?, ?, ?)`)
-	if err != nil {
-		return stats, fmt.Errorf("prepare pages_fts: %w", err)
-	}
-	defer pageStmt.Close()
-
 	for _, d := range s.Docs() {
 		if err := ctx.Err(); err != nil {
 			return stats, err
@@ -84,7 +77,7 @@ func (i *Index) Build(ctx context.Context, s *docstore.Store) (BuildStats, error
 			stats.Entries++
 		}
 
-		n, err := indexDocPages(ctx, s, d.Slug, pageStmt)
+		n, err := indexDocPages(ctx, s, d.Slug, tx)
 		if err != nil {
 			return stats, err
 		}
@@ -109,7 +102,7 @@ func (i *Index) Build(ctx context.Context, s *docstore.Store) (BuildStats, error
 type Stats struct {
 	Docs    int
 	Entries int
-	Pages   int // rows in pages_fts (0 if full-text indexing wasn't used)
+	Pages   int
 }
 
 // Stats queries the index for summary counts.
@@ -126,9 +119,8 @@ func (i *Index) Stats(ctx context.Context) (Stats, error) {
 	if err := row.Scan(&st.Entries); err != nil {
 		return st, err
 	}
-	// pages_fts may not exist on an old index file — tolerate that.
-	if err := i.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pages_fts`).Scan(&st.Pages); err != nil {
-		st.Pages = 0
+	if err := i.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pages`).Scan(&st.Pages); err != nil {
+		return st, err
 	}
 	return st, nil
 }
@@ -181,7 +173,7 @@ func (i *Index) PerDocStats(ctx context.Context) ([]DocStat, error) {
 	entRows.Close()
 
 	pageRows, err := i.db.QueryContext(ctx,
-		`SELECT doc_slug, COUNT(*) FROM pages_fts GROUP BY doc_slug`)
+		`SELECT doc_slug, COUNT(*) FROM pages GROUP BY doc_slug`)
 	pages := make(map[string]int)
 	if err == nil {
 		for pageRows.Next() {

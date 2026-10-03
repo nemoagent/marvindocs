@@ -266,5 +266,6 @@ Measured on a full dump (830 docs):
 - `db.json`: 30 KB – 280 MB per doc, median ~3 MB.
 
 Plan disk accordingly: the total depends on how many docs you keep. The
-size of marvindocs' own index also depends on the doc set and includes
-page body text.
+size of marvindocs' own index also depends on the doc set; it tokenizes
+page bodies but does not store them, so it stays well below the combined
+`db.json` size.

@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/piligrim/marvindocs/internal/docstore"
 )
 
 // SearchHit is one result from Search.
@@ -428,23 +430,46 @@ func sortHitsByScore(hits []SearchHit) {
 	}
 }
 
+// PageSource returns the HTML of a page; *docstore.Store satisfies it.
+// SearchPages uses it to rebuild snippets, since pages_fts stores no text.
+type PageSource interface {
+	Page(slug, path string) (string, error)
+}
+
 // SearchPages queries pages_fts for pages whose body text matches the
-// query. Snippet is a short excerpt around the match
-// (~20 tokens, with HTML-ish highlight markers). docSlug restricts the
-// search to a single doc when non-empty.
-func (i *Index) SearchPages(ctx context.Context, query, docSlug string, limit int) ([]PageHit, error) {
+// query. docSlug restricts the search to a single doc when non-empty.
+// When pages is non-nil, each hit's Snippet is a short excerpt of the
+// page around the first matching word (matches wrapped in [ ]).
+func (i *Index) SearchPages(ctx context.Context, pages PageSource, query, docSlug string, limit int) ([]PageHit, error) {
 	if sanitizeFTSQuery(query) == "" {
 		return nil, nil
 	}
 	if limit <= 0 {
 		limit = 20
 	}
+	hits, err := i.searchPagesAuto(ctx, query, docSlug, limit)
+	if err != nil || pages == nil {
+		return hits, err
+	}
+	for k := range hits {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		html, err := pages.Page(hits[k].DocSlug, hits[k].Path)
+		if err != nil {
+			continue // stale index or missing db.json: hit without snippet
+		}
+		hits[k].Snippet = snippet(docstore.ToPlainText(html), query)
+	}
+	return hits, nil
+}
+
+// searchPagesAuto applies the doc filter: explicit docSlug, else one
+// auto-detected from the query tokens with a global fallback (see Search).
+func (i *Index) searchPagesAuto(ctx context.Context, query, docSlug string, limit int) ([]PageHit, error) {
 	if docSlug != "" {
 		return i.searchPagesIn(ctx, query, []string{docSlug}, limit)
 	}
-
-	// Auto-detect doc filter from query tokens; fall back to a global
-	// search when the filtered one finds nothing (see Search).
 	slugMap, _, catErr := i.docCatalog(ctx)
 	if catErr == nil && len(slugMap) > 0 {
 		cleanQ, matched := extractDocFilter(query, slugMap, "")
@@ -467,38 +492,21 @@ func (i *Index) searchPagesIn(ctx context.Context, query string, docSlugs []stri
 	}
 	hasDocFilter := len(docSlugs) > 0
 
-	var (
-		rows *sql.Rows
-		err  error
-	)
-	if !hasDocFilter {
-		rows, err = i.db.QueryContext(ctx, `
-			SELECT doc_slug, path,
-			       snippet(pages_fts, 2, '[', ']', ' … ', 16) AS snip,
-			       bm25(pages_fts) AS score
-			FROM pages_fts
-			WHERE pages_fts MATCH ?
-			ORDER BY score
-			LIMIT ?`, q, limit)
-	} else {
+	sqlText := `SELECT p.doc_slug, p.path, bm25(pages_fts) AS score
+		FROM pages_fts JOIN pages p ON p.id = pages_fts.rowid
+		WHERE pages_fts MATCH ?`
+	args := []any{q}
+	if hasDocFilter {
 		placeholders := strings.Repeat("?,", len(docSlugs))
-		placeholders = placeholders[:len(placeholders)-1]
-		args := make([]any, 0, 2+len(docSlugs))
-		args = append(args, q)
+		sqlText += ` AND p.doc_slug IN (` + placeholders[:len(placeholders)-1] + `)`
 		for _, s := range docSlugs {
 			args = append(args, s)
 		}
-		args = append(args, limit)
-		rows, err = i.db.QueryContext(ctx,
-			`SELECT doc_slug, path,
-			       snippet(pages_fts, 2, '[', ']', ' … ', 16) AS snip,
-			       bm25(pages_fts) AS score
-			FROM pages_fts
-			WHERE pages_fts MATCH ? AND doc_slug IN (`+placeholders+`)
-			ORDER BY score
-			LIMIT ?`,
-			args...)
 	}
+	sqlText += ` ORDER BY score LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := i.db.QueryContext(ctx, sqlText, args...)
 	if err != nil {
 		return nil, fmt.Errorf("search pages: %w", err)
 	}
@@ -507,7 +515,7 @@ func (i *Index) searchPagesIn(ctx context.Context, query string, docSlugs []stri
 	var hits []PageHit
 	for rows.Next() {
 		var h PageHit
-		if err := rows.Scan(&h.DocSlug, &h.Path, &h.Snippet, &h.Score); err != nil {
+		if err := rows.Scan(&h.DocSlug, &h.Path, &h.Score); err != nil {
 			return nil, err
 		}
 		if !hasDocFilter {
@@ -531,6 +539,63 @@ func sortPageHitsByScore(hits []PageHit) {
 			hits[j-1], hits[j] = hits[j], hits[j-1]
 		}
 	}
+}
+
+// Snippet window, in words, around the first match: mirrors the 16-token
+// excerpt FTS5's snippet() used to produce.
+const (
+	snippetBefore = 6
+	snippetWords  = 24
+)
+
+// snippet returns a short excerpt of text around the first word that
+// starts with any of the query tokens (the FTS query is prefix-based,
+// so this is the same notion of a match). Matching words are wrapped
+// in [ ]; a leading/trailing "…" marks truncation. Falls back to the
+// beginning of the text when nothing matches, e.g. for diacritic folds.
+func snippet(text, query string) string {
+	tokens := strings.Fields(strings.ToLower(query))
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return ""
+	}
+	matches := func(w string) bool {
+		lw := strings.ToLower(strings.TrimLeft(w, "([{\"'`"))
+		for _, t := range tokens {
+			if strings.HasPrefix(lw, t) {
+				return true
+			}
+		}
+		return false
+	}
+	first := 0
+	for k, w := range words {
+		if matches(w) {
+			first = k
+			break
+		}
+	}
+	start := max(first-snippetBefore, 0)
+	end := min(start+snippetWords, len(words))
+
+	var b strings.Builder
+	if start > 0 {
+		b.WriteString("… ")
+	}
+	for k := start; k < end; k++ {
+		if k > start {
+			b.WriteByte(' ')
+		}
+		if matches(words[k]) {
+			b.WriteString("[" + words[k] + "]")
+		} else {
+			b.WriteString(words[k])
+		}
+	}
+	if end < len(words) {
+		b.WriteString(" …")
+	}
+	return b.String()
 }
 
 // PageHit is one result from SearchPages.

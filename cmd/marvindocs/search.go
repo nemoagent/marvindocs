@@ -25,6 +25,7 @@ func runSearch(args []string) {
 	asJSON := fs.Bool("json", false, "Print results as JSON instead of a table")
 	body := fs.Bool("body", false, "Search page bodies instead of entry names")
 	indexPath := fs.String("index-path", "marvindocs.db", "SQLite index file")
+	docsPath := fs.String("docs-path", "data/public/docs", "Path to devdocs data (used for --body snippets)")
 	// Split positional query tokens from flags so users can mix them
 	// freely: `search jsonb --doc postgresql~17` works the same as
 	// `search --doc postgresql~17 jsonb`. flag.Parse stops on the
@@ -63,7 +64,13 @@ func runSearch(args []string) {
 	defer idx.Close()
 
 	if *body {
-		hits, err := idx.SearchPages(context.Background(), query, *docSlug, *limit)
+		// Snippets are rebuilt from db.json; without the data dir the
+		// hits are still listed, just without excerpts.
+		var pages index.PageSource
+		if store, err := docstore.Open(*docsPath); err == nil {
+			pages = store
+		}
+		hits, err := idx.SearchPages(context.Background(), pages, query, *docSlug, *limit)
 		if err != nil {
 			fatal(err)
 		}

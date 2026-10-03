@@ -26,14 +26,25 @@ func pageWorkers() int {
 }
 
 // indexDocPages streams every page of slug from db.json, plain-textifies
-// them in parallel, and inserts each non-empty result via pageStmt.
-// Returns the number of inserted rows.
+// them in parallel, and inserts each non-empty result into pages and
+// pages_fts (sharing the rowid). Returns the number of inserted pages.
 //
 // Errors from the docstore stream (other than a missing db.json),
 // plain-text conversion, or SQL insert are surfaced through the
 // returned error. Worker goroutines exit as
 // soon as ctx is cancelled or any error is observed.
-func indexDocPages(ctx context.Context, s *docstore.Store, slug string, pageStmt *sql.Stmt) (int, error) {
+func indexDocPages(ctx context.Context, s *docstore.Store, slug string, tx *sql.Tx) (int, error) {
+	pageStmt, err := tx.PrepareContext(ctx, `INSERT INTO pages(doc_slug, path) VALUES (?, ?)`)
+	if err != nil {
+		return 0, fmt.Errorf("prepare pages: %w", err)
+	}
+	defer pageStmt.Close()
+	bodyStmt, err := tx.PrepareContext(ctx, `INSERT INTO pages_fts(rowid, body) VALUES (?, ?)`)
+	if err != nil {
+		return 0, fmt.Errorf("prepare pages_fts: %w", err)
+	}
+	defer bodyStmt.Close()
+
 	type job struct {
 		path string
 		html string
@@ -101,8 +112,8 @@ func indexDocPages(ctx context.Context, s *docstore.Store, slug string, pageStmt
 	var inserted int
 	var writeErr error
 	for r := range results {
-		if _, err := pageStmt.ExecContext(ctx, slug, r.path, r.body); err != nil {
-			writeErr = fmt.Errorf("insert page %s/%s: %w", slug, r.path, err)
+		writeErr = insertPage(ctx, pageStmt, bodyStmt, slug, r.path, r.body)
+		if writeErr != nil {
 			cancel()
 			// Drain to allow workers and producer to exit cleanly.
 			for range results {
@@ -121,4 +132,20 @@ func indexDocPages(ctx context.Context, s *docstore.Store, slug string, pageStmt
 		return inserted, streamErr
 	}
 	return inserted, nil
+}
+
+// insertPage adds one page row and its FTS body under the same rowid.
+func insertPage(ctx context.Context, pageStmt, bodyStmt *sql.Stmt, slug, path, body string) error {
+	res, err := pageStmt.ExecContext(ctx, slug, path)
+	if err != nil {
+		return fmt.Errorf("insert page %s/%s: %w", slug, path, err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return fmt.Errorf("insert page %s/%s: %w", slug, path, err)
+	}
+	if _, err := bodyStmt.ExecContext(ctx, id, body); err != nil {
+		return fmt.Errorf("insert page body %s/%s: %w", slug, path, err)
+	}
+	return nil
 }

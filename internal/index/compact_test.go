@@ -26,7 +26,7 @@ func TestCompact(t *testing.T) {
 	// all so the freelist dominates the file.
 	body := strings.Repeat("lorem ipsum dolor sit amet ", 200)
 	for i := 0; i < 500; i++ {
-		if _, err := idx.db.Exec(`INSERT INTO pages_fts(doc_slug, path, body) VALUES ('d', ?, ?)`, i, body); err != nil {
+		if _, err := idx.db.Exec(`INSERT INTO pages_fts(rowid, body) VALUES (?, ?)`, i+1, body); err != nil {
 			t.Fatal(err)
 		}
 	}

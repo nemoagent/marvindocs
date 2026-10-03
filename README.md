@@ -135,7 +135,7 @@ marvindocs index build   [--docs-path DIR] [--index-path FILE] [--full]
 marvindocs index stats   [--index-path FILE] [--by-doc] [--top N]  # show counts
 marvindocs serve         [--stdio] [--http ADDR] [--auth-token TOKEN]
                          [--docs-path DIR] [--index-path FILE]  # start server
-marvindocs search QUERY  [--doc SLUG] [--limit N] [--json] [--body] [--index-path FILE]
+marvindocs search QUERY  [--doc SLUG] [--limit N] [--json] [--body] [--index-path FILE] [--docs-path DIR]
                                                                 # --body searches page bodies
 marvindocs get SLUG PATH [--format markdown|html] [--docs-path DIR]  # fetch one page
 marvindocs list          [--json] [--index-path FILE]           # list indexed docs
@@ -143,7 +143,8 @@ marvindocs version
 ```
 
 Page bodies are indexed as well (needed for `search_pages` and
-`search --body`).
+`search --body`). The text itself is not stored; snippets are rebuilt from
+`db.json` on demand.
 
 ### Environment variables
 
@@ -174,7 +175,7 @@ must be built beforehand, for example:
 scripts/sync-docs.sh     download docs (curl + tar, no Docker)
 scripts/mcp-smoke.sh     verify the MCP server end-to-end
 data/public/docs/        devdocs dump (not in git, ~17 GB)
-marvindocs.db            SQLite FTS5 index (size depends on the doc set; includes page body text)
+marvindocs.db            SQLite FTS5 index (size depends on the doc set; page bodies indexed, text not stored)
 cmd/marvindocs/          CLI entrypoint
 internal/docstore/       read-only data accessor + HTML→Markdown
 internal/index/          indexer and FTS search

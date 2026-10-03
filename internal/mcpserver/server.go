@@ -139,7 +139,7 @@ func registerSearchPages(s *mcp.Server, d Deps) {
 		if limit > 100 {
 			limit = 100
 		}
-		hits, err := d.Index.SearchPages(ctx, in.Query, in.DocSlug, limit)
+		hits, err := d.Index.SearchPages(ctx, d.Store, in.Query, in.DocSlug, limit)
 		if err != nil {
 			return nil, searchPagesOutput{}, err
 		}

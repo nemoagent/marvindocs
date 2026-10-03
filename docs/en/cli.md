@@ -32,6 +32,7 @@ marvindocs index build [--docs-path DIR] [--index-path FILE] [--full]
 |---|---|---|
 | `--docs-path` | `data/public/docs` | Must contain `docs.json` and `<slug>/{index,db}.json`. |
 | `--index-path` | `marvindocs.db` | Output SQLite file. Updated in place. |
+| `--docs-path` | `data/public/docs` | Used with `--body` to build snippets from `db.json`; without it hits are listed without excerpts. |
 | `--full` | `false` | Force a full rebuild (drop everything and reinsert). Useful after schema changes. |
 
 After a successful build the index is compacted: FTS5 segments are
@@ -87,7 +88,7 @@ Runs a full-text search against the index and prints hits. Useful for
 shell pipelines and quick lookups without starting a server.
 
 ```bash
-marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body] [--index-path FILE]
+marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body] [--index-path FILE] [--docs-path DIR]
 ```
 
 | Flag | Default | Notes |

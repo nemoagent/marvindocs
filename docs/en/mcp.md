@@ -87,8 +87,8 @@ that aren't entry names — `jsonb operators`, `connection pool size`,
   query tokens works the same way. The popularity boost is applied here
   too, again only when no doc filter is active.
 - **Output:** `{ hits: [{ doc_slug, path, snippet, score }] }`.
-  `snippet` is a short excerpt around the match (~16 tokens) with the
-  matched terms wrapped in `[ ]`.
+  `snippet` is a short excerpt (~24 words around the first match, rebuilt
+  from `db.json` at query time) with the matched terms wrapped in `[ ]`.
 
 ### `get_page`
 

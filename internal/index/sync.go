@@ -88,13 +88,6 @@ func (i *Index) Sync(ctx context.Context, s *docstore.Store) (BuildStats, error)
 	}
 	defer entIns.Close()
 
-	pageIns, err := tx.PrepareContext(ctx,
-		`INSERT INTO pages_fts(doc_slug, path, body) VALUES (?, ?, ?)`)
-	if err != nil {
-		return stats, fmt.Errorf("prepare pages_fts: %w", err)
-	}
-	defer pageIns.Close()
-
 	for _, p := range plans {
 		if err := ctx.Err(); err != nil {
 			return stats, err
@@ -119,7 +112,7 @@ func (i *Index) Sync(ctx context.Context, s *docstore.Store) (BuildStats, error)
 			stats.Entries++
 		}
 
-		n, err := indexDocPages(ctx, s, p.doc.Slug, pageIns)
+		n, err := indexDocPages(ctx, s, p.doc.Slug, tx)
 		if err != nil {
 			return stats, err
 		}
@@ -190,7 +183,7 @@ func (i *Index) snapshotDocs(ctx context.Context) (map[string]docSnapshot, error
 		return nil, err
 	}
 
-	rows, err = i.db.QueryContext(ctx, `SELECT doc_slug, COUNT(*) FROM pages_fts GROUP BY doc_slug`)
+	rows, err = i.db.QueryContext(ctx, `SELECT doc_slug, COUNT(*) FROM pages GROUP BY doc_slug`)
 	if err != nil {
 		return nil, fmt.Errorf("snapshot pages: %w", err)
 	}
@@ -215,13 +208,17 @@ func (i *Index) snapshotDocs(ctx context.Context) (map[string]docSnapshot, error
 }
 
 // deleteDocRows removes a doc and all its dependent rows from the index.
-// Triggers keep entries_fts in sync; pages_fts is contentless and must
-// be cleaned manually.
+// Triggers keep entries_fts in sync; pages/pages_fts are cleaned
+// manually (the FTS rows by the rowids they share with pages).
 func deleteDocRows(ctx context.Context, tx *sql.Tx, slug string) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM entries WHERE doc_slug = ?`, slug); err != nil {
 		return fmt.Errorf("delete entries %s: %w", slug, err)
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM pages_fts WHERE doc_slug = ?`, slug); err != nil {
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM pages_fts WHERE rowid IN (SELECT id FROM pages WHERE doc_slug = ?)`, slug); err != nil {
+		return fmt.Errorf("delete page bodies %s: %w", slug, err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM pages WHERE doc_slug = ?`, slug); err != nil {
 		return fmt.Errorf("delete pages %s: %w", slug, err)
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM docs WHERE slug = ?`, slug); err != nil {

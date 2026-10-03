@@ -7,7 +7,8 @@ This page takes you from a fresh checkout to a running MCP server.
 - **Docker** — the default `Makefile` runs Go inside `golang:1.25` so you
   don't need Go or a C toolchain installed locally.
 - **~20 GB disk** — 17 GB for the full devdocs dump; the index size depends
-  on the doc set (roughly the combined size of the `db.json` files).
+  on the doc set, typically a few hundred MB to ~1.5 GB for the full dump
+  (page text is indexed but not stored).
 - *(Optional)* **Go 1.25+ and a C toolchain** — if you prefer native
   builds, the SQLite driver is CGo-based, so build with
   `CGO_ENABLED=1 go build -tags sqlite_fts5 ./cmd/marvindocs`. Without
