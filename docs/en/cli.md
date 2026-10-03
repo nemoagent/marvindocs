@@ -168,6 +168,10 @@ once — the same server instance handles both transports.
 The process listens for `SIGINT` and `SIGTERM` and performs a clean
 shutdown on either, with up to 10s grace for in-flight HTTP requests.
 
+The HTTP listener closes connections that take longer than 10s to send
+request headers and idle keep-alive connections after 120s. There is
+no write timeout: `/mcp` keeps long-lived SSE streams open.
+
 ### Logging
 
 All commands honor two environment variables:

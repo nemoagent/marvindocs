@@ -189,7 +189,14 @@ func runServeWith(httpAddr string, stdio bool, docsPath, indexPath, authToken st
 			handler = bearerAuthHandler(authToken, handler)
 			slog.Info("HTTP auth enabled (Bearer)")
 		}
-		httpServer = &http.Server{Addr: httpAddr, Handler: handler}
+		httpServer = &http.Server{
+			Addr:    httpAddr,
+			Handler: handler,
+			// Bound idle and slow-header connections. No WriteTimeout:
+			// /mcp keeps long-lived SSE streams open.
+			ReadHeaderTimeout: 10 * time.Second,
+			IdleTimeout:       120 * time.Second,
+		}
 
 		go func() {
 			slog.Info("HTTP server listening", "addr", httpAddr, "web", "/", "mcp", "/mcp")
