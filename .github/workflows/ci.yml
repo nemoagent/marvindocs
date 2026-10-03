@@ -37,3 +37,16 @@ jobs:
         env:
           CGO_ENABLED: '1'
         run: go test -tags sqlite_fts5 ./...
+
+      # Each parser is a separate Go module, so ./... above skips them.
+      - name: test parsers
+        run: |
+          for d in parsers/*/; do
+            echo "==> $d"
+            (cd "$d" && go vet ./... && go test ./...) || exit 1
+          done
+
+      - name: gofmt
+        run: |
+          out=$(gofmt -l cmd internal parsers)
+          if [ -n "$out" ]; then echo "$out"; exit 1; fi
