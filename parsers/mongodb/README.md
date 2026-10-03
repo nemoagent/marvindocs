@@ -27,7 +27,7 @@ go build -o ../../bin/mongodb-parser .
 |---|---|---|
 | `--source` | `https://raw.githubusercontent.com/mongodb/docs/main/content/manual` | Override only if mirroring elsewhere. |
 | `--version` | `v8.0` | Folder under `content/manual/`. Available: `v4.4`, `v5.0`, `v6.0`, `v7.0`, `v8.0`, `upcoming`, `manual`. |
-| `--release` | (empty) | Free-form label written to `meta.json`. |
+| `--release` | (defaults to `--version`) | Free-form label written to `meta.json`. |
 | `--out` | (required) | Output directory. Convention: `data/public/docs/mongodb~<short>`. |
 | `--force` | `false` | Overwrite existing files. |
 

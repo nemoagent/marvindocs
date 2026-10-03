@@ -6,8 +6,9 @@ to index documentation that DevDocs upstream doesn't cover (e.g.
 Laravel, internal handbooks, OpenAPI specs).
 
 Parsers live in `parsers/` and have **no dependency on the marvindocs
-main module**. They write three files in the same shape DevDocs uses,
-so the rest of marvindocs picks them up unchanged.
+main module**. They write the same files DevDocs uses (`index.json`,
+`db.json`, `meta.json` and a `.last-modified` stamp) and upsert the
+parent `docs.json`, so the rest of marvindocs picks them up unchanged.
 
 ## On-disk contract
 
@@ -49,6 +50,35 @@ make parsers                                          # all parsers
 
 After step 3 the doc is searchable through the web UI and MCP tools
 (`list_docs`, `search`, `get_page`).
+
+`make parsers` builds every parser into `bin/<name>-parser`;
+`make parsers-test` runs `go test ./...` for every `parsers/*/` module
+(including `devdocsfmt`). Both targets run inside a Docker `golang`
+image, so no local Go toolchain is needed.
+
+## Running registered parsers
+
+`parsers/registry.json` lists the docs that can be generated with a
+parser (slug, parser name, fixed arguments, description).
+`scripts/run-parser.sh` reads it and runs the matching
+`bin/<parser>-parser` binary with `--out <docs-path>/<slug>` and
+`--force`:
+
+```bash
+./scripts/run-parser.sh --list              # slug | parser | description
+./scripts/run-parser.sh laravel~12          # run one slug
+./scripts/run-parser.sh --all               # run every slug from the registry
+./scripts/run-parser.sh --check laravel~12  # print the resolved command, don't run
+```
+
+| Option | Meaning |
+|---|---|
+| `--no-force` | Don't pass `--force` to the parser. |
+| `--docs-path DIR` | Output root (default `data/public/docs`). |
+
+Requires `jq`. Exit codes: `0` OK, `1` parser failed, `2` usage error,
+unknown slug, missing `jq`/registry or missing parser binary (run
+`make parsers` first).
 
 ## Writing your own parser
 

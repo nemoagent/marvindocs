@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Check parity between docs/en and docs/ru:
 #   - same set of files (relative paths)
-#   - same set of top-level Markdown headings (#, ##, ###)
+#   - same ordered sequence of Markdown heading levels (#{1,6}) per file
 #
 # Exit codes:
 #   0 - OK

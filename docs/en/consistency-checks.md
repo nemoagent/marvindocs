@@ -8,10 +8,12 @@ early.
 
 Verifies that `docs/en` and `docs/ru` are in sync:
 
-- both directories contain the same set of `.md` files (by relative path)
-- every shared file has the same number of headings at each level
+- both directories contain the same set of `.md` files (by relative path);
+  files present only in `docs/ru` are reported as well
+- every shared file has the same ordered sequence of heading levels
   (`#`…`######`) — a quick structural guard against a translation that
-  was started but not finished
+  was started but not finished. Reordering headings fails the check
+  too; heading text is not compared
 
 No options or arguments.
 
@@ -26,7 +28,7 @@ No options or arguments.
 | Code | Meaning |
 |---|---|
 | `0` | Both language trees are consistent. |
-| `1` | At least one file is missing or a heading structure differs. |
+| `1` | At least one file is missing from either tree or a heading structure differs. |
 | `2` | IO error — `docs/en` or `docs/ru` not found. |
 
 ### Example output
@@ -49,11 +51,13 @@ Validates the integrity of the devdocs dump on disk:
 
 - `docs.json` is present at the dump root and contains valid JSON
 - for every slug listed in `docs.json`: `index.json`, `db.json`, and
-  `meta.json` exist, are non-empty, and contain valid JSON
+  `meta.json` exist, are non-empty (empty files are reported as
+  `EMPTY` and counted under "Missing/empty"), and contain valid JSON
 - orphan slug directories present on disk but absent from `docs.json`
   are reported
 
-Uses `jq` for JSON validation when available.
+`jq` is mandatory (there is no fallback). An invalid `docs.json` aborts
+the run with exit code `2`.
 
 ### Usage
 
@@ -73,7 +77,7 @@ Uses `jq` for JSON validation when available.
 |---|---|
 | `0` | Dump integrity check passed. |
 | `1` | At least one issue found (missing file, invalid JSON, orphan dir). |
-| `2` | Usage error or dump root / `docs.json` not found. |
+| `2` | Usage error, dump root / `docs.json` not found, or `docs.json` is not valid JSON. |
 
 ### Examples
 
@@ -88,7 +92,7 @@ Uses `jq` for JSON validation when available.
 ### Typical workflow
 
 Run after `scripts/sync-docs.sh` to detect partially downloaded or
-corrupted slugs. Any slug flagged as `MISSING` or `INVALID` can be
+corrupted slugs. Any slug flagged as `MISSING`, `EMPTY` or `INVALID` can be
 re-fetched with:
 
 ```bash

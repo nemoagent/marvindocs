@@ -53,7 +53,7 @@ that go.dev currently serves). `1.0` returns 404.
 | `--mode` | `overview` | `overview` or `release`. |
 | `--source` | `https://go.dev` | Override only if mirroring go.dev. |
 | `--version` | empty | Required in release mode (e.g. `1.22`). Ignored in overview. |
-| `--release` | (empty -> version) | Free-form label written to `meta.json`. |
+| `--release` | (empty -> version) | Free-form label written to `meta.json`. Defaults to `--version` in release mode only; overview mode always writes an empty release. |
 | `--out` | (required) | Output directory. |
 | `--force` | `false` | Overwrite existing files. |
 

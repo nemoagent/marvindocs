@@ -46,6 +46,7 @@ go build -o ../../bin/go-std-parser .
 
 ## What it produces
 
+- An `index` page with a "Standard library" entry of type `Index`.
 - One page per stdlib package (path `/<package>`).
 - One top-level entry per package.
 - Symbol entries for exported `func/type/var/const` declarations from

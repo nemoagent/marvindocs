@@ -6,8 +6,10 @@
 внутренние хэндбуки, OpenAPI-спеки).
 
 Парсеры лежат в `parsers/` и **не зависят от основного модуля
-marvindocs**. Они пишут три файла в том же формате, что использует
-DevDocs, поэтому остальной marvindocs подхватывает их без изменений.
+marvindocs**. Они пишут те же файлы, что использует DevDocs
+(`index.json`, `db.json`, `meta.json` и метку `.last-modified`) и
+обновляют родительский `docs.json`, поэтому остальной marvindocs
+подхватывает их без изменений.
 
 ## Контракт на диске
 
@@ -49,6 +51,34 @@ make parsers                                          # все парсеры
 
 После шага 3 док доступен в Web UI и через MCP-инструменты
 (`list_docs`, `search`, `get_page`).
+
+`make parsers` собирает каждый парсер в `bin/<name>-parser`;
+`make parsers-test` запускает `go test ./...` для каждого модуля
+`parsers/*/` (включая `devdocsfmt`). Обе цели выполняются внутри
+Docker-образа `golang`, локальный Go не нужен.
+
+## Запуск зарегистрированных парсеров
+
+`parsers/registry.json` перечисляет документы, которые можно собрать
+парсером (slug, имя парсера, фиксированные аргументы, описание).
+`scripts/run-parser.sh` читает его и запускает соответствующий бинарь
+`bin/<parser>-parser` с `--out <docs-path>/<slug>` и `--force`:
+
+```bash
+./scripts/run-parser.sh --list              # slug | parser | description
+./scripts/run-parser.sh laravel~12          # запустить один slug
+./scripts/run-parser.sh --all               # запустить все slug'и из реестра
+./scripts/run-parser.sh --check laravel~12  # показать итоговую команду, не запуская
+```
+
+| Опция | Значение |
+|---|---|
+| `--no-force` | Не передавать `--force` парсеру. |
+| `--docs-path DIR` | Корень вывода (по умолчанию `data/public/docs`). |
+
+Требуется `jq`. Коды выхода: `0` — OK, `1` — парсер завершился с
+ошибкой, `2` — ошибка использования, неизвестный slug, нет `jq`/реестра
+или нет бинаря парсера (сначала `make parsers`).
 
 ## Свой парсер
 

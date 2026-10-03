@@ -5,8 +5,8 @@ marvindocs reads. Anyone writing their own scraper/parser can target
 this exact layout and the result will just work with `marvindocs index
 build` and `marvindocs serve`.
 
-All information below has been verified against the shipped devdocs
-dump (~791 docs) used by this project.
+All information below has been verified against the devdocs dump used
+by this project.
 
 ## 1. Directory layout
 
@@ -17,6 +17,7 @@ dump (~791 docs) used by this project.
 │   ├── meta.json             # per-doc metadata
 │   ├── index.json            # entries + types
 │   ├── db.json               # page contents, keyed by path
+│   ├── .last-modified        # stamp file: mtime = doc mtime (used by sync-docs.sh)
 │   ├── index.html            # optional: same as db.json["index"]
 │   └── <path>.html           # optional: one file per db.json entry
 ├── <other-slug>/
@@ -27,6 +28,10 @@ dump (~791 docs) used by this project.
   (default: `data/public/docs`).
 - `<slug>` is the doc's identifier (lowercase, ASCII, may contain
   `~` for versioned variants, e.g. `python~3.12`).
+- `.last-modified` is an empty stamp file whose filesystem mtime equals
+  the doc's `mtime`. `scripts/sync-docs.sh` compares it with the remote
+  catalog to decide whether to re-download; marvindocs itself does not
+  read it. Parsers from `parsers/` write it too.
 - The `.html` files are a convenience for direct web serving — marvindocs
   **does not read them**; it reads only the `.json` files. You can
   safely omit them to save disk.
@@ -253,12 +258,13 @@ separate docs whose `type` is usually the same (`"python"`).
 
 ## 10. Size expectations
 
-From the reference dump:
+Measured on a full dump (830 docs):
 
-- `docs.json`: ~160 KB (one JSON object per doc).
+- `docs.json`: ~175 KB (one JSON object per doc).
 - `meta.json`: ~200 bytes typical.
-- `index.json`: 10–500 KB per doc.
-- `db.json`: 100 KB – 50 MB per doc. Sum across 791 docs ≈ 17 GB.
+- `index.json`: 1 KB – 8 MB per doc, median ~100 KB.
+- `db.json`: 30 KB – 280 MB per doc, median ~3 MB.
 
-Plan disk accordingly; marvindocs' own index is ~455 MB for that same
-set.
+Plan disk accordingly: the total depends on how many docs you keep. The
+size of marvindocs' own index also depends on the doc set, and it is
+much larger when built with `--fulltext` (which adds page body text).

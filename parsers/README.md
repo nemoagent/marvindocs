@@ -11,7 +11,7 @@ shares the format definition with `parsers/devdocsfmt/`.
   scrubbers, GitHub clients) without bloating the server binary.
 - The contract between a parser and marvindocs is the **on-disk format**,
   not a Go API. Anyone can write a parser in any language as long as they
-  write the same three files; `devdocsfmt` is just a convenient Go helper.
+  write the same four files; `devdocsfmt` is just a convenient Go helper.
 
 ## On-disk contract
 
@@ -34,6 +34,7 @@ joins the rest. No marvindocs code change required.
 | `laravel` | github.com/laravel/docs (markdown) | `laravel~<short>` (e.g. `laravel~12`, `laravel~5.8`) | [parsers/laravel/README.md](laravel/README.md) |
 | `go-dev` | go.dev/doc/ (HTML) | `go-dev` (overview) and `go-dev~1.X` (release notes) | [parsers/go-dev/README.md](go-dev/README.md) |
 | `go-std` | `go doc` in Docker image | `go-std~<version>` (e.g. `go-std~1.25`) | [parsers/go-std/README.md](go-std/README.md) |
+| `mongodb` | github.com/mongodb/docs (reST Manual sources) | `mongodb~<version>` (e.g. `mongodb~8.0`) | [parsers/mongodb/README.md](mongodb/README.md) |
 
 ## Build
 
