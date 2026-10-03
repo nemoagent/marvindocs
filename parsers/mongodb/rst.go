@@ -515,14 +515,14 @@ func slugify(s string, used map[string]int) string {
 
 var nonAlnumRe = regexp.MustCompile(`[^a-z0-9]+`)
 
-// renderInline handles inline reST: literal ``code``, *emphasis*,
+// renderInline handles inline reST: literal “code“, *emphasis*,
 // **strong**, role refs `text <target>`_ and :role:`target`. The role
 // target is stripped because we cannot resolve it across docs without
 // the full Snooty index; we keep the displayed text.
 //
 // Tokens are replaced before html escaping so that markup characters
-// inside reST roles (like the ``<target>`` part) don't get escaped
-// into ``&lt;target&gt;``.
+// inside reST roles (like the “<target>“ part) don't get escaped
+// into “&lt;target&gt;“.
 func renderInline(s string) string {
 	type tok struct {
 		key  string

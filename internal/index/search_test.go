@@ -156,12 +156,12 @@ func TestSearchSubstringFallback(t *testing.T) {
 
 func TestEscapeLike(t *testing.T) {
 	cases := map[string]string{
-		``:       ``,
-		`foo`:    `foo`,
-		`a%b`:    `a\%b`,
-		`a_b`:    `a\_b`,
-		`a\b`:    `a\\b`,
-		`50%_x`:  `50\%\_x`,
+		``:      ``,
+		`foo`:   `foo`,
+		`a%b`:   `a\%b`,
+		`a_b`:   `a\_b`,
+		`a\b`:   `a\\b`,
+		`50%_x`: `50\%\_x`,
 	}
 	for in, want := range cases {
 		got := escapeLike(in)
