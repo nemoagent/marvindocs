@@ -24,7 +24,7 @@ vet:
 	$(DOCKER_RUN) go vet -tags sqlite_fts5 ./...
 
 fmt:
-	$(DOCKER_RUN) gofmt -w .
+	$(DOCKER_RUN) gofmt -w cmd internal parsers
 
 index: build
 	./bin/marvindocs index build
@@ -50,7 +50,7 @@ parsers:
 			-v "$(PWD)/.gomodcache":/go/pkg/mod \
 			-w /src/$$d \
 			$(GO_IMAGE) \
-			go build -buildvcs=false -o /src/bin/$$name-parser . ; \
+			go build -buildvcs=false -o /src/bin/$$name-parser . || exit 1; \
 	done
 
 parsers-test:
@@ -62,7 +62,7 @@ parsers-test:
 			-v "$(PWD)/.gomodcache":/go/pkg/mod \
 			-w /src/$$d \
 			$(GO_IMAGE) \
-			go test ./... ; \
+			go test ./... || exit 1; \
 	done
 
 clean:
