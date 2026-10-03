@@ -134,6 +134,12 @@ proxy that terminates TLS (the token is sent in clear text over plain
 HTTP) or handles auth (e.g. nginx + basic auth, or an OAuth-aware
 gateway).
 
+The `/mcp` endpoint has DNS-rebinding protection built into the MCP SDK:
+a request that arrives on a loopback address (127.0.0.1, ::1) but carries
+a non-loopback `Host` header is rejected with 403. Use `localhost` or
+`127.0.0.1` in client URLs for a local server; LAN access via the
+server's IP or hostname is not affected.
+
 Clients can only read data — the tools never write to the index or the
 devdocs dump.
 
