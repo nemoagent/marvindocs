@@ -29,14 +29,30 @@ Both `data/public/` and `marvindocs.db*` are in `.gitignore`.
 | `--stdio` | `false` | Run MCP server over stdin/stdout (newline-delimited JSON-RPC). |
 | `--http ADDR` | empty | Listen for HTTP clients on `ADDR`. MCP Streamable transport is at `/mcp`. A bare `:3333` binds `127.0.0.1` only; use `0.0.0.0:3333` for public access. |
 | `--auth-token TOKEN` | empty | Require `Authorization: Bearer TOKEN` on every HTTP request (web UI and `/mcp` included) except `/healthz`. Falls back to `MARVINDOCS_AUTH_TOKEN`. |
+| `--insecure` | `false` | Allow `--http` on a non-loopback address without a token. Also enabled by `MARVINDOCS_INSECURE=1`. |
 
 You must specify at least one of `--stdio` or `--http`.
+
+### Auth is required off loopback
+
+`serve` refuses to start when `--http` binds an address other than
+`127.0.0.1`/`localhost`/`::1` (for example `0.0.0.0:3333` or a LAN IP)
+and no token is set:
+
+```
+error: --http 0.0.0.0:3333 is reachable from other hosts but no auth token is set; pass --auth-token (or MARVINDOCS_AUTH_TOKEN), or --insecure to serve without auth
+```
+
+Set `--auth-token` / `MARVINDOCS_AUTH_TOKEN`, or pass `--insecure`
+(`MARVINDOCS_INSECURE=1`) if the host is genuinely trusted. Loopback binds
+never require a token.
 
 ## Environment variables
 
 | Variable | Values | Default | Description |
 |---|---|---|---|
 | `MARVINDOCS_AUTH_TOKEN` | any string | empty | Bearer token for HTTP; used when `--auth-token` is not given. |
+| `MARVINDOCS_INSECURE` | `1` | unset | Same as `--insecure`: allow a non-loopback `--http` bind without a token. |
 | `MARVINDOCS_LOG_LEVEL` | `debug`, `info`, `warn`, `error` | `info` | Log level. |
 | `MARVINDOCS_LOG_FORMAT` | `text`, `json` | `text` | Log format. Logs go to stderr. |
 
@@ -90,12 +106,16 @@ builds the image and serves HTTP on port 3333, with bind mounts
 Build the index beforehand so that `./data/index/marvindocs.db` exists, e.g.
 `./bin/marvindocs index build --index-path data/index/marvindocs.db`.
 The compose file sets `MARVINDOCS_LOG_FORMAT=json` and
-`MARVINDOCS_LOG_LEVEL=info`.
+`MARVINDOCS_LOG_LEVEL=info`, and passes `MARVINDOCS_AUTH_TOKEN` and
+`MARVINDOCS_INSECURE` through from the host environment (or a `.env`
+file next to `docker-compose.yml`).
 
 The image `CMD` is `serve --http 0.0.0.0:3333 --docs-path /data
---index-path /index/marvindocs.db`. Compose publishes port 3333 on all
-host interfaces; set `MARVINDOCS_AUTH_TOKEN` in its `environment` if the
-host is reachable by others.
+--index-path /index/marvindocs.db`. Because this is a non-loopback bind
+and compose publishes port 3333 on all host interfaces, the container
+exits immediately unless `MARVINDOCS_AUTH_TOKEN` is set (or
+`MARVINDOCS_INSECURE=1` for a trusted host). See
+[Getting started](getting-started.md#7-run-with-docker-compose).
 
 ## Where things are written
 

@@ -105,6 +105,17 @@ Opens two things at once:
 
 A liveness probe is also exposed at `/healthz`.
 
+A bare `:3333` binds `127.0.0.1` only. To serve the LAN, bind an explicit
+address and set a token (the server refuses to start on a non-loopback
+address without one):
+
+```bash
+./bin/marvindocs serve --http 0.0.0.0:3333 --auth-token "$(openssl rand -hex 32)"
+```
+
+Clients then send `Authorization: Bearer <token>`; see
+[Configuration](configuration.md#auth-is-required-off-loopback).
+
 You can also run both transports at once:
 
 ```bash
@@ -123,3 +134,25 @@ curl -s http://localhost:3333/healthz
 For a proper MCP round-trip, use any MCP-aware client and point it at
 `http://localhost:3333/mcp` (HTTP) or the `marvindocs serve --stdio`
 command (stdio). See [MCP server](mcp.md) for examples.
+
+## 7. Run with Docker Compose
+
+The compose file builds the image, mounts `./data/public/docs` and
+`./data/index`, and publishes port 3333 on every host interface. Build
+the index into `data/index/` first, then start it with a token:
+
+```bash
+./bin/marvindocs index build --index-path data/index/marvindocs.db
+MARVINDOCS_AUTH_TOKEN=$(openssl rand -hex 32) docker compose up -d
+```
+
+Or keep the token in a `.env` file next to `docker-compose.yml`:
+
+```
+MARVINDOCS_AUTH_TOKEN=change-me
+```
+
+Without a token the container exits with
+`error: --http 0.0.0.0:3333 is reachable from other hosts but no auth token is set`.
+On a machine nobody else can reach, `MARVINDOCS_INSECURE=1 docker compose up -d`
+runs it unauthenticated.

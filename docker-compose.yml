@@ -7,6 +7,14 @@
 # Bring your own data: scripts/sync-docs.sh writes into ./data/public/docs,
 # and the SQLite index lands in ./data/index/. Both are bind-mounted so
 # rebuilds are persistent across container recreates.
+#
+# The container binds 0.0.0.0 and port 3333 is published on every host
+# interface, so the server refuses to start without a token. Either:
+#
+#   MARVINDOCS_AUTH_TOKEN=$(openssl rand -hex 32) docker compose up -d
+#   (or put MARVINDOCS_AUTH_TOKEN=... into a .env file next to this one)
+#
+# or, for a trusted machine only, MARVINDOCS_INSECURE=1 docker compose up -d.
 
 services:
   marvindocs:
@@ -22,6 +30,8 @@ services:
     environment:
       MARVINDOCS_LOG_FORMAT: json
       MARVINDOCS_LOG_LEVEL: info
+      MARVINDOCS_AUTH_TOKEN: ${MARVINDOCS_AUTH_TOKEN:-}
+      MARVINDOCS_INSECURE: ${MARVINDOCS_INSECURE:-}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3333/healthz"]
       interval: 30s

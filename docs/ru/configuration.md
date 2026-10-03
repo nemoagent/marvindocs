@@ -29,14 +29,30 @@ bin/marvindocs        скомпилированный бинарь (в .gitigno
 | `--stdio` | `false` | Запустить MCP-сервер через stdin/stdout (JSON-RPC с разделителем `\n`). |
 | `--http ADDR` | пусто | Слушать HTTP-клиентов на `ADDR`. MCP Streamable transport — на `/mcp`. Голый `:3333` слушает только `127.0.0.1`; для публичного доступа — `0.0.0.0:3333`. |
 | `--auth-token TOKEN` | пусто | Требовать `Authorization: Bearer TOKEN` на каждый HTTP-запрос (включая веб-интерфейс и `/mcp`), кроме `/healthz`. Если флаг пуст — читается `MARVINDOCS_AUTH_TOKEN`. |
+| `--insecure` | `false` | Разрешить `--http` на не-loopback адресе без токена. Также включается через `MARVINDOCS_INSECURE=1`. |
 
 Надо указать хотя бы один из `--stdio` / `--http`.
+
+### Вне loopback токен обязателен
+
+`serve` отказывается стартовать, если `--http` привязан к адресу, отличному
+от `127.0.0.1`/`localhost`/`::1` (например `0.0.0.0:3333` или IP в LAN), а
+токен не задан:
+
+```
+error: --http 0.0.0.0:3333 is reachable from other hosts but no auth token is set; pass --auth-token (or MARVINDOCS_AUTH_TOKEN), or --insecure to serve without auth
+```
+
+Задайте `--auth-token` / `MARVINDOCS_AUTH_TOKEN` либо передайте `--insecure`
+(`MARVINDOCS_INSECURE=1`), если хосту действительно можно доверять.
+Loopback-привязка токена не требует.
 
 ## Переменные окружения
 
 | Переменная | Значения | По умолчанию | Описание |
 |---|---|---|---|
 | `MARVINDOCS_AUTH_TOKEN` | любая строка | пусто | Bearer-токен для HTTP; используется, если не задан `--auth-token`. |
+| `MARVINDOCS_INSECURE` | `1` | не задана | То же, что `--insecure`: разрешить не-loopback `--http` без токена. |
 | `MARVINDOCS_LOG_LEVEL` | `debug`, `info`, `warn`, `error` | `info` | Уровень логирования. |
 | `MARVINDOCS_LOG_FORMAT` | `text`, `json` | `text` | Формат логов. Логи пишутся в stderr. |
 
@@ -91,12 +107,16 @@ FTS5 отсутствует и индекс не откроется). Бинар
 `./data/index/marvindocs.db`, например:
 `./bin/marvindocs index build --index-path data/index/marvindocs.db`.
 Compose-файл задаёт `MARVINDOCS_LOG_FORMAT=json` и
-`MARVINDOCS_LOG_LEVEL=info`.
+`MARVINDOCS_LOG_LEVEL=info`, а также пробрасывает `MARVINDOCS_AUTH_TOKEN` и
+`MARVINDOCS_INSECURE` из окружения хоста (или из `.env` рядом с
+`docker-compose.yml`).
 
 `CMD` образа: `serve --http 0.0.0.0:3333 --docs-path /data
---index-path /index/marvindocs.db`. Compose публикует порт 3333 на всех
-интерфейсах хоста; если хост доступен другим, задайте
-`MARVINDOCS_AUTH_TOKEN` в `environment`.
+--index-path /index/marvindocs.db`. Это не-loopback привязка, а compose
+публикует порт 3333 на всех интерфейсах хоста, поэтому контейнер сразу
+завершается, если не задан `MARVINDOCS_AUTH_TOKEN` (или
+`MARVINDOCS_INSECURE=1` для доверенного хоста). См.
+[Быстрый старт](getting-started.md#7-запуск-через-docker-compose).
 
 ## Куда что пишется
 

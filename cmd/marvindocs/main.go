@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -27,7 +28,7 @@ import (
 const usage = `marvindocs - MCP server and web UI for the DevDocs archive.
 
 Usage:
-  marvindocs serve [--http ADDR] [--stdio] [--docs-path DIR] [--index-path FILE]
+  marvindocs serve [--http ADDR] [--stdio] [--auth-token TOKEN] [--insecure] [--docs-path DIR] [--index-path FILE]
   marvindocs index build [--fulltext] [--full] [--docs-path DIR] [--index-path FILE]
   marvindocs index stats [--index-path FILE] [--by-doc] [--top N]
   marvindocs search QUERY [--doc SLUG] [--limit N] [--json]
@@ -80,6 +81,7 @@ func runServe(args []string) {
 	docsPath := fs.String("docs-path", "data/public/docs", "Path to the devdocs data directory")
 	indexPath := fs.String("index-path", "marvindocs.db", "Path to the SQLite index file")
 	authToken := fs.String("auth-token", "", "If set, HTTP requests must carry 'Authorization: Bearer <token>'. Reads MARVINDOCS_AUTH_TOKEN if empty")
+	insecure := fs.Bool("insecure", false, "Allow a non-loopback --http bind without --auth-token. Also enabled by MARVINDOCS_INSECURE=1")
 	_ = fs.Parse(args)
 
 	if *httpAddr == "" && !*stdio {
@@ -90,7 +92,12 @@ func runServe(args []string) {
 	if token == "" {
 		token = os.Getenv("MARVINDOCS_AUTH_TOKEN")
 	}
-	if err := runServeWith(normalizeListenAddr(*httpAddr), *stdio, *docsPath, *indexPath, token); err != nil {
+	addr := normalizeListenAddr(*httpAddr)
+	if addr != "" && token == "" && !*insecure && os.Getenv("MARVINDOCS_INSECURE") != "1" && !isLoopbackAddr(addr) {
+		fmt.Fprintf(os.Stderr, "error: --http %s is reachable from other hosts but no auth token is set; pass --auth-token (or MARVINDOCS_AUTH_TOKEN), or --insecure to serve without auth\n", addr)
+		os.Exit(2)
+	}
+	if err := runServeWith(addr, *stdio, *docsPath, *indexPath, token); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
@@ -108,6 +115,22 @@ func normalizeListenAddr(addr string) string {
 		return "127.0.0.1" + addr
 	}
 	return addr
+}
+
+// isLoopbackAddr reports whether a listen address binds only the local
+// machine: 'localhost' or a loopback IP such as 127.0.0.1 / ::1. An
+// unparseable host is treated as non-loopback so the auth check errs on
+// the safe side.
+func isLoopbackAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // bearerAuthHandler enforces 'Authorization: Bearer <token>' on every

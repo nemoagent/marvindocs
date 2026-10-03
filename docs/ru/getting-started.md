@@ -105,6 +105,17 @@ level=INFO msg="index synced" docs=27 entries=120000 pages=0 duration=15s path=m
 
 Проба живости — `/healthz`.
 
+Голый `:3333` привязывается только к `127.0.0.1`. Чтобы раздавать по LAN,
+укажите явный адрес и задайте токен (на не-loopback адресе без токена
+сервер не стартует):
+
+```bash
+./bin/marvindocs serve --http 0.0.0.0:3333 --auth-token "$(openssl rand -hex 32)"
+```
+
+Клиенты передают `Authorization: Bearer <token>`; см.
+[Конфигурацию](configuration.md#вне-loopback-токен-обязателен).
+
 Можно включить оба транспорта сразу:
 
 ```bash
@@ -124,3 +135,25 @@ curl -s http://localhost:3333/healthz
 `http://localhost:3333/mcp` (HTTP) либо используй команду
 `marvindocs serve --stdio` как stdio-сервер. Подробнее — см.
 [MCP-сервер](mcp.md).
+
+## 7. Запуск через Docker Compose
+
+Compose-файл собирает образ, монтирует `./data/public/docs` и
+`./data/index` и публикует порт 3333 на всех интерфейсах хоста. Сначала
+постройте индекс в `data/index/`, затем запустите с токеном:
+
+```bash
+./bin/marvindocs index build --index-path data/index/marvindocs.db
+MARVINDOCS_AUTH_TOKEN=$(openssl rand -hex 32) docker compose up -d
+```
+
+Или храните токен в `.env` рядом с `docker-compose.yml`:
+
+```
+MARVINDOCS_AUTH_TOKEN=change-me
+```
+
+Без токена контейнер завершится с ошибкой
+`error: --http 0.0.0.0:3333 is reachable from other hosts but no auth token is set`.
+На машине, недоступной никому другому, можно запустить без аутентификации:
+`MARVINDOCS_INSECURE=1 docker compose up -d`.
