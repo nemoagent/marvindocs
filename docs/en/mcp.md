@@ -36,7 +36,10 @@ with `name` weighted 2x over `path`. When no doc filter is active
 default sync set: postgresql, python, react, go, ...) get a small score
 boost as a tiebreaker for cross-doc queries. If FTS returns fewer than
 `limit/2` hits, the result is topped up with a substring (`LIKE`) match
-on entry names.
+on entry names: first a prefix match (`q%`, served from an index in
+milliseconds), and only if that finds nothing a `%q%` scan. The scan is
+skipped for queries shorter than 3 characters unless a doc filter is
+active.
 
 - **Input:**
   - `query` *(string, required)* — user query. Tokens are prefix-matched

@@ -287,3 +287,113 @@ func TestSearch_AutoDocFilter(t *testing.T) {
 		}
 	})
 }
+
+// substringFixture opens a tiny index with a single doc and a few entries
+// for exercising the LIKE fallback without the shared (slow) index.
+func substringFixture(t *testing.T) *Index {
+	t.Helper()
+	idx, err := Open(filepath.Join(t.TempDir(), "sub.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = idx.Close() })
+	if _, err := idx.db.Exec(`INSERT INTO docs(slug, name, type, version, release, mtime) VALUES('php','PHP','lib','','',0)`); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"array_map", "fooBar", "a_b", "axb"} {
+		if _, err := idx.db.Exec(`INSERT INTO entries(doc_slug, name, path, type) VALUES('php',?,?,'Function')`, name, name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return idx
+}
+
+func names(hits []SearchHit) []string {
+	out := make([]string, 0, len(hits))
+	for _, h := range hits {
+		out = append(out, h.Name)
+	}
+	return out
+}
+
+func TestSearchSubstring_PrefixThenContains(t *testing.T) {
+	idx := substringFixture(t)
+	ctx := context.Background()
+
+	hits, err := idx.searchSubstring(ctx, "arr", nil, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := names(hits); len(got) != 1 || got[0] != "array_map" {
+		t.Fatalf("prefix pass: got %v, want [array_map]", got)
+	}
+
+	// No name starts with "bar"; the second ('%bar%') pass must find fooBar.
+	hits, err = idx.searchSubstring(ctx, "bar", nil, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := names(hits); len(got) != 1 || got[0] != "fooBar" {
+		t.Fatalf("contains pass: got %v, want [fooBar]", got)
+	}
+}
+
+func TestSearchSubstring_ShortQueryNeedsDocFilter(t *testing.T) {
+	idx := substringFixture(t)
+	ctx := context.Background()
+
+	// "xb" is below minSubstringQueryLen and prefix-matches nothing:
+	// the global '%xb%' scan is skipped.
+	hits, err := idx.searchSubstring(ctx, "xb", nil, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 0 {
+		t.Fatalf("unfiltered short query: got %v, want none", names(hits))
+	}
+
+	// With a doc filter the scan is bounded, so the substring hit is returned.
+	hits, err = idx.searchSubstring(ctx, "xb", []string{"php"}, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := names(hits); len(got) != 1 || got[0] != "axb" {
+		t.Fatalf("filtered short query: got %v, want [axb]", got)
+	}
+}
+
+func TestSearchSubstring_PrefixEscapesWildcards(t *testing.T) {
+	idx := substringFixture(t)
+	hits, err := idx.searchSubstring(context.Background(), "a_b", nil, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := names(hits); len(got) != 1 || got[0] != "a_b" {
+		t.Fatalf("got %v, want [a_b]", got)
+	}
+}
+
+func TestSearchSubstring_PrefixUsesNameIndex(t *testing.T) {
+	idx := substringFixture(t)
+	rows, err := idx.db.Query(`EXPLAIN QUERY PLAN SELECT doc_slug FROM entries WHERE name LIKE ? ESCAPE '\' LIMIT 10`, "arr%")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var plan strings.Builder
+	for rows.Next() {
+		var id, parent, notused int
+		var detail string
+		if err := rows.Scan(&id, &parent, &notused, &detail); err != nil {
+			t.Fatal(err)
+		}
+		plan.WriteString(detail)
+		plan.WriteByte('\n')
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(plan.String(), "idx_entries_name") {
+		t.Fatalf("prefix LIKE does not use idx_entries_name:\n%s", plan.String())
+	}
+}

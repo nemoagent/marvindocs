@@ -39,6 +39,9 @@ CREATE TABLE IF NOT EXISTS entries (
 );
 
 CREATE INDEX IF NOT EXISTS idx_entries_doc ON entries(doc_slug);
+-- NOCASE so that the default (case-insensitive) LIKE 'prefix%' can use
+-- it; see searchSubstring.
+CREATE INDEX IF NOT EXISTS idx_entries_name ON entries(name COLLATE NOCASE);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS entries_fts USING fts5(
     name,

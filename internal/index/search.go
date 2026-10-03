@@ -320,8 +320,18 @@ func mergeHits(primary, fallback []SearchHit, limit int) []SearchHit {
 	return out
 }
 
+// minSubstringQueryLen is the shortest query for which the global
+// (unfiltered) '%q%' table scan is attempted. Shorter queries match far
+// too much to be useful and the scan costs ~0.5 s on a large index.
+const minSubstringQueryLen = 3
+
 // searchSubstring is the LIKE-based fallback used to augment FTS
 // prefix-match hits. docSlugs restricts results; empty/nil means no filter.
+//
+// Two passes: first 'tok%' on the leading token, which walks
+// idx_entries_name and answers in milliseconds; only when that yields
+// nothing does it fall back to the '%tok%' full scan, and only if the
+// query is long enough or a doc filter bounds the scan.
 func (i *Index) searchSubstring(ctx context.Context, query string, docSlugs []string, limit int) ([]SearchHit, error) {
 	tokens := strings.Fields(query)
 	if len(tokens) == 0 {
@@ -336,18 +346,36 @@ func (i *Index) searchSubstring(ctx context.Context, query string, docSlugs []st
 		}
 	}
 
+	hits, err := i.likeQuery(ctx, tokens, filteredSlugs, limit, true)
+	if err != nil || len(hits) > 0 {
+		return hits, err
+	}
+	if len(filteredSlugs) == 0 && len(strings.Join(tokens, "")) < minSubstringQueryLen {
+		return nil, nil
+	}
+	return i.likeQuery(ctx, tokens, filteredSlugs, limit, false)
+}
+
+// likeQuery runs one LIKE pass over entries. With prefix set the first
+// token is matched as 'tok%' (index-friendly); otherwise every token is
+// matched as '%tok%'. Remaining tokens are always '%tok%' filters.
+func (i *Index) likeQuery(ctx context.Context, tokens, docSlugs []string, limit int, prefix bool) ([]SearchHit, error) {
 	var clauses []string
-	args := make([]any, 0, len(tokens)+len(filteredSlugs)+1)
-	for _, t := range tokens {
+	args := make([]any, 0, len(tokens)+len(docSlugs)+1)
+	for n, t := range tokens {
 		clauses = append(clauses, `name LIKE ? ESCAPE '\'`)
-		args = append(args, "%"+escapeLike(t)+"%")
+		if n == 0 && prefix {
+			args = append(args, escapeLike(t)+"%")
+		} else {
+			args = append(args, "%"+escapeLike(t)+"%")
+		}
 	}
 	where := strings.Join(clauses, " AND ")
-	if len(filteredSlugs) > 0 {
-		placeholders := strings.Repeat("?,", len(filteredSlugs))
+	if len(docSlugs) > 0 {
+		placeholders := strings.Repeat("?,", len(docSlugs))
 		placeholders = placeholders[:len(placeholders)-1]
 		where += " AND doc_slug IN (" + placeholders + ")"
-		for _, s := range filteredSlugs {
+		for _, s := range docSlugs {
 			args = append(args, s)
 		}
 	}
@@ -361,7 +389,7 @@ func (i *Index) searchSubstring(ctx context.Context, query string, docSlugs []st
 	}
 	defer rows.Close()
 
-	noFilter := len(filteredSlugs) == 0
+	noFilter := len(docSlugs) == 0
 	var hits []SearchHit
 	for rows.Next() {
 		var h SearchHit

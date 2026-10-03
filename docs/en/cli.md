@@ -172,6 +172,11 @@ The HTTP listener closes connections that take longer than 10s to send
 request headers and idle keep-alive connections after 120s. There is
 no write timeout: `/mcp` keeps long-lived SSE streams open.
 
+Opening an index built by an older version adds any missing schema
+objects. The first start after upgrading to the `idx_entries_name`
+index builds it in place; on a full devdocs index (2.6M entries) that
+takes about 30-40s once.
+
 ### Logging
 
 All commands honor two environment variables:
