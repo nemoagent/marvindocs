@@ -1,0 +1,76 @@
+{
+  "docs": [
+    {
+      "slug": "laravel~13",
+      "parser": "laravel",
+      "args": ["--version", "13.x"],
+      "description": "Laravel 13.x docs from github.com/laravel/docs"
+    },
+    {
+      "slug": "laravel~12",
+      "parser": "laravel",
+      "args": ["--version", "12.x"],
+      "description": "Laravel 12.x docs from github.com/laravel/docs"
+    },
+    {
+      "slug": "laravel~11",
+      "parser": "laravel",
+      "args": ["--version", "11.x"],
+      "description": "Laravel 11.x docs from github.com/laravel/docs"
+    },
+    {
+      "slug": "laravel~10",
+      "parser": "laravel",
+      "args": ["--version", "10.x"],
+      "description": "Laravel 10.x docs from github.com/laravel/docs"
+    },
+    {
+      "slug": "go-dev",
+      "parser": "go-dev",
+      "args": ["--mode", "overview"],
+      "description": "Go conceptual docs from go.dev (install, Effective Go, FAQ, modules, spec)"
+    },
+    {
+      "slug": "go-dev~1.25",
+      "parser": "go-dev",
+      "args": ["--mode", "release", "--version", "1.25"],
+      "description": "Go 1.25 release notes from go.dev"
+    },
+    {
+      "slug": "go-dev~1.24",
+      "parser": "go-dev",
+      "args": ["--mode", "release", "--version", "1.24"],
+      "description": "Go 1.24 release notes from go.dev"
+    },
+    {
+      "slug": "go-std~1.25",
+      "parser": "go-std",
+      "args": ["--version", "1.25"],
+      "description": "Go 1.25 standard library docs via go doc in Docker"
+    },
+    {
+      "slug": "go-std~1.24",
+      "parser": "go-std",
+      "args": ["--version", "1.24"],
+      "description": "Go 1.24 standard library docs via go doc in Docker"
+    },
+    {
+      "slug": "mongodb~8.0",
+      "parser": "mongodb",
+      "args": ["--version", "v8.0"],
+      "description": "MongoDB 8.0 Manual from github.com/mongodb/docs"
+    },
+    {
+      "slug": "mongodb~7.0",
+      "parser": "mongodb",
+      "args": ["--version", "v7.0"],
+      "description": "MongoDB 7.0 Manual from github.com/mongodb/docs"
+    },
+    {
+      "slug": "mongodb~6.0",
+      "parser": "mongodb",
+      "args": ["--version", "v6.0"],
+      "description": "MongoDB 6.0 Manual from github.com/mongodb/docs"
+    }
+  ]
+}
