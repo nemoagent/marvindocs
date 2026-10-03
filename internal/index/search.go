@@ -172,29 +172,40 @@ func extractDocFilter(query string, knownSlugs map[string]bool, callerDocSlug st
 //     by a small constant for "popular" docs so that, all else equal,
 //     a hit in postgresql/python/react/go beats one in haxe/pony.
 func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([]SearchHit, error) {
-	q := sanitizeFTSQuery(query)
-	if q == "" {
+	if sanitizeFTSQuery(query) == "" {
 		return nil, nil
 	}
 	if limit <= 0 {
 		limit = 20
 	}
+	if docSlug != "" {
+		return i.searchIn(ctx, query, []string{docSlug}, limit)
+	}
 
-	// Auto-detect doc filter from query tokens when no explicit filter given.
-	autoSlugs := []string{docSlug}
-	hasDocFilter := docSlug != ""
-	if docSlug == "" {
-		slugMap, _, catErr := i.docCatalog(ctx)
-		if catErr == nil && len(slugMap) > 0 {
-			cleanQ, matched := extractDocFilter(query, slugMap, docSlug)
-			if len(matched) > 0 {
-				query = cleanQ
-				q = sanitizeFTSQuery(cleanQ)
-				autoSlugs = matched
-				hasDocFilter = true
+	// Auto-detect doc filter from query tokens. A doc name in the query
+	// may also be an ordinary word ("async function", "less than"), so
+	// fall back to a global search when the filtered one finds nothing.
+	slugMap, _, catErr := i.docCatalog(ctx)
+	if catErr == nil && len(slugMap) > 0 {
+		cleanQ, matched := extractDocFilter(query, slugMap, "")
+		if len(matched) > 0 {
+			hits, err := i.searchIn(ctx, cleanQ, matched, limit)
+			if err != nil || len(hits) > 0 {
+				return hits, err
 			}
 		}
 	}
+	return i.searchIn(ctx, query, nil, limit)
+}
+
+// searchIn runs the FTS search plus substring fallback. An empty
+// docSlugs means a global search with the popularity boost.
+func (i *Index) searchIn(ctx context.Context, query string, docSlugs []string, limit int) ([]SearchHit, error) {
+	q := sanitizeFTSQuery(query)
+	if q == "" {
+		return nil, nil
+	}
+	hasDocFilter := len(docSlugs) > 0
 
 	// Over-fetch when ranking globally so the popularity boost has
 	// candidates to reorder. With a doc filter, no boost is applied
@@ -226,11 +237,11 @@ func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([
 			ORDER BY score
 			LIMIT ?`, q, fetchLimit)
 	} else {
-		placeholders := strings.Repeat("?,", len(autoSlugs))
+		placeholders := strings.Repeat("?,", len(docSlugs))
 		placeholders = placeholders[:len(placeholders)-1]
-		args := make([]any, 0, 2+len(autoSlugs))
+		args := make([]any, 0, 2+len(docSlugs))
 		args = append(args, q)
-		for _, s := range autoSlugs {
+		for _, s := range docSlugs {
 			args = append(args, s)
 		}
 		args = append(args, limit)
@@ -273,7 +284,7 @@ func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([
 	// Augment with substring matches on entries.name only when the
 	// FTS prefix-tokenizer didn't already saturate the result set.
 	if len(hits) < limit/2 || len(hits) == 0 {
-		fb, err := i.searchSubstring(ctx, query, autoSlugs, limit)
+		fb, err := i.searchSubstring(ctx, query, docSlugs, limit)
 		if err != nil {
 			return nil, err
 		}
@@ -400,28 +411,39 @@ func sortHitsByScore(hits []SearchHit) {
 // (~20 tokens, with HTML-ish highlight markers). docSlug restricts the
 // search to a single doc when non-empty.
 func (i *Index) SearchPages(ctx context.Context, query, docSlug string, limit int) ([]PageHit, error) {
-	q := sanitizeFTSQuery(query)
-	if q == "" {
+	if sanitizeFTSQuery(query) == "" {
 		return nil, nil
 	}
 	if limit <= 0 {
 		limit = 20
 	}
+	if docSlug != "" {
+		return i.searchPagesIn(ctx, query, []string{docSlug}, limit)
+	}
 
-	// Auto-detect doc filter from query tokens when no explicit filter given.
-	autoSlugs := []string{docSlug}
-	hasDocFilter := docSlug != ""
-	if docSlug == "" {
-		slugMap, _, catErr := i.docCatalog(ctx)
-		if catErr == nil && len(slugMap) > 0 {
-			cleanQ, matched := extractDocFilter(query, slugMap, docSlug)
-			if len(matched) > 0 {
-				q = sanitizeFTSQuery(cleanQ)
-				autoSlugs = matched
-				hasDocFilter = true
+	// Auto-detect doc filter from query tokens; fall back to a global
+	// search when the filtered one finds nothing (see Search).
+	slugMap, _, catErr := i.docCatalog(ctx)
+	if catErr == nil && len(slugMap) > 0 {
+		cleanQ, matched := extractDocFilter(query, slugMap, "")
+		if len(matched) > 0 {
+			hits, err := i.searchPagesIn(ctx, cleanQ, matched, limit)
+			if err != nil || len(hits) > 0 {
+				return hits, err
 			}
 		}
 	}
+	return i.searchPagesIn(ctx, query, nil, limit)
+}
+
+// searchPagesIn runs the page FTS search. An empty docSlugs means a
+// global search with the popularity boost.
+func (i *Index) searchPagesIn(ctx context.Context, query string, docSlugs []string, limit int) ([]PageHit, error) {
+	q := sanitizeFTSQuery(query)
+	if q == "" {
+		return nil, nil
+	}
+	hasDocFilter := len(docSlugs) > 0
 
 	var (
 		rows *sql.Rows
@@ -437,11 +459,11 @@ func (i *Index) SearchPages(ctx context.Context, query, docSlug string, limit in
 			ORDER BY score
 			LIMIT ?`, q, limit)
 	} else {
-		placeholders := strings.Repeat("?,", len(autoSlugs))
+		placeholders := strings.Repeat("?,", len(docSlugs))
 		placeholders = placeholders[:len(placeholders)-1]
-		args := make([]any, 0, 2+len(autoSlugs))
+		args := make([]any, 0, 2+len(docSlugs))
 		args = append(args, q)
-		for _, s := range autoSlugs {
+		for _, s := range docSlugs {
 			args = append(args, s)
 		}
 		args = append(args, limit)

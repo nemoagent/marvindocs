@@ -50,6 +50,8 @@ on entry names.
     (e.g. `python~*`). Aliases map to canonical names: `js` → javascript,
     `py` → python, `ts` → typescript, `pg` → postgresql, `mongo` →
     mongodb. If the doc token is the only token, no filter is applied.
+    If the scoped search finds nothing (e.g. `async function`, where
+    `async` is also a doc slug), the original query is searched globally.
     Example: `{"query": "python requests"}` → scoped to python docs only.
   - `limit` *(int, optional)* — default `20`, max `100`.
 - **Output:**

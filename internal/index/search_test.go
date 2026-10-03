@@ -185,6 +185,8 @@ func TestSearch_AutoDocFilter(t *testing.T) {
 		{"python~3.13", "Python"},
 		{"go-std~1.25", "Go"},
 		{"react", "React"},
+		{"async", "Async"},
+		{"javascript", "JavaScript"},
 	}
 	for _, d := range docs {
 		_, err := idx.db.Exec(`INSERT INTO docs(slug, name, type, version, release, mtime) VALUES(?,?,'lib','','',0)`, d.slug, d.name)
@@ -201,6 +203,8 @@ func TestSearch_AutoDocFilter(t *testing.T) {
 		{"go-std~1.25", "context.WithCancel", "context/WithCancel", "Function"},
 		{"react", "useState", "hooks/useState", "Function"},
 		{"react", "useEffect", "hooks/useEffect", "Function"},
+		{"async", "eachSeries", "index#eachSeries", "Collections"},
+		{"javascript", "async function", "statements/async_function", "Statements"},
 	}
 	for _, e := range entries {
 		_, err := idx.db.Exec(`INSERT INTO entries(doc_slug, name, path, type) VALUES(?,?,?,?)`, e.slug, e.name, e.path, e.typ)
@@ -258,6 +262,18 @@ func TestSearch_AutoDocFilter(t *testing.T) {
 			if h.DocSlug != "react" {
 				t.Errorf("expected react doc, got %s", h.DocSlug)
 			}
+		}
+	})
+
+	// "async" is a doc slug, but here it is an ordinary word: the
+	// filtered search finds nothing, so a global search must run.
+	t.Run("doc name as ordinary word", func(t *testing.T) {
+		hits, err := idx.Search(ctx, "async function", "", 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(hits) == 0 || hits[0].DocSlug != "javascript" {
+			t.Fatalf("expected javascript hit for 'async function', got %+v", hits)
 		}
 	})
 
