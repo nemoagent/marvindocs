@@ -22,8 +22,8 @@ marvindocs index build                   # создан marvindocs.db
   --index-path /ABS/marvindocs.db
 ```
 
-После подключения клиент получит три инструмента: `list_docs`,
-`search`, `get_page`.
+После подключения клиент получит четыре инструмента: `list_docs`,
+`search`, `search_pages`, `get_page`.
 
 ---
 
@@ -52,7 +52,7 @@ marvindocs index build                   # создан marvindocs.db
 }
 ```
 
-Перезапусти Claude Desktop. Открой любой чат — три инструмента должны
+Перезапусти Claude Desktop. Открой любой чат — четыре инструмента должны
 появиться в списке.
 
 ---
@@ -194,13 +194,15 @@ VS Code (1.95+) с GitHub Copilot Chat читает `.vscode/mcp.json` в
 
 ### HTTP (удалённый или общий инстанс)
 
-Подними сервер:
+Подними сервер (`:3333` без хоста слушает только loopback; для
+удалённых подключений используй `0.0.0.0:3333`):
 
 ```bash
-marvindocs serve --http :3333
+marvindocs serve --http 0.0.0.0:3333
 ```
 
-В `.vscode/mcp.json`:
+В `.vscode/mcp.json` (для удалённого инстанса замени `localhost` на хост
+сервера):
 
 ```json
 {
@@ -212,6 +214,10 @@ marvindocs serve --http :3333
   }
 }
 ```
+
+Если сервер запущен с `--auth-token`, HTTP-клиенты должны отправлять
+`Authorization: Bearer <token>`; настрой свой клиент на отправку этого
+заголовка.
 
 Справка: <https://code.visualstudio.com/docs/copilot/chat/mcp-servers>.
 
@@ -240,7 +246,8 @@ marvindocs работает только на чтение и не хранит 
 Практичная схема:
 
 1. На машине с данными подними **один** HTTP-сервер:
-   `marvindocs serve --http :3333`.
+   `marvindocs serve --http 0.0.0.0:3333` (`:3333` без хоста — только
+   loopback). Если сервер доступен другим, подумай про `--auth-token`.
 2. Все клиенты указывают на `http://host:3333/mcp`.
 
 stdio-конфиги порождают отдельный процесс на каждого клиента и каждый

@@ -22,8 +22,8 @@ The minimal command you want to pass is:
   --index-path /ABS/marvindocs.db
 ```
 
-Once connected, every client gets three tools: `list_docs`, `search`,
-`get_page`.
+Once connected, every client gets four tools: `list_docs`, `search`,
+`search_pages`, `get_page`.
 
 ---
 
@@ -52,7 +52,7 @@ Config file location:
 }
 ```
 
-Restart Claude Desktop. Open any chat; three tools should appear in the
+Restart Claude Desktop. Open any chat; four tools should appear in the
 tool picker.
 
 ---
@@ -192,13 +192,15 @@ workspace, or the user-level `settings.json`.
 
 ### HTTP (remote or shared instance)
 
-Start the server:
+Start the server (bare `:3333` binds loopback only; use
+`0.0.0.0:3333` to accept remote connections):
 
 ```bash
-marvindocs serve --http :3333
+marvindocs serve --http 0.0.0.0:3333
 ```
 
-Then in `.vscode/mcp.json`:
+Then in `.vscode/mcp.json` (replace `localhost` with the server's host
+for a remote instance):
 
 ```json
 {
@@ -210,6 +212,10 @@ Then in `.vscode/mcp.json`:
   }
 }
 ```
+
+If the server runs with `--auth-token`, HTTP clients must send
+`Authorization: Bearer <token>`; configure your client to send that
+header.
 
 Reference: <https://code.visualstudio.com/docs/copilot/chat/mcp-servers>.
 
@@ -238,7 +244,8 @@ marvindocs is read-only and holds no per-client state. The most
 practical layout is:
 
 1. Run **one** HTTP server on the machine where the data lives:
-   `marvindocs serve --http :3333`.
+   `marvindocs serve --http 0.0.0.0:3333` (bare `:3333` is
+   loopback-only). Consider `--auth-token` when it is reachable by others.
 2. Point every client at `http://host:3333/mcp`.
 
 stdio configs spawn a private process per client and load the SQLite
