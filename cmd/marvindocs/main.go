@@ -282,6 +282,13 @@ func runIndexBuild(docsPath, indexPath string, fullText, full bool) error {
 	if err != nil {
 		return err
 	}
+	// Deletes (sync, --full, dropping --fulltext bodies) only move pages to
+	// the freelist; without VACUUM the file never shrinks.
+	if reclaimed, err := idx.Compact(ctx); err != nil {
+		slog.Warn("index compact failed", "err", err)
+	} else if reclaimed > 0 {
+		slog.Info("index compacted", "reclaimed_mb", reclaimed>>20)
+	}
 	mode := "synced"
 	if full {
 		mode = "indexed"

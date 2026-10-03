@@ -117,9 +117,10 @@ func (i *Index) BuildWithOptions(ctx context.Context, s *docstore.Store, opts Bu
 
 	// Post-build optimizations: FTS optimize + ANALYZE. Not fatal if they fail.
 	_, _ = i.db.Exec(`INSERT INTO entries_fts(entries_fts) VALUES('optimize')`)
-	if opts.Fulltext {
-		_, _ = i.db.Exec(`INSERT INTO pages_fts(pages_fts) VALUES('optimize')`)
-	}
+	// Always optimize pages_fts: deletes (sync, Reset) leave dead segments
+	// behind even when this run didn't index bodies, and only a merge
+	// frees them for Compact.
+	_, _ = i.db.Exec(`INSERT INTO pages_fts(pages_fts) VALUES('optimize')`)
 	_, _ = i.db.Exec(`ANALYZE`)
 
 	stats.Duration = time.Since(start)

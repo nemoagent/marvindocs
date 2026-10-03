@@ -33,7 +33,14 @@ marvindocs index build [--docs-path DIR] [--index-path FILE] [--fulltext] [--ful
 | `--docs-path` | `data/public/docs` | Must contain `docs.json` and `<slug>/{index,db}.json`. |
 | `--index-path` | `marvindocs.db` | Output SQLite file. Updated in place. |
 | `--fulltext` | `false` | Also index page body text into `pages_fts`. Much slower; the index file grows by roughly the combined size of every `db.json`. |
-| `--full` | `false` | Force a full rebuild (drop everything and reinsert). Useful after schema changes or to defragment. |
+| `--full` | `false` | Force a full rebuild (drop everything and reinsert). Useful after schema changes. |
+
+After a successful build the index is compacted: FTS5 segments are
+merged and, if more than 10% of the file is free pages, `VACUUM` is run
+and the WAL is checkpointed. Deleted docs, `--full` rebuilds and dropped
+`--fulltext` bodies otherwise leave the file at its peak size. A
+compaction is logged as `index compacted reclaimed_mb=N`; when there is
+nothing to reclaim it is skipped. Expect roughly 30 s per 4 GB.
 
 Exit codes: `0` on success, `1` on any error (data not found, SQLite
 write failure, etc.), `2` on usage error.
