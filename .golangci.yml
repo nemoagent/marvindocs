@@ -1,0 +1,19 @@
+version: "2"
+
+run:
+  build-tags:
+    - sqlite_fts5
+
+linters:
+  # Default set (errcheck, govet, ineffassign, staticcheck, unused),
+  # pinned here so the result does not drift with linter releases.
+  default: standard
+  settings:
+    errcheck:
+      # Close on read-only handles and deferred statement/row cleanup:
+      # the error carries no actionable information.
+      exclude-functions:
+        - (*database/sql.Rows).Close
+        - (*database/sql.Stmt).Close
+        - (*os.File).Close
+        - (*github.com/piligrim/marvindocs/internal/index.Index).Close

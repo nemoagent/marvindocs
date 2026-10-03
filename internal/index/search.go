@@ -219,13 +219,8 @@ func (i *Index) searchIn(ctx context.Context, query string, docSlugs []string, l
 	}
 
 	var (
-		rows interface {
-			Next() bool
-			Scan(dest ...any) error
-			Close() error
-			Err() error
-		}
-		err error
+		rows *sql.Rows
+		err  error
 	)
 
 	if !hasDocFilter {

@@ -33,7 +33,7 @@ func (g *gzipResponseWriter) WriteHeader(code int) {
 		return
 	}
 	g.wroteHeader = true
-	h := g.ResponseWriter.Header()
+	h := g.Header()
 	h.Set("Content-Encoding", "gzip")
 	h.Add("Vary", "Accept-Encoding")
 	// Gzip changes the body length; the original Content-Length is wrong.

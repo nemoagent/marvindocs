@@ -7,7 +7,7 @@ DOCKER_RUN = docker run --rm \
 	-e CGO_ENABLED=1 \
 	$(GO_IMAGE)
 
-.PHONY: build tidy test vet fmt run-http run-stdio index parsers parsers-test clean
+.PHONY: build tidy test vet lint fmt run-http run-stdio index parsers parsers-test clean
 
 build:
 	mkdir -p bin .gocache .gomodcache
@@ -22,6 +22,12 @@ test:
 
 vet:
 	$(DOCKER_RUN) go vet -tags sqlite_fts5 ./...
+
+lint:
+	mkdir -p .gocache .gomodcache
+	docker run --rm -v "$(PWD)":/src -v "$(PWD)/.gocache":/root/.cache/go-build \
+		-v "$(PWD)/.gomodcache":/go/pkg/mod -w /src -e CGO_ENABLED=1 \
+		golangci/golangci-lint:v2.13.2 golangci-lint run ./...
 
 fmt:
 	$(DOCKER_RUN) gofmt -w cmd internal parsers

@@ -72,6 +72,7 @@ FTS5 отсутствует и индекс не откроется). Бинар
 | `tidy` | `go mod tidy`. |
 | `test` | `go test -tags sqlite_fts5 ./...`. |
 | `vet` | `go vet -tags sqlite_fts5 ./...`. |
+| `lint` | `golangci-lint run ./...` (v2.13.2, конфиг в `.golangci.yml`). |
 | `fmt` | `gofmt -w cmd internal parsers`. |
 | `index` | `build`, затем `./bin/marvindocs index build`. |
 | `run-http` | `build`, затем `serve --http :3333`. |

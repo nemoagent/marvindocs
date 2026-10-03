@@ -72,6 +72,7 @@ All Go targets run inside the `golang:1.25` container.
 | `tidy` | `go mod tidy`. |
 | `test` | `go test -tags sqlite_fts5 ./...`. |
 | `vet` | `go vet -tags sqlite_fts5 ./...`. |
+| `lint` | `golangci-lint run ./...` (v2.13.2, config in `.golangci.yml`). |
 | `fmt` | `gofmt -w cmd internal parsers`. |
 | `index` | `build`, then `./bin/marvindocs index build`. |
 | `run-http` | `build`, then `serve --http :3333`. |

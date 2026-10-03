@@ -184,7 +184,7 @@ func runServeWith(httpAddr string, stdio bool, docsPath, indexPath, authToken st
 		// /healthz take precedence on the ServeMux pattern tree).
 		mux.Handle("/", webHandler)
 
-		var handler http.Handler = web.AccessLogHandler(mux)
+		handler := web.AccessLogHandler(mux)
 		if authToken != "" {
 			handler = bearerAuthHandler(authToken, handler)
 			slog.Info("HTTP auth enabled (Bearer)")
