@@ -20,3 +20,9 @@
 /.gocache/
 /.gomodcache/
 /.nemo/
+
+# Parser binaries built in place by `go build` (use `make parsers` instead)
+/parsers/go-dev/go-dev
+/parsers/go-std/go-std
+/parsers/laravel/laravel
+/parsers/mongodb/mongodb
