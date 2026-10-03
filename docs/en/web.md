@@ -15,7 +15,7 @@ Open `http://localhost:3333/` in any browser.
 | `GET /search?q=...&doc=...` | Search over entry names and paths (not page bodies), up to 50 results. `doc` is optional and restricts results to one slug. |
 | `GET /docs/{slug}/` | Doc's `index` page plus a sidebar with all its entries. |
 | `GET /docs/{slug}/{path}` | Single page. `path` comes from `search.path` or `index.json`. |
-| `GET /static/...` | Embedded assets (`app.css`, `app.js`), served with `Cache-Control: public, max-age=86400`. |
+| `GET /static/...` | Embedded assets (`app.css`, `theme.js`, `app.js`), served with `Cache-Control: public, max-age=86400`. |
 | `/mcp` | MCP Streamable HTTP endpoint (used by agents, not humans). Registered for all methods; clients mostly use `POST`. |
 | `GET /healthz` | Liveness probe, returns `ok`. |
 
@@ -37,19 +37,28 @@ empty `q` shows a prompt instead of results.
 - Doc pages are sent with a strong `ETag` and
   `Cache-Control: public, max-age=300`; a matching `If-None-Match`
   gets `304 Not Modified`. An unknown slug or page returns `404`.
-- External assets (images, scripts) referenced by the HTML are loaded
-  from their original URLs. marvindocs does not proxy or cache them.
+- External images referenced by the HTML are loaded from their original
+  URLs (`https:` only). marvindocs does not proxy or cache them.
+- Every response carries hardening headers: a
+  `Content-Security-Policy` that permits scripts only from the same
+  origin (no inline), inline styles, same-origin and `https:`/`data:`
+  images, and no framing (`frame-ancestors 'none'`); plus
+  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` and
+  `Referrer-Policy: no-referrer`. A `<script>` or `on*=` handler that
+  slipped into a devdocs dump is therefore not executed; external
+  scripts, iframes and fonts inside doc pages are blocked too.
 
 ## Limitations
 
-- **Authentication is optional.** By default there is none. With
-  `--auth-token` (or `MARVINDOCS_AUTH_TOKEN`) every request except
-  `/healthz` must carry `Authorization: Bearer <token>`. If you expose
-  this on a public address, also put it behind a reverse proxy with TLS
-  and/or auth (nginx + basic auth, OAuth gateway).
+- **Authentication is Bearer-token only.** Loopback binds run without
+  auth; any other `--http` address requires `--auth-token` (or
+  `MARVINDOCS_AUTH_TOKEN`) unless `--insecure` is given, and then every
+  request except `/healthz` must carry `Authorization: Bearer <token>`.
+  If you expose this on a public address, also put it behind a reverse
+  proxy with TLS and/or auth (nginx + basic auth, OAuth gateway).
 - **Minimal JavaScript.** Search and navigation are server-side HTML;
-  the only scripts are a small inline snippet in `<head>` and
-  `/static/app.js` for the theme toggle. There is no autocomplete or
+  the only scripts are `/static/theme.js` (applies the theme before
+  first paint) and `/static/app.js` (the toggle). There is no autocomplete or
   client-side routing.
 - **No devdocs CSS.** The fragments ship without their original
   styling; headings, links and code blocks get a minimal look from
@@ -72,6 +81,7 @@ internal/web/
 │   └── page.html           doc page + sidebar
 └── static/
     ├── app.css             minimal stylesheet
+    ├── theme.js            applies saved theme before first paint
     └── app.js              theme toggle
 ```
 

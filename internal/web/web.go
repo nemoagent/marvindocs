@@ -59,7 +59,26 @@ func Handler(d Deps) (http.Handler, error) {
 	mux.HandleFunc("GET /", s.handleIndex)
 	mux.HandleFunc("GET /search", s.handleSearch)
 	mux.HandleFunc("GET /docs/", s.handleDocPath)
-	return gzipHandler(mux), nil
+	return securityHeadersHandler(gzipHandler(mux)), nil
+}
+
+// securityHeadersHandler sets browser hardening headers on every web
+// response. Doc pages embed HTML straight from the devdocs dump, so the
+// CSP allows only same-origin scripts (no inline), which neutralises
+// any <script> or on* attribute that slipped through a dump. Inline
+// styles stay allowed: dump pages rely on style="" attributes.
+func securityHeadersHandler(h http.Handler) http.Handler {
+	const csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+		"img-src 'self' data: https:; object-src 'none'; base-uri 'self'; " +
+		"form-action 'self'; frame-ancestors 'none'"
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hdr := w.Header()
+		hdr.Set("Content-Security-Policy", csp)
+		hdr.Set("X-Content-Type-Options", "nosniff")
+		hdr.Set("X-Frame-Options", "DENY")
+		hdr.Set("Referrer-Policy", "no-referrer")
+		h.ServeHTTP(w, r)
+	})
 }
 
 // cacheStaticHandler adds a long-lived Cache-Control to embedded
