@@ -108,6 +108,36 @@ postgresql, python, react, go, ...) получают небольшой буст
   `{ doc_slug, path, format, content }`. При `format=markdown` контент
   конвертируется на лету из HTML.
 
+### `get_docs`
+
+Ответ в стиле Context7 одним вызовом: возвращает фрагменты документации
+по теме, которые помещаются в токенный бюджет. Предпочитай его связке
+`search_pages` + `get_page`, когда нужен просто ответ.
+
+Внутри выполняется тот же полнотекстовый поиск по страницам, что и в
+`search_pages` (топ-8 страниц); каждая страница конвертируется в Markdown
+и делится на секции по заголовкам (fenced-код игнорируется; секции длиннее
+~8000 символов режутся по границам абзацев). Остаются секции, где
+встречаются термы темы (совпадение по префиксу слова; совпадение в
+заголовке считается вдвое), они сортируются от самых релевантных
+(оценка, затем ранг страницы, затем порядок на странице) и добавляются,
+пока не заполнится бюджет. Последний фрагмент обрезается с `…`, если не
+помещается целиком. Токены оцениваются как символы / 4.
+
+- **Вход:**
+  - `topic` *(string, обязательный)* — что искать, например `jsonb
+    operators` или `useEffect cleanup`.
+  - `doc_slug` *(string, опциональный)* — ограничить поиск этой
+    документацией (см. `list_docs`). Если не задан, определяется по
+    токенам темы (например, `postgresql jsonb` → `postgresql`) так же, как в `search`.
+  - `tokens` *(int, опциональный)* — примерный токенный бюджет ответа;
+    по умолчанию `5000`, максимум `50000`.
+- **Выход:**
+  `{ topic, tokens, fragments: [{ doc_slug, path, heading, content, tokens }] }`.
+  Текстовый блок — это фрагменты, склеенные через `---`, перед каждым
+  стоит строка `Source: <doc_slug>/<path>`. Если ничего не найдено,
+  текст — `no documentation found for "<topic>"`, а `fragments` пуст.
+
 ## Настройка клиентов
 
 Готовые к копированию конфиги для всех популярных агентов — в
@@ -122,8 +152,8 @@ postgresql, python, react, go, ...) получают небольшой буст
 - VS Code / GitHub Copilot Chat (stdio и HTTP)
 - Универсальный HTTP-клиент (пример на Go SDK)
 
-Во всех клиентах после подключения становятся доступны четыре инструмента:
-`list_docs`, `search`, `search_pages`, `get_page`.
+Во всех клиентах после подключения становятся доступны пять инструментов:
+`list_docs`, `search`, `search_pages`, `get_page`, `get_docs`.
 
 ## Безопасность
 
@@ -162,6 +192,7 @@ marvindocs serve --http :3333 &
 ```
 ==> initialize http://localhost:3333/mcp
 ==> tools/list
+    - get_docs: Get documentation fragments about a topic within a token budget ...
     - get_page: Fetch a documentation page ...
     - list_docs: List all indexed documentation sets ...
     - search: Search across all indexed documentation ...

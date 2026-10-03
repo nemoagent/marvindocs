@@ -22,8 +22,8 @@ The minimal command you want to pass is:
   --index-path /ABS/marvindocs.db
 ```
 
-Once connected, every client gets four tools: `list_docs`, `search`,
-`search_pages`, `get_page`.
+Once connected, every client gets five tools: `list_docs`, `search`,
+`search_pages`, `get_page`, `get_docs`.
 
 ---
 
@@ -52,7 +52,7 @@ Config file location:
 }
 ```
 
-Restart Claude Desktop. Open any chat; four tools should appear in the
+Restart Claude Desktop. Open any chat; five tools should appear in the
 tool picker.
 
 ---

@@ -3,38 +3,64 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/piligrim/marvindocs/internal/docstore"
 	"github.com/piligrim/marvindocs/internal/index"
+	"github.com/piligrim/marvindocs/internal/mdcache"
 )
 
-// connect starts a server over a one-doc fixture index (slug "go",
-// entry "Println") and returns a connected client session.
+// fixtureStore writes a one-doc devdocs tree (slug "go", entry
+// "Println") with two pages.
+func fixtureStore(t *testing.T) *docstore.Store {
+	t.Helper()
+	root := t.TempDir()
+	files := map[string]string{
+		"docs.json":     `[{"name":"Go","slug":"go","type":"lib","version":"1","release":"r1","mtime":0}]`,
+		"go/index.json": `{"entries":[{"name":"Println","path":"fmt/Println","type":"Function"}],"types":[]}`,
+		"go/db.json": `{"fmt/Println":"<h1>Println</h1><p>Println writes to standard output.</p>` +
+			`<h2>Formatting</h2><p>Spaces are always added between operands.</p>",` +
+			`"os/exit":"<h1>Exit</h1><p>Exit causes the program to exit with the given code.</p>"}`,
+	}
+	for name, body := range files {
+		p := filepath.Join(root, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s, err := docstore.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+// connect builds the index from fixtureStore, starts a server over it
+// and returns a connected client session.
 func connect(t *testing.T) *mcp.ClientSession {
 	t.Helper()
+	store := fixtureStore(t)
 	idx, err := index.Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = idx.Close() })
-	for _, q := range []string{
-		`INSERT INTO docs(slug, name, type, version, release, mtime) VALUES('go','Go','lib','1','r1',0)`,
-		`INSERT INTO entries(doc_slug, name, path, type) VALUES('go','Println','fmt/Println','Function')`,
-		`INSERT INTO entries_fts(entries_fts) VALUES('rebuild')`,
-	} {
-		if _, err := idx.DB().Exec(q); err != nil {
-			t.Fatal(err)
-		}
+	if _, err := idx.Build(context.Background(), store); err != nil {
+		t.Fatal(err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	srv := New(Deps{Index: idx}, "test")
+	srv := New(Deps{Store: store, Index: idx, MDCache: mdcache.New(8)}, "test")
 	serverT, clientT := mcp.NewInMemoryTransports()
 	ss, err := srv.Connect(ctx, serverT, nil)
 	if err != nil {
@@ -62,7 +88,7 @@ func TestListTools(t *testing.T) {
 		got = append(got, tool.Name)
 	}
 	sort.Strings(got)
-	want := "get_page,list_docs,search,search_pages"
+	want := "get_docs,get_page,list_docs,search,search_pages"
 	if strings.Join(got, ",") != want {
 		t.Errorf("tools = %v, want %s", got, want)
 	}
@@ -87,5 +113,44 @@ func TestCallSearch(t *testing.T) {
 	}
 	if !strings.Contains(string(b), "Println") {
 		t.Errorf("result lacks entry name: %s", b)
+	}
+}
+
+func TestCallGetDocs(t *testing.T) {
+	cs := connect(t)
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "get_docs",
+		Arguments: map[string]any{"topic": "operands spaces", "tokens": 100},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError {
+		t.Fatalf("tool returned error: %+v", res.Content)
+	}
+	var out getDocsOutput
+	b, _ := json.Marshal(res.StructuredContent)
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Fragments) == 0 {
+		t.Fatalf("no fragments: %s", b)
+	}
+	// The "Formatting" section mentions both terms and must come first;
+	// the unrelated os/exit page must not appear at all.
+	if f := out.Fragments[0]; f.Path != "fmt/Println" || f.Heading != "Formatting" {
+		t.Errorf("top fragment = %+v", f)
+	}
+	for _, f := range out.Fragments {
+		if f.Path == "os/exit" {
+			t.Errorf("unrelated page leaked into fragments: %+v", f)
+		}
+	}
+	if out.Tokens > 100 {
+		t.Errorf("tokens = %d, over budget", out.Tokens)
+	}
+	text := res.Content[0].(*mcp.TextContent).Text
+	if !strings.HasPrefix(text, "Source: go/fmt/Println") {
+		t.Errorf("text block = %q", text)
 	}
 }

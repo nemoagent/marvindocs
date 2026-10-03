@@ -105,6 +105,36 @@ Fetches a single documentation page.
   `{ doc_slug, path, format, content }`. When `format=markdown`
   the content is produced on-the-fly by the HTML→Markdown converter.
 
+### `get_docs`
+
+Context7-style one-call answer: returns the documentation fragments
+about a topic that fit a token budget. Prefer it over `search_pages` +
+`get_page` when you just need an answer.
+
+Internally it runs the same page full-text search as `search_pages`
+(top 8 pages), converts each page to Markdown and splits it into
+sections by headings (fenced code is ignored; sections longer than
+~8000 characters are split at paragraph breaks). Sections that mention
+the topic terms are kept (word-prefix match; a match in the heading
+counts double), sorted most relevant first (score, then page rank, then
+order in the page) and added until the budget is filled. The last
+fragment is truncated with `…` if it does not fit. Tokens are estimated
+as characters / 4.
+
+- **Input:**
+  - `topic` *(string, required)* — what to look up, e.g. `jsonb
+    operators` or `useEffect cleanup`.
+  - `doc_slug` *(string, optional)* — restrict to this doc (see
+    `list_docs`). If not set, it is detected from the topic tokens
+    (e.g. `postgresql jsonb` → `postgresql`), the same way as in `search`.
+  - `tokens` *(int, optional)* — approximate token budget for the
+    response; default `5000`, max `50000`.
+- **Output:**
+  `{ topic, tokens, fragments: [{ doc_slug, path, heading, content, tokens }] }`.
+  The text block is the fragments joined with `---`, each preceded by a
+  `Source: <doc_slug>/<path>` line. If nothing matched, the text is
+  `no documentation found for "<topic>"` and `fragments` is empty.
+
 ## Client configuration
 
 See **[clients.md](clients.md)** for ready-to-paste configuration for:
@@ -118,8 +148,8 @@ See **[clients.md](clients.md)** for ready-to-paste configuration for:
 - VS Code / GitHub Copilot Chat (stdio and HTTP)
 - Generic HTTP client (Go SDK example)
 
-All clients use the same four tools once connected: `list_docs`,
-`search`, `search_pages`, `get_page`.
+All clients use the same five tools once connected: `list_docs`,
+`search`, `search_pages`, `get_page`, `get_docs`.
 
 ## Security
 
@@ -158,6 +188,7 @@ Expected output (abbreviated; the doc count depends on your dump):
 ```
 ==> initialize http://localhost:3333/mcp
 ==> tools/list
+    - get_docs: Get documentation fragments about a topic within a token budget ...
     - get_page: Fetch a documentation page ...
     - list_docs: List all indexed documentation sets ...
     - search: Search across all indexed documentation ...

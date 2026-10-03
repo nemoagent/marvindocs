@@ -1,10 +1,12 @@
 // Package mcpserver exposes the marvindocs data to MCP clients (LLM agents).
 //
-// Three tools are registered:
+// Five tools are registered:
 //
-//	list_docs  -> list all indexed documents
-//	search     -> FTS5 search over entry names and paths
-//	get_page   -> fetch a page as Markdown (default) or raw HTML
+//	list_docs    -> list all indexed documents
+//	search       -> FTS5 search over entry names and paths
+//	search_pages -> FTS5 search over page bodies, with snippets
+//	get_page     -> fetch a page as Markdown (default) or raw HTML
+//	get_docs     -> topic + token budget -> relevant Markdown fragments
 //
 // The server works over both stdio (for Claude Desktop, Cursor, Claude Code)
 // and Streamable HTTP (for remote use). Both transports share one Server
@@ -43,6 +45,7 @@ func New(deps Deps, version string) *mcp.Server {
 	registerSearch(s, deps)
 	registerSearchPages(s, deps)
 	registerGetPage(s, deps)
+	registerGetDocs(s, deps)
 	return s
 }
 
@@ -192,22 +195,11 @@ func registerGetPage(s *mcp.Server, d Deps) {
 			out.Content = html
 		case "markdown", "md":
 			out.Format = "markdown"
-			doc := d.Store.Doc(in.DocSlug)
-			var release string
-			if doc != nil {
-				release = doc.Release
+			md, err := d.markdown(in.DocSlug, in.Path, html)
+			if err != nil {
+				return nil, getPageOutput{}, err
 			}
-			key := mdcache.Key(in.DocSlug, in.Path, release)
-			if md, ok := d.MDCache.Get(key); ok {
-				out.Content = md
-			} else {
-				md, err := docstore.ToMarkdown(html)
-				if err != nil {
-					return nil, getPageOutput{}, fmt.Errorf("convert to markdown: %w", err)
-				}
-				d.MDCache.Add(key, md)
-				out.Content = md
-			}
+			out.Content = md
 		default:
 			return nil, getPageOutput{}, fmt.Errorf("unknown format %q (use 'markdown' or 'html')", in.Format)
 		}
@@ -218,6 +210,25 @@ func registerGetPage(s *mcp.Server, d Deps) {
 // -------------------------------------------------------------------------
 // helpers
 // -------------------------------------------------------------------------
+
+// markdown converts a page's HTML to Markdown, going through MDCache.
+func (d Deps) markdown(slug, path, html string) (string, error) {
+	doc := d.Store.Doc(slug)
+	var release string
+	if doc != nil {
+		release = doc.Release
+	}
+	key := mdcache.Key(slug, path, release)
+	if md, ok := d.MDCache.Get(key); ok {
+		return md, nil
+	}
+	md, err := docstore.ToMarkdown(html)
+	if err != nil {
+		return "", fmt.Errorf("convert to markdown: %w", err)
+	}
+	d.MDCache.Add(key, md)
+	return md, nil
+}
 
 // textResult builds a CallToolResult with a single TextContent block — the
 // human-readable representation that MCP clients show to the user. The

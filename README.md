@@ -9,7 +9,7 @@ documentation sets (React, Python, Go, Rust, …) from a local SQLite index.
 | Feature | How |
 |---|---|
 | **Web UI** | Browse and search all docs in a browser at `http://localhost:3333/` |
-| **MCP server** | Expose four tools to AI agents over stdio or HTTP |
+| **MCP server** | Expose five tools to AI agents over stdio or HTTP |
 | **HTML→Markdown** | `get_page` converts devdocs HTML to clean Markdown on the fly |
 | **Full-text search** | SQLite FTS5, BM25 ranking, prefix matching |
 
@@ -111,7 +111,7 @@ For all agents including Zed, Continue, VS Code Copilot Chat — see
 
 ## MCP tools
 
-Once connected, the agent has four tools:
+Once connected, the agent has five tools:
 
 | Tool | What it does |
 |---|---|
@@ -119,6 +119,7 @@ Once connected, the agent has four tools:
 | `search` | FTS search over entry names/paths; returns ranked hits with `doc_slug` and `path` |
 | `search_pages` | Full-text search over page bodies; returns hits with a snippet. |
 | `get_page` | Fetch a page as Markdown (default) or HTML by `doc_slug` + `path` |
+| `get_docs` | One-call answer: the most relevant Markdown fragments for a topic within a token budget |
 
 Verify the server with the bundled smoke test (needs `curl` + `jq`):
 
@@ -177,9 +178,10 @@ scripts/mcp-smoke.sh     verify the MCP server end-to-end
 data/public/docs/        devdocs dump (not in git, ~17 GB)
 marvindocs.db            SQLite FTS5 index (size depends on the doc set; page bodies indexed, text not stored)
 cmd/marvindocs/          CLI entrypoint
+internal/chunk/          Markdown section splitting and scoring for get_docs
 internal/docstore/       read-only data accessor + HTML→Markdown
 internal/index/          indexer and FTS search
-internal/mcpserver/      MCP tools (list_docs, search, search_pages, get_page)
+internal/mcpserver/      MCP tools (list_docs, search, search_pages, get_page, get_docs)
 internal/web/            browser UI (templates + CSS, embedded in binary)
 docs/en/                 English documentation
 docs/ru/                 Russian documentation

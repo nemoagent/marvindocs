@@ -22,8 +22,8 @@ marvindocs index build                   # создан marvindocs.db
   --index-path /ABS/marvindocs.db
 ```
 
-После подключения клиент получит четыре инструмента: `list_docs`,
-`search`, `search_pages`, `get_page`.
+После подключения клиент получит пять инструментов: `list_docs`,
+`search`, `search_pages`, `get_page`, `get_docs`.
 
 ---
 
@@ -52,7 +52,7 @@ marvindocs index build                   # создан marvindocs.db
 }
 ```
 
-Перезапусти Claude Desktop. Открой любой чат — четыре инструмента должны
+Перезапусти Claude Desktop. Открой любой чат — пять инструментов должны
 появиться в списке.
 
 ---
