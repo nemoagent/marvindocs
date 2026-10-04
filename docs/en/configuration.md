@@ -30,6 +30,11 @@ Both `data/public/` and `marvindocs.db*` are in `.gitignore`.
 | `--http ADDR` | empty | Listen for HTTP clients on `ADDR`. MCP Streamable transport is at `/mcp`. A bare `:3333` binds `127.0.0.1` only; use `0.0.0.0:3333` for public access. |
 | `--auth-token TOKEN` | empty | Require `Authorization: Bearer TOKEN` on every HTTP request (web UI and `/mcp` included) except `/healthz`. Falls back to `MARVINDOCS_AUTH_TOKEN`. |
 | `--insecure` | `false` | Allow `--http` on a non-loopback address without a token. Also enabled by `MARVINDOCS_INSECURE=1`. |
+| `--embedder NAME` | `none` | `none`, `ollama` or `onnx`. Enables hybrid vector + BM25 search in `get_docs`; see [Vector search](vectors.md). |
+| `--ollama-url URL` | `http://localhost:11434` | Ollama base URL (`--embedder ollama`). |
+| `--ollama-model NAME` | `bge-m3` | Ollama model name (`--embedder ollama`). |
+| `--model-dir DIR` | empty | `--embedder onnx`: directory with `model_int8.onnx` and `tokenizer.json`. |
+| `--onnxruntime PATH` | empty | `--embedder onnx`: path to `libonnxruntime.so`. |
 
 You must specify at least one of `--stdio` or `--http`.
 
@@ -61,6 +66,12 @@ never require a token.
 | Flag | Default | Description |
 |---|---|---|
 | `--full` | `false` | Force a full rebuild instead of the default incremental sync (only changed docs are re-indexed). |
+
+## `index embed`-only flags
+
+`index embed` takes `--doc`, `--embedder` (default `ollama`), `--batch`
+and the same `--ollama-*`, `--model-dir` and `--onnxruntime` flags as
+`serve`. See [Vector search](vectors.md).
 
 ## Build-time configuration
 

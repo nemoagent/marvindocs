@@ -136,6 +136,10 @@ score) and added until the budget is filled. The last fragment is
 truncated with `…` if it does not fit. Tokens are estimated as
 characters / 4.
 
+When the server runs with `--embedder` and the doc has vectors, the chunk
+ranking is hybrid (vector search + BM25, fused with Reciprocal Rank
+Fusion); otherwise it is lexical only. See [Vector search](vectors.md).
+
 - **Input:**
   - `topic` *(string, required)* — what to look up, e.g. `jsonb
     operators` or `useEffect cleanup`.

@@ -50,6 +50,18 @@ SQLite и т.д.), `2` — ошибка использования.
 > обязательны — без `sqlite_fts5` расширение FTS5 не включается и индекс
 > не откроется.
 
+## `marvindocs index embed`
+
+Считает эмбеддинги чанков в индекс (Ollama или локальный ONNX).
+Обрабатываются только чанки без вектора, так что команду можно
+перезапускать. Векторы использует гибридный поиск в `get_docs`, если
+`serve` запущен с `--embedder`. Все флаги — в разделе
+[Векторный поиск](vectors.md).
+
+```bash
+marvindocs index embed [--doc SLUG]... [--embedder ollama|onnx] [--batch N]
+```
+
 ## `marvindocs index stats`
 
 Выводит счётчики из готового индекса. С флагом `--by-doc` — таблица по
@@ -150,7 +162,9 @@ marvindocs list [--json] [--index-path FILE]
 
 ```bash
 marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] \
-                 [--docs-path DIR] [--index-path FILE]
+                 [--docs-path DIR] [--index-path FILE] \
+                 [--embedder none|ollama|onnx] [--ollama-url URL] \
+                 [--ollama-model NAME] [--model-dir DIR] [--onnxruntime PATH]
 ```
 
 | Флаг | По умолчанию | Примечание |
@@ -160,6 +174,12 @@ marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] \
 | `--auth-token` | пусто | Если задан, каждый HTTP-запрос (включая `/mcp` и веб-интерфейс) должен содержать `Authorization: Bearer TOKEN`; исключение — только `/healthz`. Если флаг пуст — читается `MARVINDOCS_AUTH_TOKEN`. |
 | `--docs-path` | `data/public/docs` | Нужен `get_page`, чтобы читать `db.json` по требованию. |
 | `--index-path` | `marvindocs.db` | Файл должен уже существовать (сначала `index build`). |
+| `--embedder` | `none` | `none`, `ollama` или `onnx`. С эмбеддером `get_docs` использует гибридный поиск (векторы + BM25) по докам, у которых есть векторы. |
+| `--ollama-url`, `--ollama-model` | `http://localhost:11434`, `bge-m3` | Настройки Ollama. |
+| `--model-dir`, `--onnxruntime` | | onnx: каталог с моделью и путь к `libonnxruntime.so`. |
+
+Флаги эмбеддера те же, что у `index embed`; см.
+[Векторный поиск](vectors.md).
 
 Надо передать как минимум один из `--stdio` / `--http`. Оба можно
 указать одновременно — один и тот же инстанс сервера обслуживает

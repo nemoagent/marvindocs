@@ -30,6 +30,11 @@ bin/marvindocs        скомпилированный бинарь (в .gitigno
 | `--http ADDR` | пусто | Слушать HTTP-клиентов на `ADDR`. MCP Streamable transport — на `/mcp`. Голый `:3333` слушает только `127.0.0.1`; для публичного доступа — `0.0.0.0:3333`. |
 | `--auth-token TOKEN` | пусто | Требовать `Authorization: Bearer TOKEN` на каждый HTTP-запрос (включая веб-интерфейс и `/mcp`), кроме `/healthz`. Если флаг пуст — читается `MARVINDOCS_AUTH_TOKEN`. |
 | `--insecure` | `false` | Разрешить `--http` на не-loopback адресе без токена. Также включается через `MARVINDOCS_INSECURE=1`. |
+| `--embedder NAME` | `none` | `none`, `ollama` или `onnx`. Включает гибридный поиск (векторы + BM25) в `get_docs`; см. [Векторный поиск](vectors.md). |
+| `--ollama-url URL` | `http://localhost:11434` | Базовый URL Ollama (`--embedder ollama`). |
+| `--ollama-model NAME` | `bge-m3` | Имя модели в Ollama (`--embedder ollama`). |
+| `--model-dir DIR` | пусто | `--embedder onnx`: каталог с `model_int8.onnx` и `tokenizer.json`. |
+| `--onnxruntime PATH` | пусто | `--embedder onnx`: путь к `libonnxruntime.so`. |
 
 Надо указать хотя бы один из `--stdio` / `--http`.
 
@@ -61,6 +66,12 @@ Loopback-привязка токена не требует.
 | Флаг | Значение по умолчанию | Описание |
 |---|---|---|
 | `--full` | `false` | Принудительная полная пересборка вместо инкрементальной синхронизации по умолчанию (переиндексируются только изменившиеся документы). |
+
+## Флаги только для `index embed`
+
+`index embed` принимает `--doc`, `--embedder` (по умолчанию `ollama`),
+`--batch` и те же `--ollama-*`, `--model-dir` и `--onnxruntime`, что и
+`serve`. См. [Векторный поиск](vectors.md).
 
 ## Конфигурация времени сборки
 

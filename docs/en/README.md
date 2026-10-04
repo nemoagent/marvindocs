@@ -8,6 +8,8 @@
   verifying it's alive
 - [MCP clients](clients.md) — ready-to-paste configs for Claude Desktop,
   Claude Code, Cursor, Windsurf, Zed, Continue, VS Code Copilot Chat
+- [Vector search](vectors.md) — chunk embeddings, hybrid search in
+  `get_docs`, `index embed`
 - [Web UI](web.md) — routes, navigation, styling
 - [Data format](data-format.md) — authoritative spec of the on-disk
   layout, for writing your own scraper / parser

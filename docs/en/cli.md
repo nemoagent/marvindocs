@@ -51,6 +51,17 @@ write failure, etc.), `2` on usage error.
 > If you build by hand, both are required — without `sqlite_fts5` the
 > FTS5 extension is not compiled in and the index will fail to open.
 
+## `marvindocs index embed`
+
+Computes chunk embeddings into the index (Ollama or local ONNX). Only
+chunks without a vector are embedded, so it is resumable. The vectors are
+used by the hybrid search in `get_docs` when `serve` runs with
+`--embedder`. See [Vector search](vectors.md) for all flags.
+
+```bash
+marvindocs index embed [--doc SLUG]... [--embedder ollama|onnx] [--batch N]
+```
+
 ## `marvindocs index stats`
 
 Prints counts from an existing index. Pass `--by-doc` for a per-doc
@@ -151,7 +162,9 @@ Runs the MCP server.
 
 ```bash
 marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] \
-                 [--docs-path DIR] [--index-path FILE]
+                 [--docs-path DIR] [--index-path FILE] \
+                 [--embedder none|ollama|onnx] [--ollama-url URL] \
+                 [--ollama-model NAME] [--model-dir DIR] [--onnxruntime PATH]
 ```
 
 | Flag | Default | Notes |
@@ -161,6 +174,12 @@ marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] \
 | `--auth-token` | empty | When set, every HTTP request (including `/mcp` and the web UI) must carry `Authorization: Bearer TOKEN`; only `/healthz` is exempt. Falls back to the `MARVINDOCS_AUTH_TOKEN` env var. |
 | `--docs-path` | `data/public/docs` | Needed by `get_page` to read `db.json` on demand. |
 | `--index-path` | `marvindocs.db` | Must already exist (run `index build` first). |
+| `--embedder` | `none` | `none`, `ollama` or `onnx`. With an embedder, `get_docs` uses hybrid vector + BM25 search for docs that have vectors. |
+| `--ollama-url`, `--ollama-model` | `http://localhost:11434`, `bge-m3` | Ollama settings. |
+| `--model-dir`, `--onnxruntime` | | onnx: model directory and path to `libonnxruntime.so`. |
+
+The embedder flags are the same as in `index embed`; see
+[Vector search](vectors.md).
 
 You must pass at least one of `--stdio` / `--http`. Both can be set at
 once — the same server instance handles both transports.

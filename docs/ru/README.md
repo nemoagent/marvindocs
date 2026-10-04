@@ -8,6 +8,8 @@
   проверка живости
 - [Клиенты MCP](clients.md) — готовые конфиги для Claude Desktop,
   Claude Code, Cursor, Windsurf, Zed, Continue, VS Code Copilot Chat
+- [Векторный поиск](vectors.md) — эмбеддинги чанков, гибридный поиск
+  в `get_docs`, `index embed`
 - [Web UI](web.md) — маршруты, навигация, стиль
 - [Формат данных](data-format.md) — нормативная спецификация
   структуры на диске, для тех, кто пишет свой скрапер / парсер

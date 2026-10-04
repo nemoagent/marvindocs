@@ -12,6 +12,7 @@ documentation sets (React, Python, Go, Rust, …) from a local SQLite index.
 | **MCP server** | Expose five tools to AI agents over stdio or HTTP |
 | **HTML→Markdown** | `get_page` converts devdocs HTML to clean Markdown on the fly |
 | **Full-text search** | SQLite FTS5, BM25 ranking, prefix matching |
+| **Vector search** | Optional hybrid bge-m3 + BM25 search for `get_docs`, see [docs/en/vectors.md](docs/en/vectors.md) |
 
 ## Requirements
 
@@ -119,7 +120,7 @@ Once connected, the agent has five tools:
 | `search` | FTS search over entry names/paths; returns ranked hits with `doc_slug` and `path` |
 | `search_pages` | Full-text search over page bodies; returns hits with a snippet. |
 | `get_page` | Fetch a page as Markdown (default) or HTML by `doc_slug` + `path` |
-| `get_docs` | One-call answer: the most relevant Markdown fragments for a topic within a token budget |
+| `get_docs` | One-call answer: the most relevant Markdown fragments for a topic within a token budget; uses hybrid vector + BM25 search for docs that have vectors |
 
 Verify the server with the bundled smoke test (needs `curl` + `jq`):
 
@@ -134,8 +135,11 @@ Verify the server with the bundled smoke test (needs `curl` + `jq`):
 marvindocs index build   [--docs-path DIR] [--index-path FILE] [--full]
                                                                 # incremental sync by default; --full rebuilds
 marvindocs index stats   [--index-path FILE] [--by-doc] [--top N]  # show counts
+marvindocs index embed   [--doc SLUG]... [--embedder ollama|onnx] [--batch N]
+                                                                # chunk embeddings, see docs/en/vectors.md
 marvindocs serve         [--stdio] [--http ADDR] [--auth-token TOKEN]
-                         [--docs-path DIR] [--index-path FILE]  # start server
+                         [--docs-path DIR] [--index-path FILE]
+                         [--embedder none|ollama|onnx]          # start server; --embedder enables hybrid get_docs
 marvindocs search QUERY  [--doc SLUG] [--limit N] [--json] [--body] [--index-path FILE] [--docs-path DIR]
                                                                 # --body searches page bodies
 marvindocs get SLUG PATH [--format markdown|html] [--docs-path DIR]  # fetch one page
