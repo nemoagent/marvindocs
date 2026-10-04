@@ -7,11 +7,25 @@ DOCKER_RUN = docker run --rm \
 	-e CGO_ENABLED=1 \
 	$(GO_IMAGE)
 
-.PHONY: build tidy test test-full vet lint vuln check fmt run-http run-stdio index parsers parsers-test clean
+# Vector search (optional): see docs/en/vectors.md.
+ONNX_DIR = data/onnx
+OLLAMA_URL = http://localhost:11434
+
+.PHONY: build build-onnx onnx-fetch tidy test test-full vet lint vuln check fmt run-http run-stdio run-onnx index embed parsers parsers-test clean
 
 build:
 	mkdir -p bin .gocache .gomodcache
 	$(DOCKER_RUN) go build -tags sqlite_fts5 -buildvcs=false -o bin/marvindocs ./cmd/marvindocs
+
+# Binary with the ONNX embedder; needs $(ONNX_DIR)/lib from onnx-fetch.
+build-onnx: onnx-fetch
+	mkdir -p bin .gocache .gomodcache
+	$(DOCKER_RUN) env CGO_LDFLAGS="-L/src/$(ONNX_DIR)/lib" \
+		go build -tags "sqlite_fts5 onnx" -buildvcs=false -o bin/marvindocs ./cmd/marvindocs
+
+# Download libtokenizers.a, libonnxruntime.so and the bge-m3 model into $(ONNX_DIR).
+onnx-fetch:
+	ONNX_DIR=$(ONNX_DIR) ./scripts/fetch-onnx.sh
 
 tidy:
 	mkdir -p .gocache .gomodcache
@@ -49,6 +63,14 @@ run-http: build
 
 run-stdio: build
 	./bin/marvindocs serve --stdio
+
+run-onnx: build-onnx
+	./bin/marvindocs serve --http :3333 --embedder onnx \
+		--model-dir $(ONNX_DIR)/model --onnxruntime $(ONNX_DIR)/lib/libonnxruntime.so
+
+# Embed chunks that have no vector yet (incremental) via Ollama bge-m3.
+embed: build
+	./bin/marvindocs index embed --embedder ollama --ollama-url $(OLLAMA_URL)
 
 # Build every parser binary into bin/<name>-parser. Each parser is its
 # own Go module so we iterate; no CGO needed for parsers, hence the
