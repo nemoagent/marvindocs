@@ -269,5 +269,6 @@ Measured on a full dump (830 docs):
 
 Plan disk accordingly: the total depends on how many docs you keep. The
 size of marvindocs' own index also depends on the doc set; it tokenizes
-page bodies but does not store them, so it stays well below the combined
+Markdown chunks of the page bodies (with a few bytes of offsets per
+chunk) but does not store the text, so it stays well below the combined
 `db.json` size.

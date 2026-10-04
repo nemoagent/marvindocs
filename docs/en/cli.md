@@ -96,7 +96,7 @@ marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body] [--index-path
 | `--doc` | empty | Restrict results to a single doc slug (e.g. `react`, `python~3.13`). If omitted, a query token matching a known slug or its prefix (up to `~`/`-`) is removed and applied as an automatic filter; if that finds nothing, the full query is searched globally. Aliases: `js`, `py`, `ts`, `pg`, `mongo`. |
 | `--limit` | `20` | Maximum number of results (1–100). |
 | `--json` | `false` | Emit the raw hit list as JSON on stdout. |
-| `--body` | `false` | Search page bodies instead of entry names. |
+| `--body` | `false` | Search page bodies (Markdown chunks, a page is ranked by its best chunk) instead of entry names. |
 | `--index-path` | `marvindocs.db` | SQLite index file (must exist). |
 
 Positional arguments after the flags are joined with spaces, so

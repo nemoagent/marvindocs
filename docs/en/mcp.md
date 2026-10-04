@@ -80,7 +80,12 @@ Example (pseudo-JSON):
 
 ### `search_pages`
 
-Full-text search across **page bodies** (not just entry names). Use
+Full-text search across **page bodies** (not just entry names). Pages
+are indexed as Markdown chunks of up to ~1200 characters, each prefixed
+with a breadcrumb (`doc > page title > heading`) that weighs three times
+the text; a page is ranked by its best chunk. Every query word must
+match (prefix match); when nothing matches, the search falls back to
+any-word matching, so natural-language questions work too. Use
 this when `search` returns no hits because your query mentions concepts
 that aren't entry names — `jsonb operators`, `connection pool size`,
 `context manager with statement`.
@@ -89,8 +94,8 @@ that aren't entry names — `jsonb operators`, `connection pool size`,
   query tokens works the same way. The popularity boost is applied here
   too, again only when no doc filter is active.
 - **Output:** `{ hits: [{ doc_slug, path, snippet, score }] }`.
-  `snippet` is a short excerpt (~24 words around the first match, rebuilt
-  from `db.json` at query time) with the matched terms wrapped in `[ ]`.
+  `snippet` is a short excerpt of the best chunk (~24 words around the
+  first match, rebuilt from `db.json` at query time) with the matched terms wrapped in `[ ]`.
 
 ### `get_page`
 
@@ -115,16 +120,15 @@ Context7-style one-call answer: returns the documentation fragments
 about a topic that fit a token budget. Prefer it over `search_pages` +
 `get_page` when you just need an answer.
 
-Internally it runs the same page full-text search as `search_pages`
-(top 8 pages; pages over 512 KB of HTML are skipped — those are
-generated indexes and tables of contents that match every topic),
-converts each page to Markdown and splits it into sections by headings (fenced code is ignored; sections longer than
-~8000 characters are split at paragraph breaks). Sections that mention
-the topic terms are kept (word-prefix match; a match in the heading
-counts double), sorted most relevant first (score, then page rank, then
-order in the page) and added until the budget is filled. The last
-fragment is truncated with `…` if it does not fit. Tokens are estimated
-as characters / 4.
+Internally it runs the same chunk search as `search_pages`: the best
+3 chunks of each of the top 8 pages (pages over 512 KB of HTML are
+skipped — those are generated indexes and tables of contents that match
+every topic). Each page is converted to Markdown and the chunks are
+re-sliced from it; a fragment's heading is the nearest heading above the
+chunk. Fragments are ordered most relevant first (page rank, then chunk
+score) and added until the budget is filled. The last fragment is
+truncated with `…` if it does not fit. Tokens are estimated as
+characters / 4.
 
 - **Input:**
   - `topic` *(string, required)* — what to look up, e.g. `jsonb
