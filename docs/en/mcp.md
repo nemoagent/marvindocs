@@ -63,6 +63,12 @@ active.
   `{ hits: [{ doc_slug, name, path, type, score }] }`. Lower `score`
   means a better match.
 
+When no entry matches at all (the query names a concept rather than a
+symbol, e.g. `jsonb operators`), the tool falls back to the page-body
+search of `search_pages` and returns its hits in the same shape:
+`type` is `page`, `name` holds the snippet around the match. Scores of
+fallback hits are not comparable with entry scores.
+
 Example (pseudo-JSON):
 
 ```json
