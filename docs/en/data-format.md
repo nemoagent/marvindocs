@@ -178,8 +178,10 @@ A JSON **object** (string → string):
   Assume they will be injected into an already-styled host page.
 
 A single page may be very large (tens of KB of HTML) — the whole file
-for angular is ~10 MB. marvindocs reads `db.json` on demand and caches
-it per-slug.
+for angular is ~10 MB and for ansible ~270 MB. marvindocs never holds a
+decoded `db.json` in memory: on first access it scans the file once to
+record the byte range of every value (a few hundred KB per doc, cached
+per slug) and then reads individual pages with a positioned read.
 
 ### 5.1 Allowed HTML
 

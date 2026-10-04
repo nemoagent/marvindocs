@@ -9,7 +9,9 @@
 package docstore
 
 import (
+	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -59,29 +61,30 @@ type Store struct {
 	indexMu  sync.Mutex
 	indexMem map[string]*Index // cached per-slug index.json
 
-	// dbMem caches db.json contents per slug. Loaded on demand by
-	// Page() and bounded by dbCacheCap so RSS stays predictable when
-	// many docs get hit (each db.json is 1-50 MiB; PostgreSQL is
-	// ~30 MiB on its own).
-	dbMu       sync.Mutex
-	dbMem      map[string]map[string]string
-	dbLRU      []string // slugs in MRU→LRU order (front = most recent)
-	dbCacheCap int
+	// dbSpans caches, per slug, where each page's JSON string sits in
+	// db.json. Built on first access by one streaming pass; Page() then
+	// reads a single value with ReadAt, so a 270 MiB dump costs a few
+	// hundred KiB of RSS instead of the whole decoded map.
+	dbMu    sync.Mutex
+	dbSpans map[string]map[string]span
+	// scanMu serialises first-time scans so concurrent misses for the
+	// same slug (get_docs reads pages in parallel) scan db.json once.
+	scanMu sync.Mutex
 }
 
-// dbCacheCapacity is the default number of full db.json blobs kept
-// resident in memory. Five popular docs (~150 MiB total) is enough
-// to keep web UI navigation fast without unbounded growth.
-const dbCacheCapacity = 5
+// span locates a JSON string value inside db.json.
+type span struct {
+	off int64
+	n   int64
+}
 
 // Open loads docs.json. Per-doc index/db files are loaded lazily.
 func Open(root string) (*Store, error) {
 	s := &Store{
-		root:       root,
-		bySlug:     make(map[string]*Doc),
-		indexMem:   make(map[string]*Index),
-		dbMem:      make(map[string]map[string]string),
-		dbCacheCap: dbCacheCapacity,
+		root:     root,
+		bySlug:   make(map[string]*Doc),
+		indexMem: make(map[string]*Index),
+		dbSpans:  make(map[string]map[string]span),
 	}
 	f, err := os.Open(filepath.Join(root, "docs.json"))
 	if err != nil {
@@ -131,61 +134,61 @@ func (s *Store) Index(slug string) (*Index, error) {
 }
 
 // Page returns the raw HTML fragment for the given path inside a doc.
-// db.json is read once per doc and cached in a small LRU; older slugs
-// are evicted when more than dbCacheCap docs have been loaded.
+// The first call for a slug scans db.json once to record value offsets;
+// later calls read just the requested page from disk.
 func (s *Store) Page(slug, path string) (string, error) {
-	s.dbMu.Lock()
-	db, ok := s.dbMem[slug]
-	if ok {
-		s.touchLRU(slug)
+	spans, err := s.spans(slug)
+	if err != nil {
+		return "", err
 	}
-	s.dbMu.Unlock()
-	if !ok {
-		var err error
-		db, err = s.loadDB(slug)
-		if err != nil {
-			return "", err
-		}
-		s.dbMu.Lock()
-		s.dbMem[slug] = db
-		s.touchLRU(slug)
-		s.evictLRU()
-		s.dbMu.Unlock()
-	}
-	html, ok := db[path]
+	sp, ok := spans[path]
 	if !ok {
 		return "", fmt.Errorf("page not found: %s/%s", slug, path)
+	}
+	f, err := os.Open(filepath.Join(s.root, slug, "db.json"))
+	if err != nil {
+		return "", fmt.Errorf("open db.json for %s: %w", slug, err)
+	}
+	defer f.Close()
+	buf := make([]byte, sp.n)
+	if _, err := f.ReadAt(buf, sp.off); err != nil {
+		return "", fmt.Errorf("read page %s/%s: %w", slug, path, err)
+	}
+	var html string
+	if err := json.Unmarshal(buf, &html); err != nil {
+		return "", fmt.Errorf("decode page %s/%s: %w", slug, path, err)
 	}
 	return html, nil
 }
 
-// touchLRU moves slug to the front (MRU) of the LRU list. Caller
-// must hold dbMu.
-func (s *Store) touchLRU(slug string) {
-	for i, x := range s.dbLRU {
-		if x == slug {
-			if i == 0 {
-				return
-			}
-			copy(s.dbLRU[1:i+1], s.dbLRU[:i])
-			s.dbLRU[0] = slug
-			return
-		}
+// spans returns the cached offset table for slug, scanning db.json on
+// first use.
+func (s *Store) spans(slug string) (map[string]span, error) {
+	s.dbMu.Lock()
+	spans, ok := s.dbSpans[slug]
+	s.dbMu.Unlock()
+	if ok {
+		return spans, nil
 	}
-	s.dbLRU = append([]string{slug}, s.dbLRU...)
+	s.scanMu.Lock()
+	defer s.scanMu.Unlock()
+	s.dbMu.Lock()
+	spans, ok = s.dbSpans[slug] // filled by the scan we waited for
+	s.dbMu.Unlock()
+	if ok {
+		return spans, nil
+	}
+	spans, err := s.scanSpans(slug)
+	if err != nil {
+		return nil, err
+	}
+	s.dbMu.Lock()
+	s.dbSpans[slug] = spans
+	s.dbMu.Unlock()
+	return spans, nil
 }
 
-// evictLRU drops the oldest cached db.json blobs until the cache fits
-// within dbCacheCap. Caller must hold dbMu.
-func (s *Store) evictLRU() {
-	for len(s.dbLRU) > s.dbCacheCap {
-		oldest := s.dbLRU[len(s.dbLRU)-1]
-		s.dbLRU = s.dbLRU[:len(s.dbLRU)-1]
-		delete(s.dbMem, oldest)
-	}
-}
-
-func (s *Store) loadDB(slug string) (map[string]string, error) {
+func (s *Store) scanSpans(slug string) (map[string]span, error) {
 	if _, ok := s.bySlug[slug]; !ok {
 		return nil, fmt.Errorf("unknown slug: %s", slug)
 	}
@@ -194,11 +197,127 @@ func (s *Store) loadDB(slug string) (map[string]string, error) {
 		return nil, fmt.Errorf("open db.json for %s: %w", slug, err)
 	}
 	defer f.Close()
-	var db map[string]string
-	if err := json.NewDecoder(f).Decode(&db); err != nil {
-		return nil, fmt.Errorf("decode db.json for %s: %w", slug, err)
+	spans, err := scanSpans(bufio.NewReaderSize(f, 1<<20))
+	if err != nil {
+		return nil, fmt.Errorf("scan db.json for %s: %w", slug, err)
 	}
-	return db, nil
+	return spans, nil
+}
+
+// scanSpans walks a db.json object ({"path": "<html>", ...}) and records
+// the byte range of every string value without decoding it. It relies on
+// the fixed shape of db.json: a flat object whose values are all strings.
+// Anything else is reported as an error.
+//
+// Strings are skipped with ReadSlice so the hot loop runs at buffer
+// speed (~700 MiB/s) instead of byte-by-byte; encoding/json's streaming
+// decoder is roughly ten times slower on the largest dumps.
+func scanSpans(br *bufio.Reader) (map[string]span, error) {
+	var pos int64
+	next := func() (byte, error) {
+		b, err := br.ReadByte()
+		pos++
+		return b, err
+	}
+	skipWS := func() (byte, error) {
+		for {
+			b, err := next()
+			if err != nil {
+				return 0, err
+			}
+			if b != ' ' && b != '\n' && b != '\r' && b != '\t' {
+				return b, nil
+			}
+		}
+	}
+	// skipString consumes a string whose opening quote was already read.
+	// When keep is set, it returns the raw bytes including both quotes.
+	skipString := func(keep bool) ([]byte, error) {
+		var buf []byte
+		if keep {
+			buf = append(buf, '"')
+		}
+		carry := 0 // backslashes at the end of the previous chunk
+		for {
+			seg, err := br.ReadSlice('"')
+			pos += int64(len(seg))
+			if keep {
+				buf = append(buf, seg...)
+			}
+			if errors.Is(err, bufio.ErrBufferFull) {
+				carry = trailingBackslashes(seg, carry)
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			// An odd number of backslashes before the quote escapes it.
+			if trailingBackslashes(seg[:len(seg)-1], carry)%2 == 0 {
+				return buf, nil
+			}
+			carry = 0
+		}
+	}
+
+	b, err := skipWS()
+	if err != nil || b != '{' {
+		return nil, errors.New("expected object")
+	}
+	out := make(map[string]span)
+	for {
+		b, err := skipWS()
+		if err != nil {
+			return nil, err
+		}
+		if b == '}' {
+			return out, nil
+		}
+		if b != '"' {
+			return nil, fmt.Errorf("expected key at offset %d", pos-1)
+		}
+		rawKey, err := skipString(true)
+		if err != nil {
+			return nil, err
+		}
+		var key string
+		if err := json.Unmarshal(rawKey, &key); err != nil {
+			return nil, err
+		}
+		if b, err = skipWS(); err != nil || b != ':' {
+			return nil, fmt.Errorf("expected ':' after key %q", key)
+		}
+		if b, err = skipWS(); err != nil || b != '"' {
+			return nil, fmt.Errorf("expected string value for key %q", key)
+		}
+		start := pos - 1
+		if _, err = skipString(false); err != nil {
+			return nil, err
+		}
+		out[key] = span{off: start, n: pos - start}
+		if b, err = skipWS(); err != nil {
+			return nil, err
+		}
+		if b == '}' {
+			return out, nil
+		}
+		if b != ',' {
+			return nil, fmt.Errorf("expected ',' after key %q", key)
+		}
+	}
+}
+
+// trailingBackslashes counts consecutive backslashes at the end of seg.
+// If seg is all backslashes, carry (the count from the preceding chunk)
+// is added so escapes split across chunks are still counted correctly.
+func trailingBackslashes(seg []byte, carry int) int {
+	n := 0
+	for i := len(seg) - 1; i >= 0 && seg[i] == '\\'; i-- {
+		n++
+	}
+	if n == len(seg) {
+		n += carry
+	}
+	return n
 }
 
 // StreamPages calls fn for every page in db.json without holding the whole
@@ -245,16 +364,10 @@ func (s *Store) StreamPages(slug string, fn func(path, html string) error) error
 	return nil
 }
 
-// EvictDB drops the cached db.json for the given slug (useful during indexing
-// to keep RAM bounded).
+// EvictDB drops the cached offset table for the given slug (used by
+// the indexer after a doc is re-synced so stale spans are not served).
 func (s *Store) EvictDB(slug string) {
 	s.dbMu.Lock()
-	delete(s.dbMem, slug)
-	for i, x := range s.dbLRU {
-		if x == slug {
-			s.dbLRU = append(s.dbLRU[:i], s.dbLRU[i+1:]...)
-			break
-		}
-	}
+	delete(s.dbSpans, slug)
 	s.dbMu.Unlock()
 }

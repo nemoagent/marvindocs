@@ -1,8 +1,12 @@
 package docstore
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -80,34 +84,79 @@ func TestStreamPages(t *testing.T) {
 	}
 }
 
-func TestPageDBLRUEviction(t *testing.T) {
+func TestPageSpansMatchFullDecode(t *testing.T) {
 	s, err := Open(dataRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Pick a few small docs that should always be present.
-	s.dbCacheCap = 2
-	for _, slug := range []string{"angular", "go", "react"} {
-		if s.Doc(slug) == nil {
-			t.Skipf("doc %s missing in dataset", slug)
+	slug := "go"
+	if s.Doc(slug) == nil {
+		t.Skipf("doc %s missing in dataset", slug)
+	}
+	f, err := os.Open(filepath.Join(s.root, slug, "db.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	var full map[string]string
+	if err := json.NewDecoder(f).Decode(&full); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for path, want := range full {
+		got, err := s.Page(slug, path)
+		if err != nil {
+			t.Fatalf("Page(%s, %s): %v", slug, path, err)
 		}
-		if _, err := s.Page(slug, "index"); err != nil {
-			// some docs use a different homepage path; touch any page
-			idx, _ := s.Index(slug)
-			if idx == nil || len(idx.Entries) == 0 {
-				t.Skipf("doc %s has no entries", slug)
-			}
-			if _, err := s.Page(slug, idx.Entries[0].Path); err != nil {
-				t.Fatalf("first page load for %s: %v", slug, err)
-			}
+		if got != want {
+			t.Fatalf("Page(%s, %s) differs from full decode", slug, path)
+		}
+		if n++; n == 200 {
+			break
 		}
 	}
-	s.dbMu.Lock()
-	defer s.dbMu.Unlock()
-	if len(s.dbMem) > 2 {
-		t.Fatalf("LRU should hold at most 2 entries, got %d (%v)", len(s.dbMem), s.dbLRU)
+	if _, err := s.Page(slug, "no/such/page"); err == nil {
+		t.Fatal("expected error for missing page")
 	}
-	if len(s.dbLRU) != len(s.dbMem) {
-		t.Fatalf("dbLRU and dbMem out of sync: lru=%v mem=%d", s.dbLRU, len(s.dbMem))
+}
+
+func TestScanSpans(t *testing.T) {
+	pages := map[string]string{
+		"index":      "<p>plain</p>",
+		"quote":      `say "hi" and \\ back`,
+		"ends/slash": `trailing \\`,
+		"unicode/é":  "café — 😀",
+		"empty":      "",
+		"big":        strings.Repeat("x\"y\\", 3000), // spans several small chunks
+	}
+	raw, err := json.Marshal(pages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Tiny buffer forces ErrBufferFull paths and chunk-boundary escapes.
+	spans, err := scanSpans(bufio.NewReaderSize(bytes.NewReader(raw), 16))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spans) != len(pages) {
+		t.Fatalf("got %d spans, want %d", len(spans), len(pages))
+	}
+	for path, want := range pages {
+		sp, ok := spans[path]
+		if !ok {
+			t.Fatalf("missing span for %q", path)
+		}
+		var got string
+		if err := json.Unmarshal(raw[sp.off:sp.off+sp.n], &got); err != nil {
+			t.Fatalf("decode %q: %v", path, err)
+		}
+		if got != want {
+			t.Fatalf("page %q = %q, want %q", path, got, want)
+		}
+	}
+	for _, bad := range []string{`[]`, `{"a": 1}`, `{"a": "b" "c": "d"}`, `{"a": "b"`} {
+		if _, err := scanSpans(bufio.NewReader(strings.NewReader(bad))); err == nil {
+			t.Errorf("scanSpans(%s) should fail", bad)
+		}
 	}
 }

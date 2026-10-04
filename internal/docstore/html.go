@@ -1,16 +1,27 @@
 package docstore
 
 import (
+	"regexp"
 	"strings"
 
 	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 	"golang.org/x/net/html"
 )
 
+// dataURI matches inline base64 payloads (data:image/png;base64,...).
+var dataURI = regexp.MustCompile(`data:[\w.+-]+/[\w.+-]+;base64,[A-Za-z0-9+/=]+`)
+
+// StripDataURIs blanks inline base64 payloads. Some pages embed hundreds
+// of images this way (matplotlib: 6 MB of HTML for 27 KB of text); the
+// bytes are useless to an LLM and would dominate the token budget.
+func StripDataURIs(fragment string) string {
+	return dataURI.ReplaceAllLiteralString(fragment, "data:,")
+}
+
 // ToMarkdown converts a devdocs HTML fragment to Markdown.
 // Used by the MCP get_page tool and the web UI when ?format=md is requested.
 func ToMarkdown(fragment string) (string, error) {
-	return htmltomarkdown.ConvertString(fragment)
+	return htmltomarkdown.ConvertString(StripDataURIs(fragment))
 }
 
 // ToPlainText strips all HTML tags and returns a whitespace-normalized

@@ -26,3 +26,14 @@ func TestToMarkdown(t *testing.T) {
 		t.Fatalf("unexpected markdown: %q", md)
 	}
 }
+
+func TestToMarkdownStripsDataURIs(t *testing.T) {
+	in := `<p>see <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==" alt="plot"> and <a href="http://x/y.png">y</a></p>`
+	md, err := ToMarkdown(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(md, "iVBORw0") || !strings.Contains(md, "http://x/y.png") {
+		t.Fatalf("unexpected markdown: %q", md)
+	}
+}
