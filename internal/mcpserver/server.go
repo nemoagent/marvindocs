@@ -92,7 +92,9 @@ func registerSearch(s *mcp.Server, d Deps) {
 		Name: "search",
 		Description: "Search across all indexed documentation. Matches entry names and paths. " +
 			"Results are ranked by BM25; lower score = better match. " +
-			"Pass doc_slug to restrict results to a single documentation set.",
+			"Pass doc_slug to restrict results to a single documentation set. " +
+			"When no entry matches, falls back to full-text search over page " +
+			"bodies: such hits have type 'page' and a snippet in 'name'.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in searchInput) (*mcp.CallToolResult, searchOutput, error) {
 		limit := in.Limit
 		if limit <= 0 {
@@ -105,12 +107,39 @@ func registerSearch(s *mcp.Server, d Deps) {
 		if err != nil {
 			return nil, searchOutput{}, err
 		}
+		if len(hits) == 0 {
+			hits, err = searchPagesFallback(ctx, d, in.Query, in.DocSlug, limit)
+			if err != nil {
+				return nil, searchOutput{}, err
+			}
+		}
 		if hits == nil {
 			hits = []index.SearchHit{}
 		}
 		return textResult(fmt.Sprintf("%d hits for %q", len(hits), in.Query)),
 			searchOutput{Hits: hits}, nil
 	})
+}
+
+// searchPagesFallback runs the full-text page search and presents the
+// hits in the search tool's shape, so an agent whose query names a
+// concept rather than a symbol gets results without a second call.
+func searchPagesFallback(ctx context.Context, d Deps, query, docSlug string, limit int) ([]index.SearchHit, error) {
+	pages, err := d.Index.SearchPages(ctx, d.Store, query, docSlug, limit)
+	if err != nil {
+		return nil, err
+	}
+	hits := make([]index.SearchHit, 0, len(pages))
+	for _, p := range pages {
+		hits = append(hits, index.SearchHit{
+			DocSlug: p.DocSlug,
+			Name:    p.Snippet,
+			Path:    p.Path,
+			Type:    "page",
+			Score:   p.Score,
+		})
+	}
+	return hits, nil
 }
 
 // -------------------------------------------------------------------------

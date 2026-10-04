@@ -116,6 +116,34 @@ func TestCallSearch(t *testing.T) {
 	}
 }
 
+// TestCallSearchPageFallback: a query that matches no entry name but
+// occurs in a page body must return that page as a type "page" hit.
+func TestCallSearchPageFallback(t *testing.T) {
+	cs := connect(t)
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "search",
+		Arguments: map[string]any{"query": "operands spaces"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError {
+		t.Fatalf("tool returned error: %+v", res.Content)
+	}
+	var out searchOutput
+	b, _ := json.Marshal(res.StructuredContent)
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Hits) != 1 {
+		t.Fatalf("hits = %d, want 1: %s", len(out.Hits), b)
+	}
+	h := out.Hits[0]
+	if h.Type != "page" || h.Path != "fmt/Println" || !strings.Contains(h.Name, "[Spaces]") {
+		t.Errorf("unexpected fallback hit: %+v", h)
+	}
+}
+
 func TestCallGetDocs(t *testing.T) {
 	cs := connect(t)
 	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
