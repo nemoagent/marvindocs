@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/piligrim/marvindocs/internal/docstore"
@@ -157,7 +159,87 @@ func extractDocFilter(query string, knownSlugs map[string]bool, callerDocSlug st
 			}
 		}
 	}
-	return cleanQuery, matchedSlugs
+	return cleanQuery, newestPerDoc(matchedSlugs)
+}
+
+// newestPerDoc keeps one slug per doc: when several versions of the same
+// doc match (python~2.7, python~3.13) only the newest is returned, so an
+// auto-detected filter behaves like "latest" instead of mixing versions.
+// Slugs without a version are kept as-is. The result is sorted.
+func newestPerDoc(slugs []string) []string {
+	best := make(map[string]string, len(slugs))
+	for _, s := range slugs {
+		key := s
+		if tilde := strings.Index(s, "~"); tilde >= 0 {
+			key = s[:tilde]
+		}
+		if cur, ok := best[key]; !ok || compareVersions(s, cur) > 0 {
+			best[key] = s
+		}
+	}
+	out := make([]string, 0, len(best))
+	for _, s := range best {
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// compareVersions orders two slugs of the same doc by the version after
+// "~", comparing dot-separated segments numerically (17 > 9.4, 3.13 > 3.9).
+// Non-numeric segments fall back to string order. A slug without "~" is
+// the current release in DevDocs and always sorts newest.
+func compareVersions(a, b string) int {
+	va, vb := versionOf(a), versionOf(b)
+	switch {
+	case va == "" && vb != "":
+		return 1
+	case va != "" && vb == "":
+		return -1
+	}
+	for len(va) > 0 || len(vb) > 0 {
+		var sa, sb string
+		sa, va = nextSegment(va)
+		sb, vb = nextSegment(vb)
+		na, errA := strconv.Atoi(leadingDigits(sa))
+		nb, errB := strconv.Atoi(leadingDigits(sb))
+		switch {
+		case errA == nil && errB == nil && na != nb:
+			if na > nb {
+				return 1
+			}
+			return -1
+		case errA == nil && errB != nil:
+			return 1
+		case errA != nil && errB == nil:
+			return -1
+		case sa != sb:
+			return strings.Compare(sa, sb)
+		}
+	}
+	return 0
+}
+
+func versionOf(slug string) string {
+	if tilde := strings.Index(slug, "~"); tilde >= 0 {
+		return slug[tilde+1:]
+	}
+	return ""
+}
+
+func nextSegment(v string) (seg, rest string) {
+	if dot := strings.IndexAny(v, "._-"); dot >= 0 {
+		return v[:dot], v[dot+1:]
+	}
+	return v, ""
+}
+
+func leadingDigits(s string) string {
+	i := 0
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
+	}
+	return s[:i]
 }
 
 // Search queries the FTS index for entries whose name/path match the query.

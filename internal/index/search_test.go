@@ -397,3 +397,34 @@ func TestSearchSubstring_PrefixUsesNameIndex(t *testing.T) {
 		t.Fatalf("prefix LIKE does not use idx_entries_name:\n%s", plan.String())
 	}
 }
+
+func TestNewestPerDoc(t *testing.T) {
+	got := newestPerDoc([]string{
+		"python~2.7", "python~3.13", "python~3.9",
+		"postgresql~9.4", "postgresql~17", "postgresql~16",
+		"node~18_lts", "node~20_lts", "node",
+		"go", "react~18", "react",
+	})
+	want := []string{"go", "node", "postgresql~17", "python~3.13", "react"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("newestPerDoc = %v, want %v", got, want)
+	}
+}
+
+func TestCompareVersions(t *testing.T) {
+	cases := []struct {
+		a, b string
+		want int
+	}{
+		{"postgresql~17", "postgresql~9.4", 1},
+		{"python~3.9", "python~3.13", -1},
+		{"python~3.13", "python~3.13", 0},
+		{"rails~7.1", "rails~7", 1},
+		{"node~20_lts", "node~18_lts", 1},
+	}
+	for _, c := range cases {
+		if got := compareVersions(c.a, c.b); got != c.want {
+			t.Errorf("compareVersions(%q,%q) = %d, want %d", c.a, c.b, got, c.want)
+		}
+	}
+}
