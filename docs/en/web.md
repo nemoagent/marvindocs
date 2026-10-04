@@ -52,7 +52,7 @@ empty `q` shows a prompt instead of results.
 
 - **Authentication is Bearer-token only.** Loopback binds run without
   auth; any other `--http` address requires `--auth-token` (or
-  `MARVINDOCS_AUTH_TOKEN`) unless `--insecure` is given, and then every
+  `MARVINDOCS_AUTH_TOKEN`) unless `--insecure` (or `MARVINDOCS_INSECURE=1`) is given, and then every
   request except `/healthz` must carry `Authorization: Bearer <token>`.
   If you expose this on a public address, also put it behind a reverse
   proxy with TLS and/or auth (nginx + basic auth, OAuth gateway).

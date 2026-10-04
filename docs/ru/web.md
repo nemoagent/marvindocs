@@ -56,7 +56,7 @@
 
 - **Аутентификация — только Bearer-токен.** На loopback сервер работает
   без auth; любой другой адрес `--http` требует `--auth-token` (или
-  `MARVINDOCS_AUTH_TOKEN`), если не передан `--insecure`, и тогда каждый
+  `MARVINDOCS_AUTH_TOKEN`), если не передан `--insecure` (или `MARVINDOCS_INSECURE=1`), и тогда каждый
   запрос, кроме `/healthz`, должен нести `Authorization: Bearer <token>`.
   Если публикуешь на публичный адрес — дополнительно ставь reverse-proxy
   с TLS и/или авторизацией (nginx + basic auth, OAuth-шлюз).

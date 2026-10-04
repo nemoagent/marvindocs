@@ -138,9 +138,11 @@ marvindocs index build   [--docs-path DIR] [--index-path FILE] [--full]
 marvindocs index stats   [--index-path FILE] [--by-doc] [--top N]  # show counts
 marvindocs index embed   [--doc SLUG]... [--embedder ollama|onnx] [--batch N]
                                                                 # chunk embeddings, see docs/en/vectors.md
-marvindocs serve         [--stdio] [--http ADDR] [--auth-token TOKEN]
+marvindocs serve         [--stdio] [--http ADDR] [--auth-token TOKEN] [--insecure]
                          [--docs-path DIR] [--index-path FILE]
-                         [--embedder none|ollama|onnx]          # start server; --embedder enables hybrid get_docs
+                         [--embedder none|ollama|onnx] [--ollama-url URL] [--ollama-model NAME]
+                         [--model-dir DIR] [--onnxruntime PATH]
+                                                                # start server; --embedder enables hybrid get_docs
 marvindocs search QUERY  [--doc SLUG] [--limit N] [--json] [--body] [--index-path FILE] [--docs-path DIR]
                                                                 # --body searches page bodies
 marvindocs get SLUG PATH [--format markdown|html] [--docs-path DIR]  # fetch one page
@@ -157,6 +159,7 @@ Page bodies are indexed as well (needed for `search_pages` and
 | Variable | Values | Default |
 |---|---|---|
 | `MARVINDOCS_AUTH_TOKEN` | any string | empty (no auth). Used when `--auth-token` is not given; with a token set, every HTTP request except `/healthz` needs `Authorization: Bearer <token>` |
+| `MARVINDOCS_INSECURE` | `1` | allow a public `--http` bind without a token (same as `--insecure`); otherwise `serve` refuses to start |
 | `MARVINDOCS_LOG_LEVEL` | `debug`, `info`, `warn`, `error` | `info` |
 | `MARVINDOCS_LOG_FORMAT` | `text`, `json` | `text` |
 
@@ -179,12 +182,16 @@ must be built beforehand, for example:
 
 ```
 scripts/sync-docs.sh     download docs (curl + tar, no Docker)
-scripts/mcp-smoke.sh     verify the MCP server end-to-end
+scripts/mcp-smoke.sh     verify the MCP server end-to-end (no auth header: use a server without a token)
+scripts/fetch-onnx.sh    download the ONNX runtime, tokenizer and bge-m3 model for --embedder onnx
 data/public/docs/        devdocs dump (not in git, ~17 GB)
 marvindocs.db            SQLite FTS5 index (size depends on the doc set; page bodies indexed, text not stored)
 cmd/marvindocs/          CLI entrypoint
 internal/chunk/          Markdown section splitting and scoring for get_docs
 internal/docstore/       read-only data accessor + HTML→Markdown
+internal/embed/          embedding backends (Ollama, ONNX) and int8 vector quantisation
+internal/mdcache/        in-memory LRU cache of HTML→Markdown conversions
+internal/logging/        slog setup (level and text/json format)
 internal/index/          indexer and FTS search
 internal/mcpserver/      MCP tools (list_docs, search, search_pages, get_page, get_docs)
 internal/web/            browser UI (templates + CSS, embedded in binary)
@@ -204,6 +211,10 @@ docs/ru/                 Russian documentation
 | Client setup | [docs/en/clients.md](docs/en/clients.md) | [docs/ru/clients.md](docs/ru/clients.md) |
 | Web UI | [docs/en/web.md](docs/en/web.md) | [docs/ru/web.md](docs/ru/web.md) |
 | Data format | [docs/en/data-format.md](docs/en/data-format.md) | [docs/ru/data-format.md](docs/ru/data-format.md) |
+| Vector search | [docs/en/vectors.md](docs/en/vectors.md) | [docs/ru/vectors.md](docs/ru/vectors.md) |
+| Parsers | [docs/en/parsers.md](docs/en/parsers.md) | [docs/ru/parsers.md](docs/ru/parsers.md) |
+| Go docs via Docker | [docs/en/go-doc.md](docs/en/go-doc.md) | [docs/ru/go-doc.md](docs/ru/go-doc.md) |
+| Consistency checks | [docs/en/consistency-checks.md](docs/en/consistency-checks.md) | [docs/ru/consistency-checks.md](docs/ru/consistency-checks.md) |
 
 ## License
 

@@ -31,7 +31,6 @@ marvindocs index build [--docs-path DIR] [--index-path FILE] [--full]
 |---|---|---|
 | `--docs-path` | `data/public/docs` | Должен содержать `docs.json` и `<slug>/{index,db}.json`. |
 | `--index-path` | `marvindocs.db` | Выходной файл SQLite. Обновляется на месте. |
-| `--docs-path` | `data/public/docs` | Используется с `--body` для сборки сниппетов из `db.json`; без неё результаты выводятся без фрагментов. |
 | `--full` | `false` | Принудительная полная пересборка (удалить всё и вставить заново). Полезно после смены схемы. |
 
 После успешной сборки индекс уплотняется: сегменты FTS5 сливаются и,
@@ -110,6 +109,7 @@ marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body] [--index-path
 | `--json` | `false` | Выводить сырой список результатов как JSON в stdout. |
 | `--body` | `false` | Искать по телу страниц (Markdown-чанки, страница ранжируется по лучшему чанку), а не по именам записей. |
 | `--index-path` | `marvindocs.db` | Файл SQLite-индекса (должен существовать). |
+| `--docs-path` | `data/public/docs` | Используется с `--body` для сборки сниппетов из `db.json`; без неё результаты выводятся без фрагментов. |
 
 Позиционные аргументы после флагов склеиваются через пробел, то есть
 `marvindocs search http server` эквивалентно `marvindocs search "http server"`.
@@ -162,7 +162,7 @@ marvindocs list [--json] [--index-path FILE]
 Запускает MCP-сервер.
 
 ```bash
-marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] \
+marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] [--insecure] \
                  [--docs-path DIR] [--index-path FILE] \
                  [--embedder none|ollama|onnx] [--ollama-url URL] \
                  [--ollama-model NAME] [--model-dir DIR] [--onnxruntime PATH]
@@ -173,6 +173,7 @@ marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] \
 | `--stdio` | `false` | MCP через stdin/stdout. |
 | `--http` | пусто | Web UI на `<addr>/` и MCP Streamable HTTP на `<addr>/mcp`. Голый `:3333` слушает только `127.0.0.1`; для публичного доступа — `0.0.0.0:3333`. |
 | `--auth-token` | пусто | Если задан, каждый HTTP-запрос (включая `/mcp` и веб-интерфейс) должен содержать `Authorization: Bearer TOKEN`; исключение — только `/healthz`. Если флаг пуст — читается `MARVINDOCS_AUTH_TOKEN`. |
+| `--insecure` | `false` | Разрешить `--http` на не-loopback адресе без токена. Без флага (или `MARVINDOCS_INSECURE=1`) `serve` отказывается стартовать на публичном адресе, если токен не задан. |
 | `--docs-path` | `data/public/docs` | Нужен `get_page`, чтобы читать `db.json` по требованию. |
 | `--index-path` | `marvindocs.db` | Файл должен уже существовать (сначала `index build`). |
 | `--embedder` | `none` | `none`, `ollama` или `onnx`. С эмбеддером `get_docs` использует гибридный поиск (векторы + BM25) по докам, у которых есть векторы. |

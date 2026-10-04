@@ -172,10 +172,11 @@ All clients use the same five tools once connected: `list_docs`,
 
 ## Security
 
-By default the HTTP server performs **no authentication**. Pass
-`--auth-token TOKEN` (or set `MARVINDOCS_AUTH_TOKEN`) to require
-`Authorization: Bearer <token>` on every HTTP request, including `/mcp`
-and the web UI; only `/healthz` is exempt. The token does not apply to
+On a loopback bind the HTTP server performs **no authentication**. A
+non-loopback bind requires `--auth-token` / `MARVINDOCS_AUTH_TOKEN` or an
+explicit `--insecure`; otherwise `serve` exits with code 2. With a token
+set, every HTTP request, including `/mcp` and the web UI, must carry
+`Authorization: Bearer <token>`; only `/healthz` is exempt. The token does not apply to
 `--stdio`.
 
 If you expose `--http` on a public address, also put it behind a reverse
@@ -201,6 +202,9 @@ every tool:
 marvindocs serve --http :3333 &
 ./scripts/mcp-smoke.sh                     # uses curl + jq
 ```
+
+The script sends no `Authorization` header, so run it against a server
+without a token (loopback bind or `--insecure`).
 
 Expected output (abbreviated; the doc count depends on your dump):
 

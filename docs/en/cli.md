@@ -32,7 +32,6 @@ marvindocs index build [--docs-path DIR] [--index-path FILE] [--full]
 |---|---|---|
 | `--docs-path` | `data/public/docs` | Must contain `docs.json` and `<slug>/{index,db}.json`. |
 | `--index-path` | `marvindocs.db` | Output SQLite file. Updated in place. |
-| `--docs-path` | `data/public/docs` | Used with `--body` to build snippets from `db.json`; without it hits are listed without excerpts. |
 | `--full` | `false` | Force a full rebuild (drop everything and reinsert). Useful after schema changes. |
 
 After a successful build the index is compacted: FTS5 segments are
@@ -111,6 +110,7 @@ marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body] [--index-path
 | `--json` | `false` | Emit the raw hit list as JSON on stdout. |
 | `--body` | `false` | Search page bodies (Markdown chunks, a page is ranked by its best chunk) instead of entry names. |
 | `--index-path` | `marvindocs.db` | SQLite index file (must exist). |
+| `--docs-path` | `data/public/docs` | Used with `--body` to build snippets from `db.json`; without it hits are listed without excerpts. |
 
 Positional arguments after the flags are joined with spaces, so
 `marvindocs search http server` is equivalent to `marvindocs search "http server"`.
@@ -163,7 +163,7 @@ when `version` is empty). The summary line goes to stderr.
 Runs the MCP server.
 
 ```bash
-marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] \
+marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] [--insecure] \
                  [--docs-path DIR] [--index-path FILE] \
                  [--embedder none|ollama|onnx] [--ollama-url URL] \
                  [--ollama-model NAME] [--model-dir DIR] [--onnxruntime PATH]
@@ -174,6 +174,7 @@ marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] \
 | `--stdio` | `false` | Serve MCP over stdin/stdout. |
 | `--http` | empty | Serve the web UI at `<addr>/` and MCP Streamable HTTP at `<addr>/mcp`. Bare `:3333` binds `127.0.0.1` only; use `0.0.0.0:3333` for public exposure. |
 | `--auth-token` | empty | When set, every HTTP request (including `/mcp` and the web UI) must carry `Authorization: Bearer TOKEN`; only `/healthz` is exempt. Falls back to the `MARVINDOCS_AUTH_TOKEN` env var. |
+| `--insecure` | `false` | Allow a non-loopback `--http` bind without an auth token. Without it (or `MARVINDOCS_INSECURE=1`) `serve` refuses to start on a public address when no token is set. |
 | `--docs-path` | `data/public/docs` | Needed by `get_page` to read `db.json` on demand. |
 | `--index-path` | `marvindocs.db` | Must already exist (run `index build` first). |
 | `--embedder` | `none` | `none`, `ollama` or `onnx`. With an embedder, `get_docs` uses hybrid vector + BM25 search for docs that have vectors. |

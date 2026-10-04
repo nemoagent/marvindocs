@@ -193,10 +193,11 @@ workspace, or the user-level `settings.json`.
 ### HTTP (remote or shared instance)
 
 Start the server (bare `:3333` binds loopback only; use
-`0.0.0.0:3333` to accept remote connections):
+`0.0.0.0:3333` to accept remote connections; a non-loopback bind
+requires `--auth-token`):
 
 ```bash
-marvindocs serve --http 0.0.0.0:3333
+marvindocs serve --http 0.0.0.0:3333 --auth-token TOKEN
 ```
 
 Then in `.vscode/mcp.json` (replace `localhost` with the server's host
@@ -244,8 +245,9 @@ marvindocs is read-only and holds no per-client state. The most
 practical layout is:
 
 1. Run **one** HTTP server on the machine where the data lives:
-   `marvindocs serve --http 0.0.0.0:3333` (bare `:3333` is
-   loopback-only). Consider `--auth-token` when it is reachable by others.
+   `marvindocs serve --http 0.0.0.0:3333 --auth-token TOKEN` (bare `:3333`
+   is loopback-only). A token is required for a non-loopback bind; pass
+   `--insecure` to opt out.
 2. Point every client at `http://host:3333/mcp`.
 
 stdio configs spawn a private process per client and load the SQLite
