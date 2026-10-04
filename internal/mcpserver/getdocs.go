@@ -9,6 +9,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/piligrim/marvindocs/internal/chunk"
 	"github.com/piligrim/marvindocs/internal/docstore"
+	"github.com/piligrim/marvindocs/internal/index"
 )
 
 // get_docs is the Context7-style entry point: one call with a topic and
@@ -92,7 +93,7 @@ func registerGetDocs(s *mcp.Server, d Deps) {
 // Markdown of their pages and fills the token budget best-first. A chunk
 // that does not fit is truncated and ends the selection.
 func (d Deps) collectFragments(ctx context.Context, topic, docSlug string, budget int) ([]Fragment, error) {
-	hits, err := d.Index.SearchChunks(ctx, topic, docSlug, getDocsPages, getDocsPerPage)
+	hits, err := d.searchChunks(ctx, topic, docSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -166,4 +167,23 @@ func (d Deps) collectFragments(ctx context.Context, topic, docSlug string, budge
 		left -= f.Tokens
 	}
 	return frags, nil
+}
+
+// searchChunks runs the hybrid chunk search when an embedder is set and
+// the doc has vectors, else the lexical one.
+func (d Deps) searchChunks(ctx context.Context, topic, docSlug string) ([]index.ChunkHit, error) {
+	if d.Embedder != nil && docSlug != "" {
+		has, err := d.Index.HasVectors(ctx, docSlug)
+		if err != nil {
+			return nil, err
+		}
+		if has {
+			vecs, err := d.Embedder.Embed(ctx, []string{topic})
+			if err != nil {
+				return nil, err
+			}
+			return d.Index.SearchChunksHybrid(ctx, vecs[0], topic, docSlug, getDocsPages, getDocsPerPage)
+		}
+	}
+	return d.Index.SearchChunks(ctx, topic, docSlug, getDocsPages, getDocsPerPage)
 }

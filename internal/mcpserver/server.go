@@ -20,6 +20,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/piligrim/marvindocs/internal/docstore"
+	"github.com/piligrim/marvindocs/internal/embed"
 	"github.com/piligrim/marvindocs/internal/index"
 	"github.com/piligrim/marvindocs/internal/mdcache"
 )
@@ -32,6 +33,9 @@ type Deps struct {
 	// MDCache caches HTML→Markdown conversions across get_page calls.
 	// Optional: a nil cache is treated as disabled.
 	MDCache *mdcache.Cache
+	// Embedder turns the topic of get_docs into a vector for the hybrid
+	// chunk search. Optional: nil keeps the lexical search only.
+	Embedder embed.Embedder
 }
 
 // New builds a configured mcp.Server with all marvindocs tools registered.
