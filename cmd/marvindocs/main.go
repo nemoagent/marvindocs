@@ -18,6 +18,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/piligrim/marvindocs/internal/docstore"
+	"github.com/piligrim/marvindocs/internal/embed"
 	"github.com/piligrim/marvindocs/internal/index"
 	"github.com/piligrim/marvindocs/internal/logging"
 	"github.com/piligrim/marvindocs/internal/mcpserver"
@@ -29,8 +30,11 @@ const usage = `marvindocs - MCP server and web UI for the DevDocs archive.
 
 Usage:
   marvindocs serve [--http ADDR] [--stdio] [--auth-token TOKEN] [--insecure] [--docs-path DIR] [--index-path FILE]
+                   [--embedder none|ollama|onnx] [--ollama-url URL] [--ollama-model NAME] [--model-dir DIR] [--onnxruntime PATH]
   marvindocs index build [--full] [--docs-path DIR] [--index-path FILE]
   marvindocs index stats [--index-path FILE] [--by-doc] [--top N]
+  marvindocs index embed [--doc SLUG]... [--embedder ollama|onnx] [--ollama-url URL] [--ollama-model NAME]
+                         [--model-dir DIR] [--onnxruntime PATH] [--batch N] [--docs-path DIR] [--index-path FILE]
   marvindocs search QUERY [--doc SLUG] [--limit N] [--json]
   marvindocs get SLUG PATH [--format FORMAT]
   marvindocs list [--json]
@@ -82,6 +86,7 @@ func runServe(args []string) {
 	indexPath := fs.String("index-path", "marvindocs.db", "Path to the SQLite index file")
 	authToken := fs.String("auth-token", "", "If set, HTTP requests must carry 'Authorization: Bearer <token>'. Reads MARVINDOCS_AUTH_TOKEN if empty")
 	insecure := fs.Bool("insecure", false, "Allow a non-loopback --http bind without --auth-token. Also enabled by MARVINDOCS_INSECURE=1")
+	newEmbedder := embedderFlags(fs, "none")
 	_ = fs.Parse(args)
 
 	if *httpAddr == "" && !*stdio {
@@ -97,7 +102,12 @@ func runServe(args []string) {
 		fmt.Fprintf(os.Stderr, "error: --http %s is reachable from other hosts but no auth token is set; pass --auth-token (or MARVINDOCS_AUTH_TOKEN), or --insecure to serve without auth\n", addr)
 		os.Exit(2)
 	}
-	if err := runServeWith(addr, *stdio, *docsPath, *indexPath, token); err != nil {
+	e, err := newEmbedder()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+	if err := runServeWith(addr, *stdio, *docsPath, *indexPath, token, e); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
@@ -153,9 +163,12 @@ func bearerAuthHandler(token string, next http.Handler) http.Handler {
 	})
 }
 
-func runServeWith(httpAddr string, stdio bool, docsPath, indexPath, authToken string) error {
+func runServeWith(httpAddr string, stdio bool, docsPath, indexPath, authToken string, e embed.Embedder) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	if e != nil {
+		defer func() { _ = e.Close() }()
+	}
 
 	if _, err := os.Stat(indexPath); err != nil {
 		return fmt.Errorf("index file not found: %s (run `marvindocs index build` first)", indexPath)
@@ -175,7 +188,7 @@ func runServeWith(httpAddr string, stdio bool, docsPath, indexPath, authToken st
 	// same APIs many times in a session.
 	mdc := mdcache.New(1024)
 
-	srv := mcpserver.New(mcpserver.Deps{Store: store, Index: idx, MDCache: mdc}, version)
+	srv := mcpserver.New(mcpserver.Deps{Store: store, Index: idx, MDCache: mdc, Embedder: e}, version)
 
 	errCh := make(chan error, 2)
 
@@ -251,7 +264,7 @@ func runServeWith(httpAddr string, stdio bool, docsPath, indexPath, authToken st
 
 func runIndex(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: marvindocs index (build|stats) ...")
+		fmt.Fprintln(os.Stderr, "usage: marvindocs index (build|stats|embed) ...")
 		os.Exit(2)
 	}
 	switch args[0] {
@@ -272,6 +285,31 @@ func runIndex(args []string) {
 		topN := fs.Int("top", 0, "Limit per-doc output to top N rows (0 = all)")
 		_ = fs.Parse(args[1:])
 		if err := runIndexStats(*indexPath, *byDoc, *topN); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+	case "embed":
+		fs := flag.NewFlagSet("index embed", flag.ExitOnError)
+		var docs []string
+		fs.Func("doc", "Doc slug to embed; may be repeated (default: all docs)", func(v string) error {
+			docs = append(docs, v)
+			return nil
+		})
+		newEmbedder := embedderFlags(fs, "ollama")
+		batch := fs.Int("batch", 64, "Chunks per embedder call and per transaction")
+		docsPath := fs.String("docs-path", "data/public/docs", "Path to devdocs data")
+		indexPath := fs.String("index-path", "marvindocs.db", "SQLite index file")
+		_ = fs.Parse(args[1:])
+		e, err := newEmbedder()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		if e == nil {
+			fmt.Fprintln(os.Stderr, "error: index embed needs --embedder ollama or onnx")
+			os.Exit(2)
+		}
+		if err := runIndexEmbed(*docsPath, *indexPath, docs, e, *batch); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
 		}
@@ -324,6 +362,69 @@ func runIndexBuild(docsPath, indexPath string, full bool) error {
 		"duration", stats.Duration.Round(1e6).String(),
 		"path", indexPath)
 	return nil
+}
+
+// embedderFlags registers the embedder flags on fs with def as the
+// default kind and returns a function that builds the chosen embedder;
+// it returns nil for kind "none".
+func embedderFlags(fs *flag.FlagSet, def string) func() (embed.Embedder, error) {
+	kind := fs.String("embedder", def, "Embedder: none, ollama or onnx (onnx needs a build with -tags onnx)")
+	ollamaURL := fs.String("ollama-url", "http://localhost:11434", "Ollama base URL")
+	ollamaModel := fs.String("ollama-model", "bge-m3", "Ollama model name")
+	modelDir := fs.String("model-dir", "", "onnx: directory with model_int8.onnx and tokenizer.json")
+	ortLib := fs.String("onnxruntime", "", "onnx: path to the ONNX Runtime shared library")
+	return func() (embed.Embedder, error) {
+		switch *kind {
+		case "none":
+			return nil, nil
+		case "ollama":
+			return embed.NewOllama(*ollamaURL, *ollamaModel), nil
+		case "onnx":
+			return embed.NewONNX(*modelDir, *ortLib)
+		}
+		return nil, fmt.Errorf("unknown embedder %q (want none, ollama or onnx)", *kind)
+	}
+}
+
+func runIndexEmbed(docsPath, indexPath string, docs []string, e embed.Embedder, batch int) error {
+	defer func() { _ = e.Close() }()
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	if _, err := os.Stat(indexPath); err != nil {
+		return fmt.Errorf("index file not found: %s (run `marvindocs index build` first)", indexPath)
+	}
+	store, err := docstore.Open(docsPath)
+	if err != nil {
+		return fmt.Errorf("open docstore: %w", err)
+	}
+	idx, err := index.Open(indexPath)
+	if err != nil {
+		return err
+	}
+	defer idx.Close()
+
+	start := time.Now()
+	last := start
+	progress := func(done, total int) {
+		if time.Since(last) < 2*time.Second && done < total {
+			return
+		}
+		last = time.Now()
+		fmt.Fprintf(os.Stderr, "embedded %d/%d chunks (%.1f chunks/s)\n",
+			done, total, float64(done)/time.Since(start).Seconds())
+	}
+	stats, err := idx.EmbedAll(ctx, store, docs, e, batch, progress)
+	if errors.Is(err, context.Canceled) {
+		slog.Warn("interrupted; embedded chunks are kept")
+		err = nil
+	}
+	slog.Info("index embedded",
+		"chunks", stats.Chunks,
+		"pages", stats.Pages,
+		"duration", time.Since(start).Round(time.Millisecond).String(),
+		"path", indexPath)
+	return err
 }
 
 func runIndexStats(indexPath string, byDoc bool, topN int) error {
