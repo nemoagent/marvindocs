@@ -108,7 +108,16 @@ FTS5 отсутствует и индекс не откроется). Бинар
 | `run-stdio` | `build`, затем `serve --stdio`. |
 | `parsers` | Собирает каждый модуль `parsers/*` (кроме `devdocsfmt`) в `bin/<name>-parser` без CGO. |
 | `parsers-test` | Запускает `go test ./...` в каждом модуле парсера. |
+| `onnx-fetch` | Запускает `scripts/fetch-onnx.sh`: скачивает библиотеки ONNX и модель bge-m3 в `data/onnx/`. |
+| `build-onnx` | `onnx-fetch`, затем собирает `./bin/marvindocs` с `-tags "sqlite_fts5 onnx"` и `CGO_LDFLAGS=-L/src/data/onnx/lib`. |
+| `run-onnx` | `build-onnx`, затем `serve --http :3333 --embedder onnx --model-dir data/onnx/model --onnxruntime data/onnx/lib/libonnxruntime.so`. |
+| `embed` | `index embed --embedder ollama --ollama-url $(OLLAMA_URL)`. |
 | `clean` | Удаляет `bin`, `.gocache`, `.gomodcache` и `marvindocs.db*`. |
+
+Переменные для ONNX-целей: `ONNX_DIR = data/onnx` и `OLLAMA_URL` (по
+умолчанию `http://localhost:11434`; переопределяется так:
+`make embed OLLAMA_URL=http://host:11434`). См.
+[Векторный поиск](vectors.md).
 
 ## Docker
 

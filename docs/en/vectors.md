@@ -101,7 +101,42 @@ The ONNX int8 model needs about 1.1 GB of RAM in the server process.
 ## Building with ONNX
 
 The ONNX embedder needs a build with the `onnx` tag, which links the
-tokenizer library statically through cgo:
+tokenizer library statically through cgo. Without the tag `--embedder onnx`
+fails with "built without onnx support (rebuild with -tags onnx)".
+
+The Docker image (`Dockerfile`, alpine) is built without the `onnx` tag and
+cannot use `--embedder onnx`, because the ONNX Runtime binaries are glibc.
+In Docker use `--embedder ollama`, or run the host binary from
+`make build-onnx`.
+
+### Quick path
+
+```bash
+make build-onnx    # onnx-fetch + bin/marvindocs with -tags "sqlite_fts5 onnx"
+make run-onnx      # build-onnx + serve --http :3333 --embedder onnx ...
+```
+
+`make onnx-fetch` runs `scripts/fetch-onnx.sh`, which downloads into
+`data/onnx/` (git-ignored; the `ONNX_DIR` environment variable overrides
+the path):
+
+| File | Source |
+|---|---|
+| `lib/libtokenizers.a` | daulet/tokenizers v1.27.0 |
+| `lib/libonnxruntime.so` | ONNX Runtime 1.30.0 |
+| `model/model_int8.onnx` | Xenova/bge-m3 (568 MB) |
+| `model/tokenizer.json` | Xenova/bge-m3 |
+
+The script is idempotent: files that already exist are kept. It supports
+Linux x86_64 only; on other platforms fetch the same four files by hand
+into the same layout.
+
+`make build-onnx` builds in Docker like `make build`, with
+`CGO_LDFLAGS=-L/src/data/onnx/lib`. `make run-onnx` starts
+`serve --http :3333 --embedder onnx --model-dir data/onnx/model
+--onnxruntime data/onnx/lib/libonnxruntime.so`.
+
+### By hand
 
 1. Download `libtokenizers.a` for your platform from the releases of
    https://github.com/daulet/tokenizers and put it into a directory, e.g. `lib/`.
@@ -117,5 +152,35 @@ CGO_LDFLAGS="-L$PWD/lib" go build -tags "sqlite_fts5 onnx" -o marvindocs ./cmd/m
     --model-dir /path/to/model --onnxruntime /path/to/libonnxruntime.so
 ```
 
-Without the `onnx` tag `--embedder onnx` fails with "built without onnx
-support (rebuild with -tags onnx)".
+## Keeping vectors up to date
+
+`marvindocs index build` (incremental sync by default) re-indexes only new
+or changed docs, detected by the mtime of the doc files, and deletes their
+rows including vectors. Unchanged docs keep their vectors.
+
+`index embed` embeds only chunks without a vector, so after every
+`index build` run `index embed` (or `make embed`) again: only the changed
+docs are embedded.
+
+`index build --full` drops everything, vectors included, so a full
+re-embed is needed (~11 h for the full dump).
+
+A doc with a mix of embedded and not-yet-embedded chunks is treated by
+`get_docs` as having vectors. Run `index embed` to completion before
+relying on hybrid results for that doc.
+
+## Setting up on another machine
+
+```bash
+scripts/sync-docs.sh     # download the docs
+make index               # build the index
+make embed               # needs Ollama with bge-m3; hours for the full dump
+make run-onnx            # serve with the ONNX embedder
+```
+
+`make embed` runs `index embed --embedder ollama --ollama-url $(OLLAMA_URL)`;
+the default is `http://localhost:11434`, override it with
+`make embed OLLAMA_URL=http://host:11434`.
+
+Instead of re-embedding, you can copy the index file `marvindocs.db` with
+the vectors to the other machine.

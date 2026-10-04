@@ -56,7 +56,9 @@ write failure, etc.), `2` on usage error.
 Computes chunk embeddings into the index (Ollama or local ONNX). Only
 chunks without a vector are embedded, so it is resumable. The vectors are
 used by the hybrid search in `get_docs` when `serve` runs with
-`--embedder`. See [Vector search](vectors.md) for all flags.
+`--embedder`. After `index build` only the changed docs need re-embedding;
+`index build --full` drops all vectors. See [Vector search](vectors.md) for
+all flags.
 
 ```bash
 marvindocs index embed [--doc SLUG]... [--embedder ollama|onnx] [--batch N]

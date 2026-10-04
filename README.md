@@ -18,6 +18,7 @@ documentation sets (React, Python, Go, Rust, …) from a local SQLite index.
 
 - **Docker** — for `make build` (Go 1.25 inside container). Not needed to run the binary.
 - **curl + tar** — for `scripts/sync-docs.sh` to download the docs.
+- **Optional, for vector search** — Ollama with bge-m3 (embedding) and ~600 MB for the ONNX model and libs (`make onnx-fetch`).
 - **~2 GB disk** for the default doc set; ~17 GB for everything.
 
 ## Getting started

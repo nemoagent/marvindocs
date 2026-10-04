@@ -108,7 +108,16 @@ All Go targets run inside the `golang:1.25` container.
 | `run-stdio` | `build`, then `serve --stdio`. |
 | `parsers` | Build each `parsers/*` module (except `devdocsfmt`) into `bin/<name>-parser` without CGO. |
 | `parsers-test` | Run `go test ./...` in each parser module. |
+| `onnx-fetch` | Run `scripts/fetch-onnx.sh`: download the ONNX libs and the bge-m3 model into `data/onnx/`. |
+| `build-onnx` | `onnx-fetch`, then build `./bin/marvindocs` with `-tags "sqlite_fts5 onnx"` and `CGO_LDFLAGS=-L/src/data/onnx/lib`. |
+| `run-onnx` | `build-onnx`, then `serve --http :3333 --embedder onnx --model-dir data/onnx/model --onnxruntime data/onnx/lib/libonnxruntime.so`. |
+| `embed` | `index embed --embedder ollama --ollama-url $(OLLAMA_URL)`. |
 | `clean` | Remove `bin`, `.gocache`, `.gomodcache` and `marvindocs.db*`. |
+
+Variables used by the ONNX targets: `ONNX_DIR = data/onnx` and
+`OLLAMA_URL` (default `http://localhost:11434`; override with
+`make embed OLLAMA_URL=http://host:11434`). See
+[Vector search](vectors.md).
 
 ## Docker
 
