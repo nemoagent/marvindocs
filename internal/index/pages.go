@@ -168,16 +168,22 @@ func insertPage(ctx context.Context, pageStmt, chunkStmt, ftsStmt *sql.Stmt,
 		if err != nil {
 			return fmt.Errorf("insert chunk %s/%s: %w", slug, path, err)
 		}
-		crumb := []string{docName}
-		if title != "" {
-			crumb = append(crumb, title)
-		}
-		if c.Heading != "" && c.Heading != title {
-			crumb = append(crumb, c.Heading)
-		}
-		if _, err := ftsStmt.ExecContext(ctx, id, strings.Join(crumb, " > "), md[c.Off:c.Off+c.Len]); err != nil {
+		if _, err := ftsStmt.ExecContext(ctx, id, crumbOf(docName, title, c.Heading), md[c.Off:c.Off+c.Len]); err != nil {
 			return fmt.Errorf("insert chunk body %s/%s: %w", slug, path, err)
 		}
 	}
 	return nil
+}
+
+// crumbOf builds the breadcrumb "doc > page title > heading" of a chunk;
+// empty parts and a heading equal to the title are left out.
+func crumbOf(docName, title, heading string) string {
+	crumb := []string{docName}
+	if title != "" {
+		crumb = append(crumb, title)
+	}
+	if heading != "" && heading != title {
+		crumb = append(crumb, heading)
+	}
+	return strings.Join(crumb, " > ")
 }

@@ -546,6 +546,11 @@ func (i *Index) SearchPages(ctx context.Context, pages PageSource, query, docSlu
 	if err != nil {
 		return nil, err
 	}
+	return pageHits(ctx, pages, cands, query, limit)
+}
+
+// pageHits turns score-ordered candidates into at most limit page hits.
+func pageHits(ctx context.Context, pages PageSource, cands []chunkCand, query string, limit int) ([]PageHit, error) {
 	groups := groupByPage(cands)
 	if len(groups) > limit {
 		groups = groups[:limit]
@@ -601,6 +606,11 @@ func (i *Index) SearchChunks(ctx context.Context, query, docSlug string, pages, 
 	if err != nil {
 		return nil, err
 	}
+	return chunkHits(cands, pages, perPage), nil
+}
+
+// chunkHits cuts score-ordered candidates to pages pages of perPage chunks.
+func chunkHits(cands []chunkCand, pages, perPage int) []ChunkHit {
 	groups := groupByPage(cands)
 	if len(groups) > pages {
 		groups = groups[:pages]
@@ -614,7 +624,7 @@ func (i *Index) SearchChunks(ctx context.Context, query, docSlug string, pages, 
 			hits = append(hits, ChunkHit{DocSlug: c.docSlug, Path: c.path, Off: c.off, Len: c.len, Score: c.score})
 		}
 	}
-	return hits, nil
+	return hits
 }
 
 // groupByPage groups score-ordered candidates by page. Pages come in
