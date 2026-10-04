@@ -1,5 +1,6 @@
 # Go
 /bin/
+/marvindocs
 *.exe
 *.test
 *.out
