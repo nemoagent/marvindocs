@@ -12,6 +12,9 @@
 # External data (devdocs source, ~17 GB)
 /data/public/
 
+# ONNX embedder files (scripts/fetch-onnx.sh)
+/data/onnx/
+
 # Editor / OS
 .idea/
 .vscode/
