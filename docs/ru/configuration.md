@@ -86,7 +86,7 @@ FTS5 отсутствует и индекс не откроется). Бинар
 | `build` | Собирает `./bin/marvindocs` (CGO, `-tags sqlite_fts5`). |
 | `tidy` | `go mod tidy`. |
 | `test` | `go test -short -tags sqlite_fts5 ./...`: только тесты на фикстурах, укладывается в секунды. |
-| `test-full` | `go test -tags sqlite_fts5 ./...`: дополнительно собирает полный индекс из `data/public/docs` (минуты; пропускается, если данных нет). |
+| `test-full` | `go test -timeout 30m -tags sqlite_fts5 ./...`: дополнительно собирает полный индекс из `data/public/docs` (10-20 минут; пропускается, если данных нет). |
 | `vet` | `go vet -tags sqlite_fts5 ./...`. |
 | `lint` | `golangci-lint run ./...` (v2.13.2, конфиг в `.golangci.yml`). |
 | `vuln` | `govulncheck ./...` (v1.1.4) по проекту и тулчейну из образа. |

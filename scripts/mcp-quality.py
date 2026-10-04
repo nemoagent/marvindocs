@@ -151,9 +151,93 @@ CASES = [
 # search_pages cases — query page bodies (pages_fts), always indexed.
 # Query the page-body FTS for things that aren't entry names.
 SEARCH_PAGES_CASES = [
-    ("PG full-text: jsonb operators",     "jsonb operators",     "postgresql~17"),
-    ("PG full-text: connection pool",     "connection pool",     "postgresql~17"),
-    ("Python full-text: with statement",  "context manager with","python~3.13"),
+    ("PG full-text: jsonb operators", "jsonb operators", "postgresql~17"),
+    ("PG full-text: connection pool", "connection pool", "postgresql~17"),
+    ("Python full-text: with statement", "context manager with", "python~3.13"),
+]
+
+# get_docs cases — token-budgeted doc fragments.
+# Each case: (description, topic, doc_slug or None (auto-detect), token budget,
+#             expected keyword groups — at least one of each group must appear
+#             in the concatenated fragment contents)
+GET_DOCS_CASES = [
+    (
+        "get_docs PG: jsonb containment",
+        "jsonb containment operators",
+        "postgresql~17",
+        1500,
+        [["@>"], ["jsonb"]],
+    ),
+    (
+        "get_docs PG: create index concurrently",
+        "create index concurrently",
+        "postgresql~17",
+        2000,
+        [["CONCURRENTLY"], ["lock", "index"]],
+    ),
+    (
+        "get_docs Python: asyncio gather",
+        "asyncio gather exceptions",
+        "python~3.13",
+        1500,
+        [["gather"], ["return_exceptions", "exception"]],
+    ),
+    (
+        "get_docs Python: dataclass defaults",
+        "dataclass field default_factory",
+        "python~3.13",
+        1500,
+        [["default_factory"], ["field"]],
+    ),
+    (
+        "get_docs React: useEffect cleanup",
+        "useEffect cleanup function",
+        "react",
+        1500,
+        [["cleanup"], ["useEffect", "effect"]],
+    ),
+    (
+        "get_docs Go: context timeout",
+        "context WithTimeout cancel",
+        "go",
+        1500,
+        [["WithTimeout"], ["cancel"]],
+    ),
+    (
+        "get_docs JS: array reduce",
+        "array reduce initial value",
+        "javascript",
+        1500,
+        [["reduce"], ["initialValue", "initial"]],
+    ),
+    (
+        "get_docs CSS: grid template areas",
+        "grid template areas",
+        "css",
+        1500,
+        [["grid-template-areas"], ["grid"]],
+    ),
+    (
+        "get_docs auto-slug: postgresql vacuum",
+        "postgresql vacuum analyze autovacuum",
+        None,
+        2000,
+        [["VACUUM"], ["autovacuum", "ANALYZE"]],
+    ),
+    (
+        "get_docs auto-slug: python logging",
+        "python logging handlers formatter",
+        None,
+        2000,
+        [["Formatter", "formatter"], ["Handler", "handler"]],
+    ),
+    (
+        "get_docs tiny budget",
+        "jsonb operators",
+        "postgresql~17",
+        200,
+        [["jsonb"]],
+    ),
 ]
 
 
@@ -285,6 +369,91 @@ for desc, query, slug in SEARCH_PAGES_CASES:
 print(
     f"\n SUMMARY: {sp_found}/{sp_total} full-text queries returned hits "
     f"(0 means pages_fts is empty - rebuild the index)"
+)
+print("=" * 78)
+
+# get_docs probes
+print("\n" + "=" * 78)
+print(" GET_DOCS")
+print("=" * 78)
+gd_rows = []
+for desc, topic, slug, budget, kw_groups in GET_DOCS_CASES:
+    args = {"topic": topic, "tokens": budget}
+    if slug:
+        args["doc_slug"] = slug
+    t0 = time.perf_counter()
+    gr = call(
+        "tools/call",
+        {"name": "get_docs", "arguments": args},
+        f"gd:{desc}",
+    )
+    latency_ms = (time.perf_counter() - t0) * 1000
+    sc = gr.get("result", {}).get("structuredContent", {}) or {}
+    frags = sc.get("fragments", []) or []
+    total_tokens = sc.get("tokens", 0) or 0
+    within = total_tokens <= budget * 1.05
+    sources = sorted({f"{f['doc_slug']}/{f['path']}" for f in frags})
+    headings = [f.get("heading", "") for f in frags]
+    first = frags[0] if frags else None
+    first_snip = (
+        (first.get("content", "") or "")[:120].replace("\n", " ") if first else ""
+    )
+
+    text_lower = "\n".join(f.get("content", "") or "" for f in frags).lower()
+    kw_hits, kw_misses = [], []
+    for grp in kw_groups:
+        hit_one = next((kw for kw in grp if kw.lower() in text_lower), None)
+        if hit_one:
+            kw_hits.append(hit_one)
+        else:
+            kw_misses.append("|".join(grp))
+
+    auto_ok = None
+    if slug is None and first:
+        prefix = topic.split()[0].lower()
+        auto_ok = first["doc_slug"].lower().startswith(prefix)
+
+    print(f"\n[{desc}]")
+    print(f"  topic: {topic!r}  scope: {slug or '(auto)'}  budget: {budget}")
+    print(
+        f"  fragments: {len(frags)}  tokens: {total_tokens}/{budget}  "
+        f"{'OK' if within else 'OVER BUDGET'}  latency: {latency_ms:.0f} ms"
+    )
+    if frags:
+        print(f"  sources:  {sources}")
+        print(f"  headings: {headings}")
+        print(f"  first:    {first_snip}")
+        if auto_ok is not None:
+            print(
+                f"  auto-doc: {first['doc_slug']}  "
+                f"{'OK' if auto_ok else 'MISMATCH (expected ' + topic.split()[0].lower() + '*)'}"
+            )
+        print(f"  found: {kw_hits}")
+        if kw_misses:
+            print(f"  MISS:  {kw_misses}")
+    else:
+        print("  (no fragments)")
+
+    gd_rows.append(
+        {
+            "found": bool(frags),
+            "within": within,
+            "all_kw": bool(frags) and not kw_misses,
+            "latency": latency_ms,
+            "n_frags": len(frags),
+        }
+    )
+
+gd_total = len(gd_rows)
+gd_found = sum(1 for r in gd_rows if r["found"])
+gd_within = sum(1 for r in gd_rows if r["found"] and r["within"])
+gd_kw = sum(1 for r in gd_rows if r["all_kw"])
+gd_lat = sum(r["latency"] for r in gd_rows) / gd_total if gd_total else 0
+gd_nf = sum(r["n_frags"] for r in gd_rows) / gd_total if gd_total else 0
+print(
+    f"\n SUMMARY: {gd_total} cases, {gd_found} found, {gd_within} within budget, "
+    f"{gd_kw} with all keyword groups, avg latency {gd_lat:.0f} ms, "
+    f"avg fragments {gd_nf:.1f}"
 )
 print("=" * 78)
 
