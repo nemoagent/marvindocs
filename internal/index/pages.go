@@ -7,13 +7,15 @@ import (
 	"fmt"
 	"io/fs"
 	"runtime"
+	"strings"
 	"sync"
 
+	"github.com/piligrim/marvindocs/internal/chunk"
 	"github.com/piligrim/marvindocs/internal/docstore"
 )
 
 // pageWorkers picks a sensible level of CPU parallelism for the
-// HTML→plain-text stage of full-text indexing.
+// HTML→Markdown stage of full-text indexing.
 func pageWorkers() int {
 	n := runtime.NumCPU()
 	if n < 2 {
@@ -25,33 +27,43 @@ func pageWorkers() int {
 	return n
 }
 
-// indexDocPages streams every page of slug from db.json, plain-textifies
-// them in parallel, and inserts each non-empty result into pages and
-// pages_fts (sharing the rowid). Returns the number of inserted pages.
+// indexDocPages streams every page of slug from db.json, converts them to
+// Markdown and cuts them into chunks in parallel, and inserts each
+// non-empty page into pages, its chunks into chunks (offsets only) and
+// chunks_fts (sharing the chunk rowid). Returns the number of inserted
+// pages.
 //
-// Errors from the docstore stream (other than a missing db.json),
-// plain-text conversion, or SQL insert are surfaced through the
-// returned error. Worker goroutines exit as
-// soon as ctx is cancelled or any error is observed.
+// Errors from the docstore stream (other than a missing db.json) or SQL
+// insert are surfaced through the returned error; a page that fails to
+// convert is skipped. Worker goroutines exit as soon as ctx is cancelled
+// or any error is observed.
 func indexDocPages(ctx context.Context, s *docstore.Store, slug string, tx *sql.Tx) (int, error) {
 	pageStmt, err := tx.PrepareContext(ctx, `INSERT INTO pages(doc_slug, path) VALUES (?, ?)`)
 	if err != nil {
 		return 0, fmt.Errorf("prepare pages: %w", err)
 	}
 	defer pageStmt.Close()
-	bodyStmt, err := tx.PrepareContext(ctx, `INSERT INTO pages_fts(rowid, body) VALUES (?, ?)`)
+	chunkStmt, err := tx.PrepareContext(ctx, `INSERT INTO chunks(page_id, off, len) VALUES (?, ?, ?)`)
 	if err != nil {
-		return 0, fmt.Errorf("prepare pages_fts: %w", err)
+		return 0, fmt.Errorf("prepare chunks: %w", err)
 	}
-	defer bodyStmt.Close()
+	defer chunkStmt.Close()
+	ftsStmt, err := tx.PrepareContext(ctx, `INSERT INTO chunks_fts(rowid, crumb, body) VALUES (?, ?, ?)`)
+	if err != nil {
+		return 0, fmt.Errorf("prepare chunks_fts: %w", err)
+	}
+	defer ftsStmt.Close()
+	docName := strings.SplitN(slug, "~", 2)[0]
 
 	type job struct {
 		path string
 		html string
 	}
 	type result struct {
-		path string
-		body string
+		path   string
+		md     string
+		title  string
+		chunks []chunk.Chunk
 	}
 
 	workers := pageWorkers()
@@ -70,12 +82,13 @@ func indexDocPages(ctx context.Context, s *docstore.Store, slug string, tx *sql.
 				if jobCtx.Err() != nil {
 					return
 				}
-				body := docstore.ToPlainText(j.html)
-				if body == "" {
+				md, err := docstore.ToMarkdown(j.html)
+				if err != nil || strings.TrimSpace(md) == "" {
 					continue
 				}
+				r := result{path: j.path, md: md, title: chunk.Title(md), chunks: chunk.Chunks(md)}
 				select {
-				case results <- result{j.path, body}:
+				case results <- r:
 				case <-jobCtx.Done():
 					return
 				}
@@ -112,7 +125,7 @@ func indexDocPages(ctx context.Context, s *docstore.Store, slug string, tx *sql.
 	var inserted int
 	var writeErr error
 	for r := range results {
-		writeErr = insertPage(ctx, pageStmt, bodyStmt, slug, r.path, r.body)
+		writeErr = insertPage(ctx, pageStmt, chunkStmt, ftsStmt, slug, docName, r.path, r.title, r.md, r.chunks)
 		if writeErr != nil {
 			cancel()
 			// Drain to allow workers and producer to exit cleanly.
@@ -134,18 +147,37 @@ func indexDocPages(ctx context.Context, s *docstore.Store, slug string, tx *sql.
 	return inserted, nil
 }
 
-// insertPage adds one page row and its FTS body under the same rowid.
-func insertPage(ctx context.Context, pageStmt, bodyStmt *sql.Stmt, slug, path, body string) error {
+// insertPage adds one page row, then a chunks row and a chunks_fts row
+// (same rowid) per chunk. The breadcrumb is "doc > page title > heading".
+func insertPage(ctx context.Context, pageStmt, chunkStmt, ftsStmt *sql.Stmt,
+	slug, docName, path, title, md string, chunks []chunk.Chunk) error {
 	res, err := pageStmt.ExecContext(ctx, slug, path)
 	if err != nil {
 		return fmt.Errorf("insert page %s/%s: %w", slug, path, err)
 	}
-	id, err := res.LastInsertId()
+	pageID, err := res.LastInsertId()
 	if err != nil {
 		return fmt.Errorf("insert page %s/%s: %w", slug, path, err)
 	}
-	if _, err := bodyStmt.ExecContext(ctx, id, body); err != nil {
-		return fmt.Errorf("insert page body %s/%s: %w", slug, path, err)
+	for _, c := range chunks {
+		res, err := chunkStmt.ExecContext(ctx, pageID, c.Off, c.Len)
+		if err != nil {
+			return fmt.Errorf("insert chunk %s/%s: %w", slug, path, err)
+		}
+		id, err := res.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("insert chunk %s/%s: %w", slug, path, err)
+		}
+		crumb := []string{docName}
+		if title != "" {
+			crumb = append(crumb, title)
+		}
+		if c.Heading != "" && c.Heading != title {
+			crumb = append(crumb, c.Heading)
+		}
+		if _, err := ftsStmt.ExecContext(ctx, id, strings.Join(crumb, " > "), md[c.Off:c.Off+c.Len]); err != nil {
+			return fmt.Errorf("insert chunk body %s/%s: %w", slug, path, err)
+		}
 	}
 	return nil
 }

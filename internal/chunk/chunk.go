@@ -1,7 +1,7 @@
-// Package chunk splits Markdown pages into heading-delimited sections and
-// scores them against a query, so that the MCP get_docs tool can return a
-// handful of relevant fragments that fit a token budget instead of whole
-// pages.
+// Package chunk cuts Markdown pages into small offset-addressed chunks for
+// the full-text index, and trims fragments to a token budget so that the
+// MCP get_docs tool can return a handful of relevant pieces instead of
+// whole pages.
 package chunk
 
 import (
@@ -9,58 +9,182 @@ import (
 	"unicode/utf8"
 )
 
-// Section is one heading-delimited slice of a Markdown page.
-type Section struct {
-	// Heading is the heading text without the leading '#'s; empty for
-	// the text before the first heading.
-	Heading string
-	// Text is the section body including its heading line.
-	Text string
+// Chunk is a slice of a Markdown page addressed by byte offsets, so the
+// index can store positions only and re-slice the page at query time.
+type Chunk struct {
+	// Heading is the nearest ATX heading text (without '#'); empty
+	// before the first heading.
+	Heading  string
+	Off, Len int
 }
 
-// maxSectionChars bounds a single section (~2000 tokens). Longer
-// sections are split further at blank lines so that one heading-less
-// page cannot eat the whole budget with irrelevant text.
-const maxSectionChars = 8000
+// maxChunkChars is the target chunk size in bytes; chunks shorter than
+// minChunkChars (heading-only sections, one-line notes) are merged into
+// a neighbour, since bm25 overrates tiny texts and they are useless on
+// their own.
+const (
+	maxChunkChars = 1200
+	minChunkChars = 200
+)
 
-// Split cuts md into sections at ATX headings (lines starting with
-// '#'). Headings inside fenced code blocks are ignored. Sections
-// longer than maxSectionChars are split again at paragraph breaks;
-// the pieces share the heading.
-func Split(md string) []Section {
-	var out []Section
-	var cur strings.Builder
-	var heading string
+// Chunks cuts md at ATX headings (ignoring headings inside ``` / ~~~
+// fences) and then at blank lines, packing paragraphs into chunks of at
+// most maxChunkChars. A single paragraph is kept whole up to
+// 2*maxChunkChars; a longer one (typically a table) is hard-cut at
+// maxChunkChars. Offsets index into md; chunk text is md[Off:Off+Len],
+// without leading/trailing whitespace. Empty chunks are dropped.
+func Chunks(md string) []Chunk {
+	var out []Chunk
+	var heading string // heading of the section being collected
+	start := 0
 	inFence := false
 
-	flush := func() {
-		text := strings.TrimSpace(cur.String())
-		cur.Reset()
-		if text == "" {
-			return
+	for off := 0; off < len(md); {
+		end := len(md)
+		if n := strings.IndexByte(md[off:], '\n'); n >= 0 {
+			end = off + n + 1
 		}
-		for _, piece := range splitLong(text) {
-			out = append(out, Section{Heading: heading, Text: piece})
+		trimmed := strings.TrimSpace(md[off:end])
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			inFence = !inFence
+		}
+		if !inFence && isHeading(trimmed) {
+			out = appendSection(out, md, start, off, heading)
+			start = off
+			heading = headingText(trimmed)
+		}
+		off = end
+	}
+	return mergeShort(appendSection(out, md, start, len(md), heading))
+}
+
+// mergeShort joins chunks shorter than minChunkChars with the following
+// chunk (the last one with the preceding chunk). The merged chunk takes
+// the heading of the later part, which the body belongs to.
+func mergeShort(in []Chunk) []Chunk {
+	var out []Chunk
+	for k := 0; k < len(in); k++ {
+		c := in[k]
+		for c.Len < minChunkChars && k+1 < len(in) {
+			k++
+			c = Chunk{Heading: in[k].Heading, Off: c.Off, Len: in[k].Off + in[k].Len - c.Off}
+		}
+		if c.Len < minChunkChars && len(out) > 0 {
+			prev := &out[len(out)-1]
+			prev.Len = c.Off + c.Len - prev.Off
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+// appendSection packs the paragraphs of md[start:end] into chunks.
+func appendSection(out []Chunk, md string, start, end int, heading string) []Chunk {
+	emit := func(s, e int) {
+		for s < e && isSpace(md[s]) {
+			s++
+		}
+		for e > s && isSpace(md[e-1]) {
+			e--
+		}
+		if s < e {
+			out = append(out, Chunk{Heading: heading, Off: s, Len: e - s})
 		}
 	}
 
+	cs, ce := -1, -1 // current chunk, cs < 0 when empty
+	para := func(ps, pe int) {
+		if cs >= 0 && pe-cs > maxChunkChars {
+			emit(cs, ce)
+			cs = -1
+		}
+		if cs < 0 {
+			cs = ps
+		}
+		ce = pe
+		for ce-cs > 2*maxChunkChars {
+			cut := cs + maxChunkChars
+			for cut > cs && !utf8.RuneStart(md[cut]) {
+				cut--
+			}
+			emit(cs, cut)
+			cs = cut
+		}
+	}
+
+	ps := -1 // start of the paragraph being read, -1 between paragraphs
+	pe := 0
+	for off := start; off < end; {
+		le := end
+		if n := strings.IndexByte(md[off:end], '\n'); n >= 0 {
+			le = off + n + 1
+		}
+		if strings.TrimSpace(md[off:le]) == "" {
+			if ps >= 0 {
+				para(ps, pe)
+				ps = -1
+			}
+		} else {
+			if ps < 0 {
+				ps = off
+			}
+			pe = le
+		}
+		off = le
+	}
+	if ps >= 0 {
+		para(ps, pe)
+	}
+	if cs >= 0 {
+		emit(cs, ce)
+	}
+	return out
+}
+
+func isSpace(b byte) bool {
+	return b == ' ' || b == '\t' || b == '\n' || b == '\r'
+}
+
+// headingText returns the text of a trimmed ATX heading line.
+func headingText(line string) string {
+	return strings.TrimSpace(strings.TrimLeft(line, "#"))
+}
+
+// Title returns the first ATX heading of md ("" if none).
+func Title(md string) string {
+	inFence := false
 	for _, line := range strings.Split(md, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
 			inFence = !inFence
 		}
 		if !inFence && isHeading(trimmed) {
-			flush()
-			heading = strings.TrimSpace(strings.TrimLeft(trimmed, "#"))
+			return headingText(trimmed)
 		}
-		cur.WriteString(line)
-		cur.WriteByte('\n')
 	}
-	flush()
-	return out
+	return ""
 }
 
-// isHeading reports whether a trimmed line is an ATX heading: 1–6 '#'
+// HeadingAt returns the nearest ATX heading line at or before off ("" if
+// none). Unlike Chunks it does not track code fences.
+func HeadingAt(md string, off int) string {
+	off = min(max(off, 0), len(md))
+	if n := strings.IndexByte(md[off:], '\n'); n >= 0 {
+		off += n // include the line starting at off
+	} else {
+		off = len(md)
+	}
+	heading := ""
+	for _, line := range strings.Split(md[:off], "\n") {
+		if trimmed := strings.TrimSpace(line); isHeading(trimmed) {
+			heading = headingText(trimmed)
+		}
+	}
+	return heading
+}
+
+// isHeading reports whether a trimmed line is an ATX heading: 1-6 '#'
 // followed by a space.
 func isHeading(line string) bool {
 	n := 0
@@ -68,76 +192,6 @@ func isHeading(line string) bool {
 		n++
 	}
 	return n >= 1 && n <= 6 && n < len(line) && line[n] == ' '
-}
-
-// splitLong breaks text at blank lines into pieces of at most
-// maxSectionChars. A single paragraph longer than the cap is kept
-// whole: cutting mid-sentence helps nobody.
-func splitLong(text string) []string {
-	if len(text) <= maxSectionChars {
-		return []string{text}
-	}
-	var pieces []string
-	var cur strings.Builder
-	for _, para := range strings.Split(text, "\n\n") {
-		if cur.Len() > 0 && cur.Len()+len(para)+2 > maxSectionChars {
-			pieces = append(pieces, strings.TrimSpace(cur.String()))
-			cur.Reset()
-		}
-		if cur.Len() > 0 {
-			cur.WriteString("\n\n")
-		}
-		cur.WriteString(para)
-	}
-	if s := strings.TrimSpace(cur.String()); s != "" {
-		pieces = append(pieces, s)
-	}
-	return pieces
-}
-
-// Terms lowercases and splits a query into words for Score.
-func Terms(query string) []string {
-	return strings.Fields(strings.ToLower(query))
-}
-
-// Score counts how many query terms occur in the section as a word
-// prefix (the same notion of a match the FTS index uses). Terms found
-// in the heading count twice. Zero means the section is unrelated.
-func Score(s Section, terms []string) int {
-	if len(terms) == 0 {
-		return 0
-	}
-	score := 0
-	body := strings.ToLower(s.Text)
-	head := strings.ToLower(s.Heading)
-	for _, t := range terms {
-		if containsWordPrefix(body, t) {
-			score++
-		}
-		if containsWordPrefix(head, t) {
-			score++
-		}
-	}
-	return score
-}
-
-// containsWordPrefix reports whether some word in text starts with
-// term. Words are delimited by whitespace and common punctuation.
-func containsWordPrefix(text, term string) bool {
-	for _, w := range strings.FieldsFunc(text, isSeparator) {
-		if strings.HasPrefix(w, term) {
-			return true
-		}
-	}
-	return false
-}
-
-func isSeparator(r rune) bool {
-	switch r {
-	case ' ', '\t', '\n', '\r', '(', ')', '[', ']', '{', '}', '<', '>', '"', '\'', '`', ',', ';', ':', '*', '|':
-		return true
-	}
-	return false
 }
 
 // Tokens estimates the LLM token count of s as characters/4. Rough,

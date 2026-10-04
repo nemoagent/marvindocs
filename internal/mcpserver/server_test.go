@@ -136,9 +136,10 @@ func TestCallGetDocs(t *testing.T) {
 	if len(out.Fragments) == 0 {
 		t.Fatalf("no fragments: %s", b)
 	}
-	// The "Formatting" section mentions both terms and must come first;
-	// the unrelated os/exit page must not appear at all.
-	if f := out.Fragments[0]; f.Path != "fmt/Println" || f.Heading != "Formatting" {
+	// The "Formatting" section mentions both terms and must come first
+	// (the short fixture page is a single chunk); the unrelated os/exit
+	// page must not appear at all.
+	if f := out.Fragments[0]; f.Path != "fmt/Println" || !strings.Contains(f.Content, "## Formatting") {
 		t.Errorf("top fragment = %+v", f)
 	}
 	for _, f := range out.Fragments {

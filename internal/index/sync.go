@@ -12,8 +12,8 @@ import (
 // Sync incrementally updates the index to match the docstore. Docs whose
 // mtime hasn't changed are left alone; new and modified docs are
 // re-indexed; docs that disappeared from docstore are removed. A doc
-// whose page bodies are missing from pages_fts (index built by an older
-// version without full-text) is re-indexed as well.
+// without page rows (index built by an older version without the chunk
+// index) is re-indexed as well.
 func (i *Index) Sync(ctx context.Context, s *docstore.Store) (BuildStats, error) {
 	start := time.Now()
 	var stats BuildStats
@@ -125,7 +125,7 @@ func (i *Index) Sync(ctx context.Context, s *docstore.Store) (BuildStats, error)
 	}
 
 	_, _ = i.db.Exec(`INSERT INTO entries_fts(entries_fts) VALUES('optimize')`)
-	_, _ = i.db.Exec(`INSERT INTO pages_fts(pages_fts) VALUES('optimize')`)
+	_, _ = i.db.Exec(`INSERT INTO chunks_fts(chunks_fts) VALUES('optimize')`)
 	_, _ = i.db.Exec(`ANALYZE`)
 
 	stats.Duration = time.Since(start)
@@ -140,7 +140,7 @@ type docSnapshot struct {
 	hasPages bool
 }
 
-// snapshotDocs reads the current docs/entries/pages_fts counts grouped by
+// snapshotDocs reads the current docs/entries/pages counts grouped by
 // slug.
 func (i *Index) snapshotDocs(ctx context.Context) (map[string]docSnapshot, error) {
 	out := make(map[string]docSnapshot)
@@ -208,15 +208,19 @@ func (i *Index) snapshotDocs(ctx context.Context) (map[string]docSnapshot, error
 }
 
 // deleteDocRows removes a doc and all its dependent rows from the index.
-// Triggers keep entries_fts in sync; pages/pages_fts are cleaned
-// manually (the FTS rows by the rowids they share with pages).
+// Triggers keep entries_fts in sync; pages/chunks/chunks_fts are cleaned
+// manually (the FTS rows by the rowids they share with chunks).
 func deleteDocRows(ctx context.Context, tx *sql.Tx, slug string) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM entries WHERE doc_slug = ?`, slug); err != nil {
 		return fmt.Errorf("delete entries %s: %w", slug, err)
 	}
 	if _, err := tx.ExecContext(ctx,
-		`DELETE FROM pages_fts WHERE rowid IN (SELECT id FROM pages WHERE doc_slug = ?)`, slug); err != nil {
-		return fmt.Errorf("delete page bodies %s: %w", slug, err)
+		`DELETE FROM chunks_fts WHERE rowid IN (SELECT id FROM chunks WHERE page_id IN (SELECT id FROM pages WHERE doc_slug = ?))`, slug); err != nil {
+		return fmt.Errorf("delete chunk index %s: %w", slug, err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM chunks WHERE page_id IN (SELECT id FROM pages WHERE doc_slug = ?)`, slug); err != nil {
+		return fmt.Errorf("delete chunks %s: %w", slug, err)
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM pages WHERE doc_slug = ?`, slug); err != nil {
 		return fmt.Errorf("delete pages %s: %w", slug, err)

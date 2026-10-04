@@ -22,15 +22,15 @@ func TestCompact(t *testing.T) {
 		t.Fatalf("fresh Compact = %d, %v; want 0, nil", n, err)
 	}
 
-	// Fill pages_fts with enough data to span many pages, then delete it
+	// Fill chunks_fts with enough data to span many pages, then delete it
 	// all so the freelist dominates the file.
 	body := strings.Repeat("lorem ipsum dolor sit amet ", 200)
 	for i := 0; i < 500; i++ {
-		if _, err := idx.db.Exec(`INSERT INTO pages_fts(rowid, body) VALUES (?, ?)`, i+1, body); err != nil {
+		if _, err := idx.db.Exec(`INSERT INTO chunks_fts(rowid, crumb, body) VALUES (?, ?, ?)`, i+1, "crumb", body); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := idx.db.Exec(`DELETE FROM pages_fts`); err != nil {
+	if _, err := idx.db.Exec(`DELETE FROM chunks_fts`); err != nil {
 		t.Fatal(err)
 	}
 	before, _ := os.Stat(path)

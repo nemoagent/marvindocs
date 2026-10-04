@@ -18,8 +18,8 @@ type BuildStats struct {
 }
 
 // Build (re)populates the index from the given docstore: symbols from
-// index.json into entries and the plain-text body of every page from
-// db.json into pages_fts. It replaces any existing rows; see Sync for
+// index.json into entries and Markdown chunks of every page from
+// db.json into chunks_fts. It replaces any existing rows; see Sync for
 // the incremental variant.
 func (i *Index) Build(ctx context.Context, s *docstore.Store) (BuildStats, error) {
 	start := time.Now()
@@ -91,7 +91,7 @@ func (i *Index) Build(ctx context.Context, s *docstore.Store) (BuildStats, error
 
 	// Post-build optimizations: FTS optimize + ANALYZE. Not fatal if they fail.
 	_, _ = i.db.Exec(`INSERT INTO entries_fts(entries_fts) VALUES('optimize')`)
-	_, _ = i.db.Exec(`INSERT INTO pages_fts(pages_fts) VALUES('optimize')`)
+	_, _ = i.db.Exec(`INSERT INTO chunks_fts(chunks_fts) VALUES('optimize')`)
 	_, _ = i.db.Exec(`ANALYZE`)
 
 	stats.Duration = time.Since(start)

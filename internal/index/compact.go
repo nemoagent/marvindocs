@@ -18,7 +18,7 @@ func (i *Index) Compact(ctx context.Context) (int64, error) {
 	// Merge FTS5 segments first: deleted rows stay in dead segments until
 	// a merge, and those pages never reach the freelist otherwise. A no-op
 	// (cheap) when the tables were already optimized by the last build.
-	for _, t := range []string{"entries_fts", "pages_fts"} {
+	for _, t := range []string{"entries_fts", "chunks_fts"} {
 		if _, err := i.db.ExecContext(ctx, fmt.Sprintf(`INSERT INTO %s(%s) VALUES('optimize')`, t, t)); err != nil {
 			return 0, fmt.Errorf("optimize %s: %w", t, err)
 		}

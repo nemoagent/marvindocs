@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 )
 
@@ -28,30 +27,33 @@ func Open(path string) (*Index, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open index %s: %w", path, err)
 	}
-	if err := dropLegacyPagesFTS(db); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("migrate schema: %w", err)
-	}
 	if _, err := db.Exec(schemaSQL); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("init schema: %w", err)
 	}
+	if err := dropLegacyPagesFTS(db); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("migrate schema: %w", err)
+	}
 	return &Index{db: db, path: path}, nil
 }
 
-// dropLegacyPagesFTS removes a pages_fts table created by an older
-// version that stored the page text. The next Sync re-indexes every doc
-// because their page rows are gone.
+// dropLegacyPagesFTS removes the page-level pages_fts table of an older
+// version. Its page rows go too, so the next Sync re-indexes every doc
+// into chunks_fts.
 func dropLegacyPagesFTS(db *sql.DB) error {
-	var ddl string
-	err := db.QueryRow(`SELECT sql FROM sqlite_master WHERE name = 'pages_fts'`).Scan(&ddl)
-	if err == sql.ErrNoRows || (err == nil && strings.Contains(ddl, "content=''")) {
+	var name string
+	err := db.QueryRow(`SELECT name FROM sqlite_master WHERE name = 'pages_fts'`).Scan(&name)
+	if err == sql.ErrNoRows {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	_, err = db.Exec(`DROP TABLE pages_fts`)
+	if _, err = db.Exec(`DROP TABLE pages_fts`); err != nil {
+		return err
+	}
+	_, err = db.Exec(`DELETE FROM pages`)
 	return err
 }
 
@@ -69,7 +71,7 @@ func (i *Index) Path() string { return i.path }
 // DB exposes the underlying *sql.DB for advanced callers (tests, search).
 func (i *Index) DB() *sql.DB { return i.db }
 
-// Reset drops all rows from docs/entries/pages and rebuilds the FTS
+// Reset drops all rows from docs/entries/pages/chunks and rebuilds the FTS
 // tables. Safe to call on an empty index.
 func (i *Index) Reset() error {
 	stmts := []string{
@@ -77,7 +79,8 @@ func (i *Index) Reset() error {
 		`DELETE FROM docs`,
 		`INSERT INTO entries_fts(entries_fts) VALUES('rebuild')`,
 		`DELETE FROM pages`,
-		`INSERT INTO pages_fts(pages_fts) VALUES('delete-all')`,
+		`DELETE FROM chunks`,
+		`INSERT INTO chunks_fts(chunks_fts) VALUES('delete-all')`,
 	}
 	for _, s := range stmts {
 		if _, err := i.db.Exec(s); err != nil {

@@ -63,7 +63,7 @@ func TestBuildIndexesPageBodies(t *testing.T) {
 	if len(hits) != 1 || hits[0].DocSlug != "alpha" || hits[0].Path != "net/connect" {
 		t.Fatalf("unexpected page hits: %+v", hits)
 	}
-	if want := "Connect Opens a [pooled] [connection] to the server."; hits[0].Snippet != want {
+	if want := "# Connect Opens a [pooled] [connection] to the server."; hits[0].Snippet != want {
 		t.Fatalf("snippet = %q, want %q", hits[0].Snippet, want)
 	}
 
@@ -105,17 +105,17 @@ func TestSyncIndexesPageBodies(t *testing.T) {
 	}
 }
 
-func TestOpenDropsLegacyPagesFTS(t *testing.T) {
+func TestOpenMigratesLegacyPagesFTS(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "legacy.db")
 	idx, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Replace pages_fts with the pre-contentless layout that stored text.
+	// Recreate the page-level layout: pages_fts plus an indexed page row.
 	for _, q := range []string{
-		`DROP TABLE pages_fts`,
-		`CREATE VIRTUAL TABLE pages_fts USING fts5(doc_slug UNINDEXED, path UNINDEXED, body)`,
-		`INSERT INTO pages_fts(doc_slug, path, body) VALUES ('a', 'x', 'legacy text')`,
+		`CREATE VIRTUAL TABLE pages_fts USING fts5(body, content='', contentless_delete=1)`,
+		`INSERT INTO pages(id, doc_slug, path) VALUES (1, 'a', 'x')`,
+		`INSERT INTO pages_fts(rowid, body) VALUES (1, 'legacy text')`,
 	} {
 		if _, err := idx.DB().Exec(q); err != nil {
 			t.Fatal(err)
@@ -128,16 +128,114 @@ func TestOpenDropsLegacyPagesFTS(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = idx.Close() })
-	var ddl string
-	if err := idx.DB().QueryRow(`SELECT sql FROM sqlite_master WHERE name = 'pages_fts'`).Scan(&ddl); err != nil {
+	var n int
+	if err := idx.DB().QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE name = 'pages_fts'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("pages_fts survived: n=%d err=%v", n, err)
+	}
+	if err := idx.DB().QueryRow(`SELECT COUNT(*) FROM pages`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("page rows survived: n=%d err=%v", n, err)
+	}
+}
+
+// chunkFixtureIndex opens an index holding one doc "go" whose page p
+// has two chunks about "gopher" and one about "badger", and a page q
+// with one chunk about "gopher".
+func chunkFixtureIndex(t *testing.T) *Index {
+	t.Helper()
+	idx, err := Open(filepath.Join(t.TempDir(), "chunks.db"))
+	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(ddl, "content=''") {
-		t.Fatalf("pages_fts not migrated: %s", ddl)
+	t.Cleanup(func() { _ = idx.Close() })
+	stmts := []string{
+		`INSERT INTO docs(slug, name, type, version, release, mtime) VALUES ('go', 'Go', 'lib', '1', 'r', 0)`,
+		`INSERT INTO pages(id, doc_slug, path) VALUES (1, 'go', 'p'), (2, 'go', 'q')`,
+		`INSERT INTO chunks(id, page_id, off, len) VALUES (1, 1, 0, 10), (2, 1, 10, 10), (3, 1, 20, 10), (4, 2, 0, 10)`,
+		`INSERT INTO chunks_fts(rowid, crumb, body) VALUES
+			(1, 'go > P', 'gopher gopher gopher digs'),
+			(2, 'go > P > More', 'the gopher again'),
+			(3, 'go > P > Other', 'badger only'),
+			(4, 'go > Q', 'a lone gopher among many other words here')`,
+	}
+	for _, q := range stmts {
+		if _, err := idx.DB().Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return idx
+}
+
+func TestSearchPagesAggregatesChunks(t *testing.T) {
+	idx := chunkFixtureIndex(t)
+	hits, err := idx.SearchPages(context.Background(), nil, "gopher", "go", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 2 || hits[0].Path != "p" || hits[1].Path != "q" {
+		t.Fatalf("hits = %+v, want one hit per page, p first", hits)
+	}
+}
+
+func TestSearchChunksLimits(t *testing.T) {
+	idx := chunkFixtureIndex(t)
+	ctx := context.Background()
+
+	hits, err := idx.SearchChunks(ctx, "gopher", "go", 10, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 2 || hits[0].Path != "p" || hits[0].Off != 0 || hits[1].Path != "q" {
+		t.Fatalf("perPage=1: %+v", hits)
+	}
+
+	hits, err = idx.SearchChunks(ctx, "gopher", "go", 10, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 3 || hits[0].Path != "p" || hits[1].Path != "p" || hits[2].Path != "q" {
+		t.Fatalf("perPage=5: %+v", hits)
+	}
+
+	hits, err = idx.SearchChunks(ctx, "gopher", "go", 1, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 2 || hits[0].Path != "p" || hits[1].Path != "p" {
+		t.Fatalf("pages=1: %+v", hits)
+	}
+}
+
+func TestBuildDeleteDocRemovesChunks(t *testing.T) {
+	store := fixtureStore(t)
+	idx, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = idx.Close() })
+	ctx := context.Background()
+	if _, err := idx.Build(ctx, store); err != nil {
+		t.Fatal(err)
 	}
 	var n int
-	if err := idx.DB().QueryRow(`SELECT COUNT(*) FROM pages_fts WHERE pages_fts MATCH 'legacy'`).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("legacy rows survived: n=%d err=%v", n, err)
+	if err := idx.DB().QueryRow(`SELECT COUNT(*) FROM chunks`).Scan(&n); err != nil || n == 0 {
+		t.Fatalf("chunks after build: n=%d err=%v", n, err)
+	}
+	tx, err := idx.DB().BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := deleteDocRows(ctx, tx, "alpha"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if err := idx.DB().QueryRow(`SELECT COUNT(*) FROM chunks`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("chunks after delete: n=%d err=%v", n, err)
+	}
+	hits, err := idx.SearchPages(ctx, nil, "pooled", "", 10)
+	if err != nil || len(hits) != 0 {
+		t.Fatalf("hits after delete = %+v, %v", hits, err)
 	}
 }
 

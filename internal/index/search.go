@@ -513,114 +513,223 @@ func sortHitsByScore(hits []SearchHit) {
 }
 
 // PageSource returns the HTML of a page; *docstore.Store satisfies it.
-// SearchPages uses it to rebuild snippets, since pages_fts stores no text.
+// SearchPages uses it to rebuild snippets, since chunks_fts stores no text.
 type PageSource interface {
 	Page(slug, path string) (string, error)
 }
 
-// SearchPages queries pages_fts for pages whose body text matches the
-// query. docSlug restricts the search to a single doc when non-empty.
-// When pages is non-nil, each hit's Snippet is a short excerpt of the
-// page around the first matching word (matches wrapped in [ ]).
+// chunkCand is one chunk matched by the FTS query.
+type chunkCand struct {
+	docSlug, path string
+	pageID        int64
+	off, len      int
+	score         float64 // lower = better (bm25, minus popularity boost)
+	best          float64 // score of the page's best chunk
+}
+
+// pagePool is how many pages are fetched before the popularity boost
+// re-sorts them to pick n: the boost can promote a page from below.
+func pagePool(n int) int {
+	return max(n*4, 40)
+}
+
+// SearchPages queries chunks_fts for pages with a chunk matching the
+// query, ranked by their best chunk. docSlug restricts the search to a
+// single doc when non-empty. When pages is non-nil, each hit's Snippet
+// is a short excerpt of the best chunk around the first matching word
+// (matches wrapped in [ ]).
 func (i *Index) SearchPages(ctx context.Context, pages PageSource, query, docSlug string, limit int) ([]PageHit, error) {
-	if sanitizeFTSQuery(query) == "" {
-		return nil, nil
-	}
 	if limit <= 0 {
 		limit = 20
 	}
-	hits, err := i.searchPagesAuto(ctx, query, docSlug, limit)
-	if err != nil || pages == nil {
-		return hits, err
+	cands, err := i.searchChunksAuto(ctx, query, docSlug, pagePool(limit), 1)
+	if err != nil {
+		return nil, err
 	}
-	for k := range hits {
-		if err := ctx.Err(); err != nil {
-			return nil, err
+	groups := groupByPage(cands)
+	if len(groups) > limit {
+		groups = groups[:limit]
+	}
+	var hits []PageHit
+	for _, g := range groups {
+		best := g[0]
+		h := PageHit{DocSlug: best.docSlug, Path: best.path, Score: best.score}
+		if pages != nil {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			h.Snippet = pageSnippet(pages, best, query)
 		}
-		html, err := pages.Page(hits[k].DocSlug, hits[k].Path)
-		if err != nil {
-			continue // stale index or missing db.json: hit without snippet
-		}
-		hits[k].Snippet = snippet(docstore.ToPlainText(html), query)
+		hits = append(hits, h)
 	}
 	return hits, nil
 }
 
-// searchPagesAuto applies the doc filter: explicit docSlug, else one
+// pageSnippet builds the snippet for page hit c from its best chunk.
+// Returns "" for a stale index or a missing db.json.
+func pageSnippet(pages PageSource, c chunkCand, query string) string {
+	html, err := pages.Page(c.docSlug, c.path)
+	if err != nil {
+		return ""
+	}
+	md, err := docstore.ToMarkdown(html)
+	if err != nil {
+		return ""
+	}
+	text := md
+	if c.off >= 0 && c.len >= 0 && c.off+c.len <= len(md) {
+		text = md[c.off : c.off+c.len]
+	}
+	return snippet(text, query)
+}
+
+// ChunkHit is one matching chunk; Off/Len address the page's Markdown.
+type ChunkHit struct {
+	DocSlug string
+	Path    string
+	Heading string // not filled by the index; see chunk.HeadingAt
+	Off     int
+	Len     int
+	Score   float64 // lower = better
+}
+
+// SearchChunks returns the best chunks for query, at most perPage per
+// page and at most pages distinct pages, ordered by page relevance then
+// chunk score. docSlug restricts the search like in SearchPages.
+func (i *Index) SearchChunks(ctx context.Context, query, docSlug string, pages, perPage int) ([]ChunkHit, error) {
+	cands, err := i.searchChunksAuto(ctx, query, docSlug, pagePool(pages), perPage)
+	if err != nil {
+		return nil, err
+	}
+	groups := groupByPage(cands)
+	if len(groups) > pages {
+		groups = groups[:pages]
+	}
+	var hits []ChunkHit
+	for _, g := range groups {
+		if len(g) > perPage {
+			g = g[:perPage]
+		}
+		for _, c := range g {
+			hits = append(hits, ChunkHit{DocSlug: c.docSlug, Path: c.path, Off: c.off, Len: c.len, Score: c.score})
+		}
+	}
+	return hits, nil
+}
+
+// groupByPage groups score-ordered candidates by page. Pages come in
+// order of their best chunk; chunks within a page keep their order.
+func groupByPage(cands []chunkCand) [][]chunkCand {
+	var groups [][]chunkCand
+	byPage := make(map[int64]int)
+	for _, c := range cands {
+		g, ok := byPage[c.pageID]
+		if !ok {
+			g = len(groups)
+			byPage[c.pageID] = g
+			groups = append(groups, nil)
+		}
+		groups[g] = append(groups[g], c)
+	}
+	return groups
+}
+
+// searchChunksAuto applies the doc filter: explicit docSlug, else one
 // auto-detected from the query tokens with a global fallback (see Search).
-func (i *Index) searchPagesAuto(ctx context.Context, query, docSlug string, limit int) ([]PageHit, error) {
+func (i *Index) searchChunksAuto(ctx context.Context, query, docSlug string, pages, perPage int) ([]chunkCand, error) {
 	if docSlug != "" {
-		return i.searchPagesIn(ctx, query, []string{docSlug}, limit)
+		return i.searchChunksIn(ctx, query, []string{docSlug}, pages, perPage)
 	}
 	slugMap, _, catErr := i.docCatalog(ctx)
 	if catErr == nil && len(slugMap) > 0 {
 		cleanQ, matched := extractDocFilter(query, slugMap, "")
 		if len(matched) > 0 {
-			hits, err := i.searchPagesIn(ctx, cleanQ, matched, limit)
-			if err != nil || len(hits) > 0 {
-				return hits, err
+			cands, err := i.searchChunksIn(ctx, cleanQ, matched, pages, perPage)
+			if err != nil || len(cands) > 0 {
+				return cands, err
 			}
 		}
 	}
-	return i.searchPagesIn(ctx, query, nil, limit)
+	return i.searchChunksIn(ctx, query, nil, pages, perPage)
 }
 
-// searchPagesIn runs the page FTS search. An empty docSlugs means a
-// global search with the popularity boost.
-func (i *Index) searchPagesIn(ctx context.Context, query string, docSlugs []string, limit int) ([]PageHit, error) {
+// searchChunksIn runs the chunk FTS search, first requiring every word
+// (with prefix matching), then falling back to any-word matching.
+func (i *Index) searchChunksIn(ctx context.Context, query string, docSlugs []string, pages, perPage int) ([]chunkCand, error) {
 	q := sanitizeFTSQuery(query)
 	if q == "" {
 		return nil, nil
 	}
+	cands, err := i.queryChunks(ctx, q, docSlugs, pages, perPage)
+	if err != nil || len(cands) > 0 || len(strings.Fields(query)) < 2 {
+		return cands, err
+	}
+	// Natural-language queries rarely have every word in one chunk;
+	// fall back to any-word matching and let bm25 rank by overlap.
+	return i.queryChunks(ctx, anyWordFTSQuery(query), docSlugs, pages, perPage)
+}
+
+// queryChunks runs one FTS MATCH and returns the top perPage chunks of
+// the top pages (ranked by their best chunk), best page first, chunks
+// within a page best first. The crumb column weighs three times the
+// body. An empty docSlugs means a global search with the popularity
+// boost, which re-sorts the pages by their adjusted best score.
+func (i *Index) queryChunks(ctx context.Context, q string, docSlugs []string, pages, perPage int) ([]chunkCand, error) {
 	hasDocFilter := len(docSlugs) > 0
 
-	sqlText := `SELECT p.doc_slug, p.path, bm25(pages_fts) AS score
-		FROM pages_fts JOIN pages p ON p.id = pages_fts.rowid
-		WHERE pages_fts MATCH ?`
+	sqlText := `WITH m AS (
+			SELECT rowid AS rid, rank FROM chunks_fts
+			WHERE chunks_fts MATCH ? AND rank MATCH 'bm25(3.0, 1.0)'
+		), r AS (
+			SELECT c.page_id, p.doc_slug, p.path, c.off, c.len, m.rank,
+				ROW_NUMBER() OVER w AS rn, MIN(m.rank) OVER w AS best
+			FROM m JOIN chunks c ON c.id = m.rid JOIN pages p ON p.id = c.page_id`
 	args := []any{q}
 	if hasDocFilter {
 		placeholders := strings.Repeat("?,", len(docSlugs))
-		sqlText += ` AND p.doc_slug IN (` + placeholders[:len(placeholders)-1] + `)`
+		sqlText += ` WHERE p.doc_slug IN (` + placeholders[:len(placeholders)-1] + `)`
 		for _, s := range docSlugs {
 			args = append(args, s)
 		}
 	}
-	sqlText += ` ORDER BY score LIMIT ?`
-	args = append(args, limit)
+	sqlText += `
+			WINDOW w AS (PARTITION BY c.page_id ORDER BY m.rank)
+		)
+		SELECT page_id, doc_slug, path, off, len, rank, best FROM r
+		WHERE rn <= ? ORDER BY best, page_id, rn LIMIT ?`
+	args = append(args, perPage, pages*perPage)
 
 	rows, err := i.db.QueryContext(ctx, sqlText, args...)
 	if err != nil {
-		return nil, fmt.Errorf("search pages: %w", err)
+		return nil, fmt.Errorf("search chunks: %w", err)
 	}
 	defer rows.Close()
 
-	var hits []PageHit
+	var cands []chunkCand
 	for rows.Next() {
-		var h PageHit
-		if err := rows.Scan(&h.DocSlug, &h.Path, &h.Score); err != nil {
+		var c chunkCand
+		if err := rows.Scan(&c.pageID, &c.docSlug, &c.path, &c.off, &c.len, &c.score, &c.best); err != nil {
 			return nil, err
 		}
 		if !hasDocFilter {
-			h.Score -= popularityBoost(h.DocSlug)
+			boost := popularityBoost(c.docSlug)
+			c.score -= boost
+			c.best -= boost
 		}
-		hits = append(hits, h)
+		cands = append(cands, c)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	if !hasDocFilter {
-		sortPageHitsByScore(hits)
+		sort.SliceStable(cands, func(a, b int) bool {
+			if cands[a].best != cands[b].best {
+				return cands[a].best < cands[b].best
+			}
+			return cands[a].pageID < cands[b].pageID
+		})
 	}
-	return hits, nil
-}
-
-// sortPageHitsByScore sorts ascending (lower bm25 = better).
-func sortPageHitsByScore(hits []PageHit) {
-	for i := 1; i < len(hits); i++ {
-		for j := i; j > 0 && hits[j-1].Score > hits[j].Score; j-- {
-			hits[j-1], hits[j] = hits[j], hits[j-1]
-		}
-	}
+	return cands, nil
 }
 
 // Snippet window, in words, around the first match: mirrors the 16-token
@@ -723,6 +832,18 @@ type DocRow struct {
 // wrapped in double quotes with embedded quotes doubled; a trailing * is
 // appended to enable prefix matching. An empty input yields an empty
 // string (caller should treat as "no query").
+// anyWordFTSQuery builds an OR query of exact (non-prefix) tokens for
+// the natural-language fallback: prefixes on short words like "a" or
+// "in" would match nearly everything.
+func anyWordFTSQuery(q string) string {
+	fields := strings.Fields(q)
+	parts := make([]string, 0, len(fields))
+	for _, f := range fields {
+		parts = append(parts, `"`+strings.ReplaceAll(f, `"`, `""`)+`"`)
+	}
+	return strings.Join(parts, " OR ")
+}
+
 func sanitizeFTSQuery(q string) string {
 	fields := strings.Fields(q)
 	if len(fields) == 0 {

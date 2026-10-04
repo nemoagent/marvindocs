@@ -6,17 +6,20 @@
 //	docs(slug PRIMARY KEY, name, type, version, release, mtime)
 //	entries(id INTEGER PK, doc_slug, name, path, type)
 //	pages(id INTEGER PK, doc_slug, path)
+//	chunks(id INTEGER PK, page_id, off, len)
 //
 // and two FTS5 virtual tables:
 //
 //	entries_fts(name, path, content='entries', content_rowid='id')
-//	pages_fts(body, content='', contentless_delete=1)
+//	chunks_fts(crumb, body, content='', contentless_delete=1)
 //
 // entries_fts holds one row per symbol in index.json; triggers keep it in
-// sync on insert/delete. pages_fts indexes the plain-text body of every
-// page in db.json but stores no text: its rowid equals pages.id, and
-// snippets are rebuilt from db.json at query time (see SearchPages).
-// The builder manages pages/pages_fts directly.
+// sync on insert/delete. chunks_fts indexes Markdown chunks of every page
+// in db.json (see package chunk), each with a breadcrumb "doc > page >
+// heading", but stores no text: its rowid equals chunks.id, and chunks
+// hold only byte offsets into the page's Markdown, which is re-sliced
+// from db.json at query time (see SearchPages, SearchChunks). The
+// builder manages pages/chunks/chunks_fts directly.
 package index
 
 // schemaSQL is executed once when a new index file is created.
@@ -68,10 +71,20 @@ CREATE TABLE IF NOT EXISTS pages (
 
 CREATE INDEX IF NOT EXISTS idx_pages_doc ON pages(doc_slug);
 
--- Contentless: the body is tokenized but never stored, which keeps the
--- index at roughly a third of the plain-text size. contentless_delete
--- lets DELETE work by rowid (SQLite >= 3.43).
-CREATE VIRTUAL TABLE IF NOT EXISTS pages_fts USING fts5(
+CREATE TABLE IF NOT EXISTS chunks (
+    id      INTEGER PRIMARY KEY,
+    page_id INTEGER NOT NULL,
+    off     INTEGER NOT NULL,
+    len     INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_chunks_page ON chunks(page_id);
+
+-- Contentless: crumb and body are tokenized but never stored, which keeps
+-- the index small; chunks are re-sliced from the Markdown of the page at
+-- query time. contentless_delete lets DELETE work by rowid (SQLite >= 3.43).
+CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
+    crumb,
     body,
     content='',
     contentless_delete=1,
