@@ -19,3 +19,5 @@
 - [Проверки согласованности](consistency-checks.md) — скрипты
   для контроля синхронности docs/en <-> docs/ru и целостности
   дампа devdocs
+- [Документация Go через Docker](go-doc.md) — запуск `go doc` в
+  контейнере через `scripts/go-doc.sh`

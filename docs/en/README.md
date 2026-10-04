@@ -17,3 +17,5 @@
   data format from custom sources (Laravel docs, internal handbooks)
 - [Consistency checks](consistency-checks.md) — scripts that validate
   docs/en <-> docs/ru parity and devdocs dump integrity
+- [Go documentation via Docker](go-doc.md) — run `go doc` in a
+  container with `scripts/go-doc.sh`

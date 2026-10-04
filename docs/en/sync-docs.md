@@ -41,6 +41,7 @@ make build                    # build the marvindocs binary (once)
 | `--jobs N` | Parallel downloads (default `8`). |
 | `--list-remote` | Fetch the live devdocs.io catalog and print every available slug with its name and version. No download, no index touched. |
 | `--search-remote QUERY` | Same as `--list-remote` but filter rows whose `slug` or `name` contain `QUERY` (case-insensitive). |
+| `--help`, `-h` | Print usage and exit. |
 
 ### Examples
 
@@ -173,3 +174,9 @@ catalog `mtime` is newer than the local stamp (or all of them with
 
 Sizes were measured on a local dump and grow as devdocs publishes more
 docs. Download time depends on your connection.
+
+## Exit codes
+
+- `0` — success, even if individual slugs report `FAIL`.
+- `1` — the catalog fetch failed, or `--all` found no `docs.json`.
+- `2` — an unknown option, or `--search-remote` without a query.

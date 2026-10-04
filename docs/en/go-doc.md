@@ -29,7 +29,7 @@ GO_IMAGE=golang:1.23 ./scripts/go-doc.sh maps
 
 - `docker-compose.yml` includes a `godoc` service.
 - The service uses `go doc` as its entrypoint.
-- `scripts/go-doc.sh` forwards arguments to `docker compose run --rm godoc ...`.
+- `scripts/go-doc.sh` forwards arguments to `docker compose run --rm --no-deps godoc ...`.
 
 ## Notes
 

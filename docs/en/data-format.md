@@ -76,7 +76,7 @@ A JSON **array** of objects, one per indexed doc.
 - Every `slug` in `docs.json` must have a directory `<data-root>/<slug>/`
   containing at least `index.json` and `db.json`.
 - `slug` values must be unique across the array.
-- The array may be in any order; marvindocs sorts by slug where needed.
+- The array may be in any order.
 
 ## 3. `<slug>/meta.json` — per-doc metadata
 
@@ -141,7 +141,7 @@ require `types[]` but keeps it if present.
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `name` | string | yes | Human-readable label. Matches `entries[].type`. |
-| `count` | integer | yes | Number of entries with this type. Informational only — marvindocs recomputes this. |
+| `count` | integer | yes | Number of entries with this type. Informational only; marvindocs does not use it. |
 | `slug` | string | yes | Short slug for the category (used in URLs in devdocs.io's own UI; marvindocs ignores it). |
 
 ### 4.3 Path syntax

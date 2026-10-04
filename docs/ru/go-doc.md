@@ -29,7 +29,7 @@ GO_IMAGE=golang:1.23 ./scripts/go-doc.sh maps
 
 - В `docker-compose.yml` добавлен сервис `godoc`.
 - Сервис запускает `go doc` как entrypoint.
-- Скрипт `scripts/go-doc.sh` проксирует аргументы в `docker compose run --rm godoc ...`.
+- Скрипт `scripts/go-doc.sh` проксирует аргументы в `docker compose run --rm --no-deps godoc ...`.
 
 ## Примечания
 
