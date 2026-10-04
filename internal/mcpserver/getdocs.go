@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/piligrim/marvindocs/internal/chunk"
+	"github.com/piligrim/marvindocs/internal/docstore"
 )
 
 // get_docs is the Context7-style entry point: one call with a topic and
@@ -19,6 +21,10 @@ const (
 	getDocsMaxTokens     = 50000
 	// getDocsPages is how many top page hits are split into sections.
 	getDocsPages = 8
+	// getDocsMaxPageBytes skips pages larger than this (sans inline
+	// images): they are generated indexes and tables of contents that
+	// match every topic and cost hundreds of ms each to convert.
+	getDocsMaxPageBytes = 512 << 10
 )
 
 type getDocsInput struct {
@@ -98,20 +104,37 @@ func (d Deps) collectFragments(ctx context.Context, topic, docSlug string, budge
 		rank  int // page rank from the search, lower is better
 		pos   int // section order within the page
 	}
+	// HTML to Markdown dominates a cold call (large pages take ~200 ms
+	// each), so convert the pages concurrently; the result order is kept.
+	mds := make([]string, len(hits))
+	errs := make([]error, len(hits))
+	var wg sync.WaitGroup
+	for i, h := range hits {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			html, err := d.Store.Page(h.DocSlug, h.Path)
+			if err != nil {
+				return // stale index or missing db.json
+			}
+			html = docstore.StripDataURIs(html)
+			if len(html) > getDocsMaxPageBytes {
+				return
+			}
+			mds[i], errs[i] = d.markdown(h.DocSlug, h.Path, html)
+		}()
+	}
+	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	var cands []scored
 	for rank, h := range hits {
-		if err := ctx.Err(); err != nil {
-			return nil, err
+		if errs[rank] != nil {
+			return nil, errs[rank]
 		}
-		html, err := d.Store.Page(h.DocSlug, h.Path)
-		if err != nil {
-			continue // stale index or missing db.json
-		}
-		md, err := d.markdown(h.DocSlug, h.Path, html)
-		if err != nil {
-			return nil, err
-		}
-		for pos, sec := range chunk.Split(md) {
+		for pos, sec := range chunk.Split(mds[rank]) {
 			sc := chunk.Score(sec, terms)
 			if sc == 0 {
 				continue

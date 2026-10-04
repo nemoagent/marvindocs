@@ -49,13 +49,15 @@ active.
     Must be an exact slug (see `list_docs`). If not set, query tokens
     are checked case-insensitively against known slugs (and their
     prefixes up to `~`/`-`): the first matching token is removed from the
-    query and the search is automatically scoped to that doc or group
-    (e.g. `python~*`). Aliases map to canonical names: `js` → javascript,
+    query and the search is automatically scoped to that doc. When
+    several versions of the doc are installed (`python~2.7`,
+    `python~3.14`) only the newest one is used. Aliases map to canonical names: `js` → javascript,
     `py` → python, `ts` → typescript, `pg` → postgresql, `mongo` →
     mongodb. If the doc token is the only token, no filter is applied.
     If the scoped search finds nothing (e.g. `async function`, where
     `async` is also a doc slug), the original query is searched globally.
-    Example: `{"query": "python requests"}` → scoped to python docs only.
+    Example: `{"query": "python requests"}` → scoped to the newest
+    python doc only; pass `doc_slug` explicitly for an older version.
   - `limit` *(int, optional)* — default `20`, max `100`.
 - **Output:**
   `{ hits: [{ doc_slug, name, path, type, score }] }`. Lower `score`
@@ -103,7 +105,9 @@ Fetches a single documentation page.
     `unknown format` error.
 - **Output:**
   `{ doc_slug, path, format, content }`. When `format=markdown`
-  the content is produced on-the-fly by the HTML→Markdown converter.
+  the content is produced on-the-fly by the HTML→Markdown converter;
+  inline base64 images (`data:...;base64,`) are blanked, since some
+  pages embed megabytes of them.
 
 ### `get_docs`
 
@@ -112,8 +116,9 @@ about a topic that fit a token budget. Prefer it over `search_pages` +
 `get_page` when you just need an answer.
 
 Internally it runs the same page full-text search as `search_pages`
-(top 8 pages), converts each page to Markdown and splits it into
-sections by headings (fenced code is ignored; sections longer than
+(top 8 pages; pages over 512 KB of HTML are skipped — those are
+generated indexes and tables of contents that match every topic),
+converts each page to Markdown and splits it into sections by headings (fenced code is ignored; sections longer than
 ~8000 characters are split at paragraph breaks). Sections that mention
 the topic terms are kept (word-prefix match; a match in the heading
 counts double), sorted most relevant first (score, then page rank, then
