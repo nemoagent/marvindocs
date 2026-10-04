@@ -15,6 +15,9 @@ type Index struct {
 	catalogSlugs map[string]bool
 	catalogNames map[string]string
 	catalogErr   error
+
+	vecMu    sync.Mutex
+	vecCache map[string]*docVecs // doc slug -> vectors, loaded lazily
 }
 
 // Open opens (or creates) an index file and ensures the schema exists.
@@ -71,8 +74,8 @@ func (i *Index) Path() string { return i.path }
 // DB exposes the underlying *sql.DB for advanced callers (tests, search).
 func (i *Index) DB() *sql.DB { return i.db }
 
-// Reset drops all rows from docs/entries/pages/chunks and rebuilds the FTS
-// tables. Safe to call on an empty index.
+// Reset drops all rows from docs/entries/pages/chunks/chunk_vecs and
+// rebuilds the FTS tables. Safe to call on an empty index.
 func (i *Index) Reset() error {
 	stmts := []string{
 		`DELETE FROM entries`,
@@ -80,6 +83,7 @@ func (i *Index) Reset() error {
 		`INSERT INTO entries_fts(entries_fts) VALUES('rebuild')`,
 		`DELETE FROM pages`,
 		`DELETE FROM chunks`,
+		`DELETE FROM chunk_vecs`,
 		`INSERT INTO chunks_fts(chunks_fts) VALUES('delete-all')`,
 	}
 	for _, s := range stmts {
@@ -87,6 +91,9 @@ func (i *Index) Reset() error {
 			return fmt.Errorf("reset (%s): %w", s, err)
 		}
 	}
+	i.vecMu.Lock()
+	i.vecCache = nil
+	i.vecMu.Unlock()
 	return nil
 }
 

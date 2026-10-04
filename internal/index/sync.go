@@ -208,8 +208,8 @@ func (i *Index) snapshotDocs(ctx context.Context) (map[string]docSnapshot, error
 }
 
 // deleteDocRows removes a doc and all its dependent rows from the index.
-// Triggers keep entries_fts in sync; pages/chunks/chunks_fts are cleaned
-// manually (the FTS rows by the rowids they share with chunks).
+// Triggers keep entries_fts in sync; pages/chunks/chunk_vecs/chunks_fts
+// are cleaned manually (the FTS rows by the rowids they share with chunks).
 func deleteDocRows(ctx context.Context, tx *sql.Tx, slug string) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM entries WHERE doc_slug = ?`, slug); err != nil {
 		return fmt.Errorf("delete entries %s: %w", slug, err)
@@ -217,6 +217,10 @@ func deleteDocRows(ctx context.Context, tx *sql.Tx, slug string) error {
 	if _, err := tx.ExecContext(ctx,
 		`DELETE FROM chunks_fts WHERE rowid IN (SELECT id FROM chunks WHERE page_id IN (SELECT id FROM pages WHERE doc_slug = ?))`, slug); err != nil {
 		return fmt.Errorf("delete chunk index %s: %w", slug, err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM chunk_vecs WHERE chunk_id IN (SELECT id FROM chunks WHERE page_id IN (SELECT id FROM pages WHERE doc_slug = ?))`, slug); err != nil {
+		return fmt.Errorf("delete chunk vectors %s: %w", slug, err)
 	}
 	if _, err := tx.ExecContext(ctx,
 		`DELETE FROM chunks WHERE page_id IN (SELECT id FROM pages WHERE doc_slug = ?)`, slug); err != nil {

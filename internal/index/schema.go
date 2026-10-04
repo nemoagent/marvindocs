@@ -7,6 +7,7 @@
 //	entries(id INTEGER PK, doc_slug, name, path, type)
 //	pages(id INTEGER PK, doc_slug, path)
 //	chunks(id INTEGER PK, page_id, off, len)
+//	chunk_vecs(chunk_id INTEGER PK, vec BLOB)
 //
 // and two FTS5 virtual tables:
 //
@@ -20,6 +21,9 @@
 // hold only byte offsets into the page's Markdown, which is re-sliced
 // from db.json at query time (see SearchPages, SearchChunks). The
 // builder manages pages/chunks/chunks_fts directly.
+//
+// chunk_vecs optionally holds one int8-quantised embedding per chunk
+// (see embed.Quantize), filled by EmbedDoc and used by SearchChunksVec.
 package index
 
 // schemaSQL is executed once when a new index file is created.
@@ -89,6 +93,11 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
     content='',
     contentless_delete=1,
     tokenize='unicode61 remove_diacritics 2'
+);
+
+CREATE TABLE IF NOT EXISTS chunk_vecs (
+    chunk_id INTEGER PRIMARY KEY,
+    vec      BLOB NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS meta (
