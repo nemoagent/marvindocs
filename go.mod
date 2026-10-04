@@ -4,8 +4,10 @@ go 1.25.0
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown/v2 v2.5.0
+	github.com/daulet/tokenizers v1.27.0
 	github.com/mattn/go-sqlite3 v1.14.42
 	github.com/modelcontextprotocol/go-sdk v1.8.0
+	github.com/yalue/onnxruntime_go v1.36.0
 	golang.org/x/net v0.58.0
 )
 
