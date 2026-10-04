@@ -47,6 +47,11 @@ if [[ ! -f "${DOCS_JSON}" ]]; then
 	exit 2
 fi
 
+if ! command -v jq &>/dev/null; then
+	echo "error: jq is required but not found in PATH" >&2
+	exit 2
+fi
+
 # Validate docs.json itself
 if ! jq empty "${DOCS_JSON}" 2>/dev/null; then
 	echo "error: docs.json is not valid JSON: ${DOCS_JSON}" >&2

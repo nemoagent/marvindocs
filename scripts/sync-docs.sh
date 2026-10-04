@@ -16,7 +16,7 @@
 # Options:
 #   --all            re-download every slug listed in data/public/docs/docs.json
 #   --check          dry-run: show up-to-date / outdated / missing status only
-#   --force          ignore If-Modified-Since, always re-download
+#   --force          ignore catalog mtime, always re-download
 #   --no-index       do not run marvindocs index build when finished
 #   --list-remote    fetch devdocs.io catalog and print slug/name/version table
 #   --search-remote Q  filter the remote catalog by substring (case-insensitive)
@@ -120,7 +120,7 @@ while [ $# -gt 0 ]; do
 		shift 2
 		;;
 	--help | -h)
-		sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
+		sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
 		exit 0
 		;;
 	-*)

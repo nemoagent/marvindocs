@@ -4,9 +4,9 @@
 //
 //	GET  /                          list of indexed documents
 //	GET  /search?q=...&doc=...      search results (FTS5)
-//	GET  /docs/{slug}/              redirect to the doc's index page
+//	GET  /docs/{slug}/              render the doc's index page
 //	GET  /docs/{slug}/{path...}     render a single page
-//	GET  /static/{file}             embedded CSS
+//	GET  /static/{file}             embedded CSS and JS
 //
 // Rendering is server-side with html/template. Page bodies are the raw
 // HTML fragments from devdocs' db.json; we wrap them in a shell that
