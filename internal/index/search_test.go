@@ -428,3 +428,14 @@ func TestCompareVersions(t *testing.T) {
 		}
 	}
 }
+
+func TestChunkFTSQueryPrefix(t *testing.T) {
+	got := chunkFTSQuery(`wait for a group of goroutines`)
+	want := `"wait"* "for" "a" "group"* "of" "goroutines"*`
+	if got != want {
+		t.Errorf("chunkFTSQuery = %s, want %s", got, want)
+	}
+	if got := sanitizeFTSQuery(`a go`); got != `"a"* "go"*` {
+		t.Errorf("sanitizeFTSQuery = %s", got)
+	}
+}

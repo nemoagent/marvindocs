@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/piligrim/marvindocs/internal/docstore"
 )
@@ -666,7 +667,7 @@ func (i *Index) searchChunksAuto(ctx context.Context, query, docSlug string, pag
 // searchChunksIn runs the chunk FTS search, first requiring every word
 // (with prefix matching), then falling back to any-word matching.
 func (i *Index) searchChunksIn(ctx context.Context, query string, docSlugs []string, pages, perPage int) ([]chunkCand, error) {
-	q := sanitizeFTSQuery(query)
+	q := chunkFTSQuery(query)
 	if q == "" {
 		return nil, nil
 	}
@@ -842,6 +843,21 @@ type DocRow struct {
 // wrapped in double quotes with embedded quotes doubled; a trailing * is
 // appended to enable prefix matching. An empty input yields an empty
 // string (caller should treat as "no query").
+func sanitizeFTSQuery(q string) string {
+	return ftsQuery(q, 1)
+}
+
+// chunkMinPrefix is the shortest token that gets a prefix * in the
+// chunk search: over 5 M chunks a prefix on "a" or "in" touches most of
+// the index (8 s for "a"* on the full dump) while adding nothing.
+const chunkMinPrefix = 4
+
+// chunkFTSQuery is sanitizeFTSQuery for chunks_fts: tokens shorter than
+// chunkMinPrefix are matched exactly.
+func chunkFTSQuery(q string) string {
+	return ftsQuery(q, chunkMinPrefix)
+}
+
 // anyWordFTSQuery builds an OR query of exact (non-prefix) tokens for
 // the natural-language fallback: prefixes on short words like "a" or
 // "in" would match nearly everything.
@@ -854,7 +870,9 @@ func anyWordFTSQuery(q string) string {
 	return strings.Join(parts, " OR ")
 }
 
-func sanitizeFTSQuery(q string) string {
+// ftsQuery quotes every token of q and appends a prefix * to tokens of
+// at least minPrefix runes.
+func ftsQuery(q string, minPrefix int) string {
 	fields := strings.Fields(q)
 	if len(fields) == 0 {
 		return ""
@@ -865,7 +883,11 @@ func sanitizeFTSQuery(q string) string {
 		if escaped == "" {
 			continue
 		}
-		parts = append(parts, `"`+escaped+`"*`)
+		t := `"` + escaped + `"`
+		if utf8.RuneCountInString(f) >= minPrefix {
+			t += "*"
+		}
+		parts = append(parts, t)
 	}
 	return strings.Join(parts, " ")
 }
