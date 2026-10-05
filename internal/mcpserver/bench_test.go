@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/piligrim/marvindocs/internal/docstore"
@@ -65,10 +66,11 @@ func TestBenchCases(t *testing.T) {
 
 // TestBench measures get_docs retrieval quality on testdata/bench_cases.json.
 // It is skipped unless BENCH_INDEX and BENCH_DOCS point at an index and the
-// docs it was built from; BENCH_OLLAMA switches on the hybrid search:
+// docs it was built from; BENCH_OLLAMA switches on the hybrid search and
+// BENCH_WEIGHTS ("lex:title,lex:title,...") runs it once per weight pair:
 //
 //	BENCH_INDEX=marvindocs.db BENCH_DOCS=data/public/docs BENCH_OLLAMA=http://localhost:11434 \
-//	  go test -tags sqlite_fts5 -run TestBench -v ./internal/mcpserver/
+//	BENCH_WEIGHTS=0.5:0,0.5:0.5 go test -tags sqlite_fts5 -run TestBench -v ./internal/mcpserver/
 func TestBench(t *testing.T) {
 	ip, dp := os.Getenv("BENCH_INDEX"), os.Getenv("BENCH_DOCS")
 	if ip == "" || dp == "" {
@@ -85,12 +87,53 @@ func TestBench(t *testing.T) {
 	defer idx.Close()
 	d := Deps{Store: store, Index: idx, MDCache: mdcache.New(64)}
 	if u := os.Getenv("BENCH_OLLAMA"); u != "" {
-		d.Embedder = embed.NewOllama(u, "bge-m3")
+		d.Embedder = &cachingEmbedder{Embedder: embed.NewOllama(u, "bge-m3"), vecs: map[string][]float32{}}
 	}
+	cases := loadBenchCases(t)
+	weights := os.Getenv("BENCH_WEIGHTS")
+	if weights == "" {
+		runBench(t, d, cases)
+		return
+	}
+	for _, w := range strings.Split(weights, ",") {
+		var lex, title float64
+		if _, err := fmt.Sscanf(w, "%g:%g", &lex, &title); err != nil {
+			t.Fatalf("BENCH_WEIGHTS %q: %v", w, err)
+		}
+		index.SetFusionWeights(lex, title)
+		t.Logf("=== lexWeight=%g titleWeight=%g", lex, title)
+		runBench(t, d, cases)
+	}
+}
 
+// cachingEmbedder remembers each query vector so repeated bench runs in
+// one process hit Ollama once per query.
+type cachingEmbedder struct {
+	embed.Embedder
+	vecs map[string][]float32
+}
+
+func (c *cachingEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, error) {
+	out := make([][]float32, len(texts))
+	for n, s := range texts {
+		v, ok := c.vecs[s]
+		if !ok {
+			vs, err := c.Embedder.Embed(ctx, []string{s})
+			if err != nil {
+				return nil, err
+			}
+			v = vs[0]
+			c.vecs[s] = v
+		}
+		out[n] = v
+	}
+	return out, nil
+}
+
+func runBench(t *testing.T, d Deps, cases []benchCase) {
 	type tally struct{ n, hit1, hit3 int }
 	total := map[string]*tally{"all": {}, "lex": {}, "nl": {}}
-	for _, c := range loadBenchCases(t) {
+	for _, c := range cases {
 		frags, err := d.collectFragments(context.Background(), c.Q, c.Doc, 1<<30)
 		if err != nil {
 			t.Fatal(err)
