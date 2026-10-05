@@ -21,26 +21,62 @@ searches that doc in a hybrid way:
 
 1. The topic is embedded into one query vector (about 30-50 ms with ONNX
    int8 on CPU).
-2. The top chunks by cosine similarity (a brute-force scan over the
-   vectors of that one doc, cached in memory on first use) and the top
-   chunks by BM25 (the same lexical chunk search as `search_pages`) are
-   fused with Reciprocal Rank Fusion: k=60, lexical weight 0.5, vector
-   weight 1.
+2. Three ranked lists of chunks are fused with Reciprocal Rank Fusion
+   (k=60): the score of a chunk is the sum of `weight / (60 + rank)` over
+   the lists it appears in.
+
+   | Signal | Weight | Chunks |
+   |---|---|---|
+   | vector | 1 | Top chunks by cosine similarity (a brute-force scan over the vectors of that one doc, cached in memory on first use). |
+   | lexical | 0.5 | Top chunks by BM25 (the same lexical chunk search as `search_pages`). |
+   | entries | 0.25 | Pages whose entries (`index.json` symbols and page titles) match every word of the query, ranked by BM25; each page counts as its first chunk. |
+
+   The vector side leads because it handles paraphrases, the lexical side
+   rescues exact names, and the entries side favours the page named after
+   the topic.
 3. Pages are ranked by their best fused chunk.
 
 Docs without vectors, and the tools `search` and `search_pages`, keep the
 lexical BM25 search unchanged.
 
-Bench: 32 developer questions over 5 docs (postgresql, python, go,
-ansible, react), run against the fully embedded devdocs dump:
+## Bench
 
-| Method | hit@1 | hit@3 |
+The bench is the Go test `TestBench` in `internal/mcpserver/bench_test.go`
+over 96 cases in `internal/mcpserver/testdata/bench_cases.json`: 12 docs,
+36 keyword (`lex`) queries and 60 natural-language (`nl`) queries, each
+with an expected page. hit@1 / hit@3 is the number of queries where the
+expected page is the first / among the first three pages returned by
+`get_docs`.
+
+Results on the fully embedded devdocs dump, hybrid search with the weights
+above:
+
+| Queries | hit@1 | hit@3 |
 |---|---|---|
-| BM25 only | 25/32 | 28/32 |
-| Hybrid (RRF) | 28/32 | 30/32 |
+| all (96) | 63 | 81 |
+| keyword (36) | 31 | 35 |
+| natural language (60) | 32 | 46 |
 
-On a small index with only those 5 docs the same bench gave 25/29 for
-BM25, 24/28 for vectors alone and 30/31 for the hybrid.
+Without the entries signal (`titleWeight` 0) the result is 61/96 and
+80/96. `titleWeight` of 0.5 and higher starts to hurt natural-language
+queries; lexical weight 1 is slightly worse than 0.5.
+
+Run it:
+
+```bash
+BENCH_INDEX=marvindocs.db BENCH_DOCS=data/public/docs \
+BENCH_OLLAMA=http://localhost:11434 \
+go test -tags sqlite_fts5 -run 'TestBench$' -v ./internal/mcpserver/
+```
+
+- The test is skipped unless `BENCH_INDEX` and `BENCH_DOCS` are set.
+- `BENCH_OLLAMA` (Ollama with bge-m3) switches on the hybrid search;
+  without it the bench runs lexical-only.
+- `BENCH_WEIGHTS="lex:title,lex:title,..."` (e.g. `0.5:0,0.5:0.25`) runs
+  the bench once per weight pair.
+- The index must have vectors for the 12 bench docs: ansible, docker,
+  git, go, javascript, kubernetes, nginx, postgresql~17, python~3.13,
+  react, rust, typescript.
 
 ## Building vectors
 
