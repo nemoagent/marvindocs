@@ -184,16 +184,71 @@ func (i *Index) searchChunksVec(ctx context.Context, q []float32, docSlugs []str
 }
 
 // Rank fusion: a chunk scores 1/(rrfK+rank) for its vector rank plus
-// lexWeight/(rrfK+rank) for its lexical rank; a missing rank adds
-// nothing. The vector side leads because it handles paraphrases, the
-// lexical side rescues exact names. On the 32-query bench the plateau
-// is lexWeight 0.5..1 (hit@1 30/32 against 25/32 for either alone).
-const (
-	rrfK      = 60
-	lexWeight = 0.5
+// lexWeight/(rrfK+rank) for its lexical rank, plus titleWeight/(rrfK+rank)
+// for the rank of its page among the entries (index.json symbols and
+// page titles) matching the query; a missing rank adds nothing. The
+// vector side leads because it handles paraphrases, the lexical side
+// rescues exact names, the entries side favours the page named after
+// the topic. On the 96-query bench lexWeight 0.5 with titleWeight 0.25
+// gives hit@1 63/96, hit@3 82/96 (61/80 without the entries side;
+// titleWeight >= 0.5 starts hurting natural-language queries).
+const rrfK = 60
+
+var (
+	lexWeight   = 0.5
+	titleWeight = 0.25
 )
 
-// searchChunksHybrid fuses vector and lexical chunk ranks of docSlugs
+// SetFusionWeights overrides the lexical and entries weights of the
+// hybrid rank fusion; meant for benchmarks.
+func SetFusionWeights(lex, title float64) {
+	lexWeight, titleWeight = lex, title
+}
+
+// topEntryPages returns the pages of docSlugs whose entries match every
+// word of query, best bm25 first, each as a candidate for the page's
+// first chunk. No any-word fallback: on the bench it changed nothing.
+func (i *Index) topEntryPages(ctx context.Context, query string, docSlugs []string, n int) ([]chunkCand, error) {
+	q := sanitizeFTSQuery(query)
+	if q == "" || n <= 0 {
+		return nil, nil
+	}
+	placeholders := strings.Repeat("?,", len(docSlugs))
+	args := []any{q}
+	for _, s := range docSlugs {
+		args = append(args, s)
+	}
+	args = append(args, n*4, n)
+	// An entry path may carry a #fragment; strip it to reach the page.
+	rows, err := i.db.QueryContext(ctx, `
+		WITH m AS (
+			SELECT e.doc_slug,
+				CASE WHEN instr(e.path, '#') > 0 THEN substr(e.path, 1, instr(e.path, '#') - 1) ELSE e.path END AS ppath,
+				bm25(entries_fts, 2.0, 1.0) AS score
+			FROM entries_fts JOIN entries e ON e.id = entries_fts.rowid
+			WHERE entries_fts MATCH ? AND e.doc_slug IN (`+placeholders[:len(placeholders)-1]+`)
+			ORDER BY score LIMIT ?
+		)
+		SELECT p.id, p.doc_slug, p.path, c.off, c.len, MIN(m.score) AS score
+		FROM m JOIN pages p ON p.doc_slug = m.doc_slug AND p.path = m.ppath
+		JOIN chunks c ON c.id = (SELECT id FROM chunks WHERE page_id = p.id ORDER BY off LIMIT 1)
+		GROUP BY p.id ORDER BY score LIMIT ?`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("search entry pages: %w", err)
+	}
+	defer rows.Close()
+	var cands []chunkCand
+	for rows.Next() {
+		var c chunkCand
+		if err := rows.Scan(&c.pageID, &c.docSlug, &c.path, &c.off, &c.len, &c.score); err != nil {
+			return nil, err
+		}
+		cands = append(cands, c)
+	}
+	return cands, rows.Err()
+}
+
+// searchChunksHybrid fuses vector, lexical and entries ranks of docSlugs
 // and returns them like queryChunks. score is the negated fused score.
 func (i *Index) searchChunksHybrid(ctx context.Context, q []float32, query string, docSlugs []string, pages, perPage int) ([]chunkCand, error) {
 	k := pages * perPage * 4
@@ -206,6 +261,12 @@ func (i *Index) searchChunksHybrid(ctx context.Context, q []float32, query strin
 		return nil, err
 	}
 	sort.SliceStable(lex, func(a, b int) bool { return lex[a].score < lex[b].score })
+	var ent []chunkCand
+	if titleWeight > 0 {
+		if ent, err = i.topEntryPages(ctx, query, docSlugs, pages*4); err != nil {
+			return nil, err
+		}
+	}
 
 	type key struct {
 		pageID int64
@@ -232,6 +293,20 @@ func (i *Index) searchChunksHybrid(ctx context.Context, q []float32, query strin
 	}
 	for n, c := range lex {
 		add(c, n+1, lexWeight)
+	}
+	// A page rank boosts every fused chunk of the page; a page with none
+	// enters with its first chunk.
+	for n, c := range ent {
+		hit := false
+		for _, k := range order {
+			if k.pageID == c.pageID {
+				fused[k].score -= titleWeight / float64(rrfK+n+1)
+				hit = true
+			}
+		}
+		if !hit {
+			add(c, n+1, titleWeight)
+		}
 	}
 	cands := make([]chunkCand, 0, len(order))
 	for _, k := range order {
