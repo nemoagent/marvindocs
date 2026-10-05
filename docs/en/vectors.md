@@ -32,13 +32,15 @@ Docs without vectors, and the tools `search` and `search_pages`, keep the
 lexical BM25 search unchanged.
 
 Bench: 32 developer questions over 5 docs (postgresql, python, go,
-ansible, react):
+ansible, react), run against the fully embedded devdocs dump:
 
 | Method | hit@1 | hit@3 |
 |---|---|---|
-| BM25 only | 25/32 | 29/32 |
-| Vectors only | 24/32 | 28/32 |
-| Hybrid (RRF) | 30/32 | 31/32 |
+| BM25 only | 25/32 | 28/32 |
+| Hybrid (RRF) | 28/32 | 30/32 |
+
+On a small index with only those 5 docs the same bench gave 25/29 for
+BM25, 24/28 for vectors alone and 30/31 for the hybrid.
 
 ## Building vectors
 
@@ -66,7 +68,7 @@ Measured throughput:
 
 | Embedder | Speed | Notes |
 |---|---|---|
-| Ollama, bge-m3 on a GPU | ~110-130 chunks/s | The full devdocs dump (~5.2 M chunks) takes ~11 h and adds ~5 GB to the index (~1 KB per chunk). |
+| Ollama, bge-m3 on a GPU | ~110-130 chunks/s | The full devdocs dump (~5.2 M chunks) takes ~12 h and adds ~6.5 GB to the index (~1.3 KB per chunk); the full index ends up at ~9 GB. |
 | ONNX int8 on CPU | far slower | One text at a time; fine for a few docs, not for the full dump. |
 
 So Ollama on a GPU machine is the way to embed in bulk, and ONNX is the

@@ -271,4 +271,6 @@ Plan disk accordingly: the total depends on how many docs you keep. The
 size of marvindocs' own index also depends on the doc set; it tokenizes
 Markdown chunks of the page bodies (with a few bytes of offsets per
 chunk) but does not store the text, so it stays well below the combined
-`db.json` size.
+`db.json` size. For the full devdocs dump (~5.2 M chunks) the index is
+about 2.4 GB, or about 9 GB with chunk vectors (see
+[vectors.md](vectors.md)).
