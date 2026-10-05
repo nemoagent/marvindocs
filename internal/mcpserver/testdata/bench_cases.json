@@ -1,0 +1,790 @@
+[
+  {
+    "q": "jsonb containment operators",
+    "doc": "postgresql~17",
+    "pages": [
+      "functions-json",
+      "datatype-json"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "create index concurrently",
+    "doc": "postgresql~17",
+    "pages": [
+      "sql-createindex"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "window function",
+    "doc": "postgresql~17",
+    "pages": [
+      "tutorial-window",
+      "functions-window",
+      "sql-expressions"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "asyncio gather exceptions",
+    "doc": "python~3.13",
+    "pages": [
+      "library/asyncio-task"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "dataclass field default_factory",
+    "doc": "python~3.13",
+    "pages": [
+      "library/dataclasses"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "list comprehension",
+    "doc": "python~3.13",
+    "pages": [
+      "tutorial/datastructures"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "useEffect cleanup function",
+    "doc": "react",
+    "pages": [
+      "reference/react/useeffect",
+      "learn/synchronizing-with-effects"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "useState",
+    "doc": "react",
+    "pages": [
+      "reference/react/usestate"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "context WithTimeout",
+    "doc": "go",
+    "pages": [
+      "context/index"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "strings.Builder",
+    "doc": "go",
+    "pages": [
+      "strings/index"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "ansible copy module",
+    "doc": "ansible",
+    "pages": [
+      "collections/ansible/builtin/copy_module"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "ansible loop",
+    "doc": "ansible",
+    "pages": [
+      "playbook_guide/playbooks_loops"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "check whether one json document is inside another",
+    "doc": "postgresql~17",
+    "pages": [
+      "functions-json",
+      "datatype-json"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "add an index without blocking writes to the table",
+    "doc": "postgresql~17",
+    "pages": [
+      "sql-createindex"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "insert a row or update it if the key already exists",
+    "doc": "postgresql~17",
+    "pages": [
+      "sql-insert"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "keep only the first row for each group",
+    "doc": "postgresql~17",
+    "pages": [
+      "sql-select"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "join a subquery that references columns from the outer table",
+    "doc": "postgresql~17",
+    "pages": [
+      "queries-table-expressions",
+      "sql-select"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "run several coroutines at the same time and collect all results",
+    "doc": "python~3.13",
+    "pages": [
+      "library/asyncio-task"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "mutable default value for a dataclass attribute",
+    "doc": "python~3.13",
+    "pages": [
+      "library/dataclasses"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "format a datetime as a string",
+    "doc": "python~3.13",
+    "pages": [
+      "library/datetime"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "named capture groups in regular expressions",
+    "doc": "python~3.13",
+    "pages": [
+      "library/re",
+      "howto/regex"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "run code when a component is removed from the screen",
+    "doc": "react",
+    "pages": [
+      "reference/react/useeffect",
+      "learn/synchronizing-with-effects"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "pass data to deeply nested components without props",
+    "doc": "react",
+    "pages": [
+      "reference/react/usecontext",
+      "learn/passing-data-deeply-with-context"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "cache the result of an expensive calculation between renders",
+    "doc": "react",
+    "pages": [
+      "reference/react/usememo"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "cancel an operation after a deadline",
+    "doc": "go",
+    "pages": [
+      "context/index"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "efficiently build a string from many pieces",
+    "doc": "go",
+    "pages": [
+      "strings/index"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "read a whole file into memory",
+    "doc": "go",
+    "pages": [
+      "os/index",
+      "io/index"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "wait for a group of goroutines to finish",
+    "doc": "go",
+    "pages": [
+      "sync/index"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "upload a file to remote hosts",
+    "doc": "ansible",
+    "pages": [
+      "collections/ansible/builtin/copy_module"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "run a shell command only if a file does not exist yet",
+    "doc": "ansible",
+    "pages": [
+      "collections/ansible/builtin/command_module",
+      "collections/ansible/builtin/shell_module"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "repeat a task for every element of a list",
+    "doc": "ansible",
+    "pages": [
+      "playbook_guide/playbooks_loops"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "set environment variables for a task",
+    "doc": "ansible",
+    "pages": [
+      "playbook_guide/playbooks_environment"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "how do I pass environment variables from my shell into a container at runtime",
+    "doc": "docker",
+    "pages": [
+      "engine/reference/commandline/run/index",
+      "compose/environment-variables/index"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "make containers start in correct order with dependencies",
+    "doc": "docker",
+    "pages": [
+      "compose/startup-order/index"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "store sensitive data like passwords securely in swarm",
+    "doc": "docker",
+    "pages": [
+      "engine/swarm/secrets/index"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "allow non-root user to run docker commands without sudo",
+    "doc": "docker",
+    "pages": [
+      "engine/install/linux-postinstall/index"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "run docker daemon without root privileges for better security",
+    "doc": "docker",
+    "pages": [
+      "engine/security/rootless/index"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "Dockerfile reference",
+    "doc": "docker",
+    "pages": [
+      "engine/reference/builder/index"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "docker volume create",
+    "doc": "docker",
+    "pages": [
+      "engine/reference/commandline/volume_create/index"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "compose file build",
+    "doc": "docker",
+    "pages": [
+      "compose/compose-file/build/index",
+      "compose/compose-file/index"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "how do I temporarily save my uncommitted changes without making a commit",
+    "doc": "git",
+    "pages": [
+      "git-stash"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "undo the last commit but keep the changes in my working directory",
+    "doc": "git",
+    "pages": [
+      "git-reset"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "apply my feature branch commits on top of the latest main branch",
+    "doc": "git",
+    "pages": [
+      "git-rebase"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "find which commit introduced a bug using binary search",
+    "doc": "git",
+    "pages": [
+      "git-bisect"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "show who last modified each line of a file",
+    "doc": "git",
+    "pages": [
+      "git-blame"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "git cherry-pick",
+    "doc": "git",
+    "pages": [
+      "git-cherry-pick"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "interactive rebase",
+    "doc": "git",
+    "pages": [
+      "git-rebase"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "git reflog",
+    "doc": "git",
+    "pages": [
+      "git-reflog"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "how to transform each element in a collection to create a new collection",
+    "doc": "javascript",
+    "pages": [
+      "global_objects/array/map"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "prevent modifications to an object so properties cannot be added or changed",
+    "doc": "javascript",
+    "pages": [
+      "global_objects/object/freeze"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "safely access nested properties without throwing errors when intermediate values are null",
+    "doc": "javascript",
+    "pages": [
+      "operators/optional_chaining"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "write a function that can pause execution and resume later",
+    "doc": "javascript",
+    "pages": [
+      "statements/async_function",
+      "global_objects/promise"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "extract multiple values from an array or object into separate variables in one statement",
+    "doc": "javascript",
+    "pages": [
+      "operators/destructuring"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "Promise.all",
+    "doc": "javascript",
+    "pages": [
+      "global_objects/promise/all"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "array filter method",
+    "doc": "javascript",
+    "pages": [
+      "global_objects/array/filter"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "async await",
+    "doc": "javascript",
+    "pages": [
+      "statements/async_function"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "how do I schedule a task to run at specific times repeatedly",
+    "doc": "kubernetes",
+    "pages": [
+      "batch/cron-job-v1/index"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "expose my application to external traffic with load balancing and ssl",
+    "doc": "kubernetes",
+    "pages": [
+      "networking/ingress-v1/index"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "store configuration data separately from container images",
+    "doc": "kubernetes",
+    "pages": [
+      "core/config-map-v1/index"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "manage a stateless application with multiple replicas and rolling updates",
+    "doc": "kubernetes",
+    "pages": [
+      "apps/deployment-v1/index"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "run a task once to completion then stop automatically",
+    "doc": "kubernetes",
+    "pages": [
+      "batch/job-v1/index"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "Pod spec",
+    "doc": "kubernetes",
+    "pages": [
+      "core/pod-v1/index"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "Service selector",
+    "doc": "kubernetes",
+    "pages": [
+      "core/service-v1/index"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "Secret data",
+    "doc": "kubernetes",
+    "pages": [
+      "core/secret-v1/index"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "how to distribute incoming requests across multiple backend servers",
+    "doc": "nginx",
+    "pages": [
+      "http/load_balancing",
+      "http/ngx_http_upstream_module"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "forward client requests to a backend application server",
+    "doc": "nginx",
+    "pages": [
+      "http/ngx_http_proxy_module"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "redirect URLs and modify request URIs using patterns",
+    "doc": "nginx",
+    "pages": [
+      "http/ngx_http_rewrite_module"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "enable HTTPS and configure TLS certificates",
+    "doc": "nginx",
+    "pages": [
+      "http/ngx_http_ssl_module",
+      "http/configuring_https_servers"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "restrict access to my site by IP address",
+    "doc": "nginx",
+    "pages": [
+      "http/ngx_http_access_module"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "proxy_pass directive",
+    "doc": "nginx",
+    "pages": [
+      "http/ngx_http_proxy_module"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "server_name wildcard",
+    "doc": "nginx",
+    "pages": [
+      "http/ngx_http_core_module"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "upstream keepalive",
+    "doc": "nginx",
+    "pages": [
+      "http/ngx_http_upstream_module"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "how to parse and serialize data in JavaScript object notation format",
+    "doc": "python~3.13",
+    "pages": [
+      "library/json"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "work with file and directory paths in an object-oriented way without string manipulation",
+    "doc": "python~3.13",
+    "pages": [
+      "library/pathlib"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "run multiple tasks concurrently without using threads",
+    "doc": "python~3.13",
+    "pages": [
+      "library/asyncio"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "search text using patterns with wildcards and repetition",
+    "doc": "python~3.13",
+    "pages": [
+      "library/re"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "cache function results to avoid repeated expensive computations",
+    "doc": "python~3.13",
+    "pages": [
+      "library/functools"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "datetime strptime",
+    "doc": "python~3.13",
+    "pages": [
+      "library/datetime"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "collections Counter",
+    "doc": "python~3.13",
+    "pages": [
+      "library/collections"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "argparse ArgumentParser",
+    "doc": "python~3.13",
+    "pages": [
+      "library/argparse"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "how do I safely share data between threads without locks",
+    "doc": "rust",
+    "pages": [
+      "book/ch16-02-message-passing",
+      "std/sync/mpsc/index"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "what's the idiomatic way to propagate errors in a function chain",
+    "doc": "rust",
+    "pages": [
+      "book/ch09-02-recoverable-errors-with-result"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "how do I create a dynamic array that can grow at runtime",
+    "doc": "rust",
+    "pages": [
+      "book/ch08-01-vectors",
+      "std/vec/struct.vec"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "when does a value get cleaned up from memory automatically",
+    "doc": "rust",
+    "pages": [
+      "book/ch04-01-what-is-ownership"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "how can I write a function that works with multiple types",
+    "doc": "rust",
+    "pages": [
+      "book/ch10-02-traits"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "Arc smart pointer",
+    "doc": "rust",
+    "pages": [
+      "std/sync/struct.arc"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "HashMap insert",
+    "doc": "rust",
+    "pages": [
+      "std/collections/struct.hashmap"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "match expression",
+    "doc": "rust",
+    "pages": [
+      "book/ch06-02-match",
+      "reference/expressions/match-expr"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "how do I make a property that could be a string or null",
+    "doc": "typescript",
+    "pages": [
+      "docs/handbook/2/everyday-types"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "what's the best way to describe the shape of an object",
+    "doc": "typescript",
+    "pages": [
+      "docs/handbook/2/objects",
+      "docs/handbook/interfaces"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "how can I make a type that transforms another type's properties",
+    "doc": "typescript",
+    "pages": [
+      "docs/handbook/2/mapped-types"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "how do I check if a variable has a specific type at runtime",
+    "doc": "typescript",
+    "pages": [
+      "docs/handbook/2/narrowing"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "how can I create a function that accepts different parameter types",
+    "doc": "typescript",
+    "pages": [
+      "docs/handbook/2/functions"
+    ],
+    "kind": "nl"
+  },
+  {
+    "q": "Partial utility type",
+    "doc": "typescript",
+    "pages": [
+      "docs/handbook/utility-types"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "type guards",
+    "doc": "typescript",
+    "pages": [
+      "docs/handbook/2/narrowing"
+    ],
+    "kind": "lex"
+  },
+  {
+    "q": "keyof operator",
+    "doc": "typescript",
+    "pages": [
+      "docs/handbook/2/keyof-types"
+    ],
+    "kind": "lex"
+  }
+]
