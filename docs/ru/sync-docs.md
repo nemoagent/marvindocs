@@ -83,10 +83,13 @@ devdocs.io публикует единый каталог `https://devdocs.io/do
   (`touch -d @<remote_ts>`);
 - для slug'а, которого нет в каталоге, отправляет один `HEAD`-запрос
   на `downloads.devdocs.io` и использует заголовок `Last-Modified`;
-  если и это не удалось — `FAIL ... (not found)`;
+  если и это не удалось, но локальная метка есть — это дока, собранная
+  парсером (`parsers/registry.json`): печатает `LOCAL ... (parser-built,
+  skipped)` и не трогает её; если метки нет — `FAIL ... (not found)`;
 - `--force` отключает сравнение — всегда качать заново;
 - `--check` только печатает таблицу статусов (`up-to-date`, `OUTDATED`,
-  `MISSING`, `ERROR (no remote)`) и выходит, ничего не скачивая.
+  `MISSING`, `LOCAL (parser-built)`, `ERROR (no remote)`) и выходит,
+  ничего не скачивая.
 
 Парсеры из `parsers/` пишут ту же метку `.last-modified`, поэтому
 сгенерированные локально документы укладываются в ту же структуру.

@@ -32,6 +32,10 @@
 # (data/public/docs/<slug>/.last-modified). Equal mtimes -> SKIP
 # without any network roundtrip. One GET replaces N HEAD requests,
 # which used to dominate runtime for `--check` and large slug lists.
+#
+# Slugs that are neither in the catalog nor on downloads.devdocs.io but
+# have a local stamp are parser-built docs (parsers/registry.json): they
+# are reported as LOCAL and left untouched.
 
 set -euo pipefail
 
@@ -289,11 +293,15 @@ if [ "$CHECK_ONLY" = true ]; then
 	n_up=0
 	n_out=0
 	n_miss=0
+	n_local=0
 	n_err=0
 	for slug in "${SLUGS[@]}"; do
 		lm=$(local_mtime "$slug")
 		rm=$(remote_mtime "$slug")
-		if [ -z "$rm" ]; then
+		if [ -z "$rm" ] && [ -n "$lm" ]; then
+			status="LOCAL (parser-built)"
+			n_local=$((n_local + 1))
+		elif [ -z "$rm" ]; then
 			status="ERROR (no remote)"
 			n_err=$((n_err + 1))
 		elif [ -z "$lm" ]; then
@@ -309,7 +317,7 @@ if [ "$CHECK_ONLY" = true ]; then
 		printf '%-22s %-14s %-14s  %s\n' "$slug" "${lm:--}" "${rm:--}" "$status"
 	done
 	echo ""
-	echo "summary: $n_up up-to-date, $n_out outdated, $n_miss missing, $n_err errors"
+	echo "summary: $n_up up-to-date, $n_out outdated, $n_miss missing, $n_local local, $n_err errors"
 	exit 0
 fi
 
@@ -336,7 +344,13 @@ download_slug() {
 		fi
 	fi
 	if [ -z "$remote_ts" ]; then
-		echo "  FAIL    $slug (not found)"
+		# Not on devdocs.io at all. A local stamp means the doc was
+		# produced by one of the parsers (parsers/registry.json): keep it.
+		if [ -f "$stamp" ]; then
+			echo "  LOCAL   $slug (parser-built, skipped)"
+		else
+			echo "  FAIL    $slug (not found)"
+		fi
 		return
 	fi
 

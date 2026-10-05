@@ -83,10 +83,14 @@ each run the script:
   (`touch -d @<remote_ts>`);
 - for a slug missing from the catalog it sends a single `HEAD` request
   to `downloads.devdocs.io` and uses the `Last-Modified` header; if
-  that fails too the slug is reported as `FAIL ... (not found)`;
+  that fails too but a local stamp exists, the doc was produced by a
+  parser (`parsers/registry.json`): it is reported as `LOCAL ...
+  (parser-built, skipped)` and left untouched; with no stamp the slug is
+  reported as `FAIL ... (not found)`;
 - `--force` bypasses the comparison and always re-downloads;
 - `--check` only prints the status table (`up-to-date`, `OUTDATED`,
-  `MISSING`, `ERROR (no remote)`) and exits without downloading.
+  `MISSING`, `LOCAL (parser-built)`, `ERROR (no remote)`) and exits
+  without downloading.
 
 Parsers from `parsers/` write the same `.last-modified` stamp, so
 locally generated docs fit into the same layout.
