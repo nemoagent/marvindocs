@@ -127,17 +127,31 @@ resolve_cmd() {
 
 	idx="$(jq -r --arg s "${slug}" '.parsers | map(.versions == null and .slug == $s) | index(true) // empty' "${REGISTRY}")"
 	if [[ -z "${idx}" ]]; then
+		# Several templates may share a slug pattern (e.g. laravel~{v} with
+		# different args per version range): a template listing the version
+		# wins, otherwise the first pattern match is used.
+		local fallback_idx="" fallback_v=""
 		while IFS=$'\t' read -r i tmpl; do
 			prefix="${tmpl%%"{v}"*}"
 			suffix="${tmpl#*"{v}"}"
 			if [[ "${slug}" == "${prefix}"?*"${suffix}" ]]; then
 				v="${slug#"${prefix}"}"
 				v="${v%"${suffix}"}"
-				idx="${i}"
-				TMPL_IDX="${i}"
-				break
+				if jq -e --argjson i "${i}" --arg v "${v}" '.parsers[$i].versions | index($v) != null' "${REGISTRY}" >/dev/null; then
+					idx="${i}"
+					break
+				fi
+				if [[ -z "${fallback_idx}" ]]; then
+					fallback_idx="${i}"
+					fallback_v="${v}"
+				fi
 			fi
 		done < <(jq -r '.parsers | to_entries[] | select(.value.versions) | "\(.key)\t\(.value.slug)"' "${REGISTRY}")
+		if [[ -z "${idx}" && -n "${fallback_idx}" ]]; then
+			idx="${fallback_idx}"
+			v="${fallback_v}"
+		fi
+		TMPL_IDX="${idx}"
 	fi
 	if [[ -z "${idx}" ]]; then
 		echo "error: slug '${slug}' not found in ${REGISTRY}" >&2

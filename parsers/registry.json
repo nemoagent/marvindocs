@@ -4,8 +4,15 @@
       "parser": "laravel",
       "slug": "laravel~{v}",
       "args": ["--version", "{v}"],
-      "versions": ["4.0", "4.1", "4.2", "5.0", "5.1", "5.2", "5.3", "5.4", "5.5", "5.6", "5.7", "5.8", "6", "7", "8", "9", "10", "11", "12", "13"],
-      "description": "Laravel docs from github.com/laravel/docs (branch {v} / {v}.x)"
+      "versions": ["4.0", "4.1", "4.2", "5.0", "5.1", "5.2", "5.3", "5.4", "5.5", "5.6", "5.7", "5.8"],
+      "description": "Laravel docs from github.com/laravel/docs (branch {v})"
+    },
+    {
+      "parser": "laravel",
+      "slug": "laravel~{v}",
+      "args": ["--version", "{v}.x"],
+      "versions": ["6", "7", "8", "9", "10", "11", "12", "13"],
+      "description": "Laravel docs from github.com/laravel/docs (branch {v}.x)"
     },
     {
       "parser": "go-dev",
@@ -31,7 +38,7 @@
       "parser": "mongodb",
       "slug": "mongodb~{v}",
       "args": ["--version", "v{v}"],
-      "versions": ["6.0", "7.0", "8.0"],
+      "versions": ["7.0", "8.0"],
       "description": "MongoDB {v} Manual from github.com/mongodb/docs"
     }
   ]
