@@ -60,17 +60,41 @@ Loopback-привязка токена не требует.
 | `MARVINDOCS_INSECURE` | `1` | не задана | То же, что `--insecure`: разрешить не-loopback `--http` без токена. |
 | `MARVINDOCS_LOG_LEVEL` | `debug`, `info`, `warn`, `error` | `info` | Уровень логирования. |
 | `MARVINDOCS_LOG_FORMAT` | `text`, `json` | `text` | Формат логов. Логи пишутся в stderr. |
+| `MARVINDOCS_EMBEDDER` | `none`, `ollama`, `onnx` | `onnx` для `index embed`, `none` для `serve` | Значение `--embedder` по умолчанию. |
+| `MARVINDOCS_OLLAMA_URL` | URL | `http://localhost:11434` | Значение `--ollama-url` по умолчанию. |
+| `MARVINDOCS_OLLAMA_MODEL` | имя модели | `bge-m3` | Значение `--ollama-model` по умолчанию. |
+| `MARVINDOCS_MODEL_DIR` | путь | `data/onnx/model` | Значение `--model-dir` по умолчанию. |
+| `MARVINDOCS_ONNXRUNTIME` | путь | `data/onnx/lib/libonnxruntime.so` | Значение `--onnxruntime` по умолчанию. |
+
+Переменные эмбеддера бинарь читает как значения флагов по умолчанию;
+явно заданный флаг всегда приоритетнее.
+
+### Файл `.env`
+
+Сам бинарь `.env` не читает. `scripts/update.sh` (а значит, `make update`
+и `make embed`) подключает `.env` из корня репозитория и экспортирует его,
+так что значения `MARVINDOCS_*` доходят до бинаря. `.env` в git-игноре;
+скопируйте шаблон `.env.example` и раскомментируйте нужное:
+
+```bash
+cp .env.example .env
+# MARVINDOCS_EMBEDDER=ollama
+# MARVINDOCS_OLLAMA_URL=http://gpu-host:11434
+```
+
+`docker compose` тоже читает `.env` (см. [Docker](#docker)).
 
 ## Флаги только для `index build`
 
 | Флаг | Значение по умолчанию | Описание |
 |---|---|---|
-| `--full` | `false` | Принудительная полная пересборка вместо инкрементальной синхронизации по умолчанию (переиндексируются только изменившиеся документы). |
+| `--full` | `false` | Принудительная полная пересборка вместо инкрементальной синхронизации по умолчанию (переиндексируются только изменившиеся документы). Отказывается работать, если в индексе есть эмбеддинги чанков, без `--drop-vectors`. |
+| `--drop-vectors` | `false` | Вместе с `--full`: подтверждает удаление всех эмбеддингов чанков. |
 
 ## Флаги только для `index embed`
 
-`index embed` принимает `--doc`, `--embedder` (по умолчанию `ollama`),
-`--batch` и те же `--ollama-*`, `--model-dir` и `--onnxruntime`, что и
+`index embed` принимает `--doc`, `--embedder` (по умолчанию `onnx` или
+`MARVINDOCS_EMBEDDER`), `--batch` и те же `--ollama-*`, `--model-dir` и `--onnxruntime`, что и
 `serve`. См. [Векторный поиск](vectors.md).
 
 ## Конфигурация времени сборки
@@ -111,12 +135,13 @@ FTS5 отсутствует и индекс не откроется). Бинар
 | `onnx-fetch` | Запускает `scripts/fetch-onnx.sh`: скачивает библиотеки ONNX и модель bge-m3 в `data/onnx/`. |
 | `build-onnx` | `onnx-fetch`, затем собирает `./bin/marvindocs` с `-tags "sqlite_fts5 onnx"` и `CGO_LDFLAGS=-L/src/data/onnx/lib`. |
 | `run-onnx` | `build-onnx`, затем `serve --http :3333 --embedder onnx --model-dir data/onnx/model --onnxruntime data/onnx/lib/libonnxruntime.so`. |
-| `embed` | `index embed --embedder ollama --ollama-url $(OLLAMA_URL)`. |
-| `clean` | Удаляет `bin`, `.gocache`, `.gomodcache` и `marvindocs.db*`. |
+| `embed` | `scripts/update.sh --embed-only`: запускает `index embed` с эмбеддером из `.env` (`MARVINDOCS_EMBEDDER`, по умолчанию `onnx`). |
+| `update` | `scripts/update.sh`: синхронизация devdocs, парсеры, инкрементальный `index build`, `index embed`. См. [Синхронизацию данных](sync-docs.md#обновление-одной-командой). |
+| `clean` | Удаляет `bin`, `.gocache`, `.gomodcache`. Индекс `marvindocs.db*` остаётся. |
+| `clean-index` | Удаляет `marvindocs.db*`, включая все эмбеддинги чанков. |
 
-Переменные для ONNX-целей: `ONNX_DIR = data/onnx` и `OLLAMA_URL` (по
-умолчанию `http://localhost:11434`; переопределяется так:
-`make embed OLLAMA_URL=http://host:11434`). См.
+Переменная для ONNX-целей: `ONNX_DIR = data/onnx`. Эмбеддер для
+`make embed` / `make update` настраивается в `.env`. См.
 [Векторный поиск](vectors.md).
 
 ## Docker

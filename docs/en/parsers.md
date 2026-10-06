@@ -21,6 +21,11 @@ For a slug `<slug>`, a parser produces in `data/public/docs/<slug>/`:
 | `db.json` | `{<path>: "<html fragment>", ...}` — body fragments only, no `<html>`/`<head>`. |
 | `.last-modified` | Empty file whose mtime equals `meta.json.mtime`; used by `sync-docs.sh`. |
 
+`scripts/run-parser.sh` additionally writes a `.parser` marker (the parser
+name) into the output directory after every successful run. `sync-docs.sh`
+reports such directories as `LOCAL` and never overwrites them, even with
+`--force`.
+
 Marvindocs reads these files via `internal/docstore`, the same code
 path that handles upstream DevDocs dumps.
 
@@ -45,8 +50,13 @@ make parsers                                          # all parsers
     --out data/public/docs/laravel~12 --force
 
 # 3. Re-index. The new doc joins the rest.
-./bin/marvindocs index build --full
+./bin/marvindocs index build
 ```
+
+`index build` is incremental and keeps existing embeddings. Do not use
+`index build --full` here: it refuses to run on an index with vectors,
+and `--full --drop-vectors` discards all of them (re-embedding takes
+hours).
 
 After step 3 the doc is searchable through the web UI and MCP tools
 (`list_docs`, `search`, `get_page`).
@@ -59,15 +69,29 @@ image, so no local Go toolchain is needed.
 ## Running registered parsers
 
 `parsers/registry.json` lists the docs that can be generated with a
-parser (slug, parser name, fixed arguments, description).
+parser. The top-level key is `parsers`; each entry has a parser name, a
+slug, fixed arguments and a description.
 `scripts/run-parser.sh` reads it and runs the matching
 `bin/<parser>-parser` binary with `--out <docs-path>/<slug>` and
-`--force`:
+`--force`.
+
+An entry with `"versions"` is a template: its slug contains `{v}`
+(`laravel~{v}`, `go-dev~{v}`, `go-std~{v}`, `mongodb~{v}`) and `{v}` in
+`args` is replaced by the version. Fixed entries such as `go-dev` have no
+`versions`. Any version matching a template is accepted, even if it is not
+listed yet:
+
+```bash
+./scripts/run-parser.sh go-std~1.26         # works although 1.26 is not in the registry
+```
+
+After a successful run of a version that is not listed, it is appended to
+`versions` in `parsers/registry.json`.
 
 ```bash
 ./scripts/run-parser.sh --list              # slug | parser | description
 ./scripts/run-parser.sh laravel~12          # run one slug
-./scripts/run-parser.sh --all               # run every slug from the registry
+./scripts/run-parser.sh --all               # run every slug from the registry (continues past failures)
 ./scripts/run-parser.sh --check laravel~12  # print the resolved command, don't run
 ```
 
@@ -75,6 +99,10 @@ parser (slug, parser name, fixed arguments, description).
 |---|---|
 | `--no-force` | Don't pass `--force` to the parser. |
 | `--docs-path DIR` | Output root (default `data/public/docs`). |
+
+`--all` does not stop at the first failure: it runs every slug, prints
+`summary: N ok, M failed` and the list of failed slugs, and exits with `1`
+if any failed.
 
 Requires `jq`. Exit codes: `0` OK, `1` parser failed, `2` usage error,
 unknown slug, missing `jq`/registry or missing parser binary (run

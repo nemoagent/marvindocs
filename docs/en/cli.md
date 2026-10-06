@@ -22,17 +22,19 @@ Updates the SQLite FTS5 index from the devdocs dump. By default the
 build is **incremental**: docs whose `mtime` (from `meta.json`) hasn't
 changed are skipped, and docs that disappeared from the dump are
 removed. The first run on an empty index file is equivalent to a full
-build.
+build. Chunk embeddings of unchanged docs are kept (see
+[Vector search](vectors.md)).
 
 ```bash
-marvindocs index build [--docs-path DIR] [--index-path FILE] [--full]
+marvindocs index build [--docs-path DIR] [--index-path FILE] [--full [--drop-vectors]]
 ```
 
 | Flag | Default | Notes |
 |---|---|---|
 | `--docs-path` | `data/public/docs` | Must contain `docs.json` and `<slug>/{index,db}.json`. |
 | `--index-path` | `marvindocs.db` | Output SQLite file. Updated in place. |
-| `--full` | `false` | Force a full rebuild (drop everything and reinsert). Useful after schema changes. |
+| `--full` | `false` | Force a full rebuild (drop everything and reinsert). Destructive: refuses to run when the index contains chunk embeddings unless `--drop-vectors` is also given. |
+| `--drop-vectors` | `false` | With `--full`: confirm discarding all chunk embeddings (`chunk_vecs`). Re-embedding the whole dump takes hours. |
 
 After a successful build the index is compacted: FTS5 segments are
 merged and, if more than 10% of the file is free pages, `VACUUM` is run
@@ -40,6 +42,11 @@ and the WAL is checkpointed. Deleted docs and `--full` rebuilds otherwise
 leave the file at its peak size. A
 compaction is logged as `index compacted reclaimed_mb=N`; when there is
 nothing to reclaim it is skipped. Expect roughly 30 s per 4 GB.
+
+Plain `index build` is the recommended path: it is incremental and keeps
+vectors. `--full` on an index that has vectors fails with an error like
+`--full would discard N chunk embeddings ...`; add `--drop-vectors` only
+when you really want to throw them away.
 
 Exit codes: `0` on success, `1` on any error (data not found, SQLite
 write failure, etc.), `2` on usage error.
@@ -52,16 +59,21 @@ write failure, etc.), `2` on usage error.
 
 ## `marvindocs index embed`
 
-Computes chunk embeddings into the index (Ollama or local ONNX). Only
+Computes chunk embeddings into the index (local ONNX by default, or
+Ollama). Only
 chunks without a vector are embedded, so it is resumable. The vectors are
 used by the hybrid search in `get_docs` when `serve` runs with
 `--embedder`. After `index build` only the changed docs need re-embedding;
-`index build --full` drops all vectors. See [Vector search](vectors.md) for
+`index build --full --drop-vectors` drops all vectors. See [Vector search](vectors.md) for
 all flags.
 
 ```bash
 marvindocs index embed [--doc SLUG]... [--embedder ollama|onnx] [--batch N]
 ```
+
+`--embedder` defaults to `onnx` (local CPU, slow: hours for the whole
+dump); the embedder flags default to the `MARVINDOCS_*` environment
+variables, see [Configuration](configuration.md#environment-variables).
 
 ## `marvindocs index stats`
 

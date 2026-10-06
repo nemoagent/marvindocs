@@ -56,5 +56,8 @@ go build -o ../../bin/go-std-parser .
 After generation:
 
 ```bash
-./bin/marvindocs index build --full
+./bin/marvindocs index build
 ```
+
+The build is incremental and keeps existing embeddings; avoid `index build --full`
+(it needs `--drop-vectors` on an index with vectors and discards them all).

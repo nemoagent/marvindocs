@@ -45,6 +45,10 @@ By default `sync-docs.sh` also runs `index build` when it finishes (skip with
 `--no-index`). Page bodies are indexed too, so `search_pages` works out of
 the box.
 
+To refresh everything later (devdocs sync, parsers, incremental index,
+embeddings) run `make update`; it never drops existing embeddings. See
+[docs/en/sync-docs.md](docs/en/sync-docs.md#one-command-update).
+
 ### Download specific docs or everything
 
 ```bash
@@ -133,8 +137,9 @@ Verify the server with the bundled smoke test (needs `curl` + `jq`):
 ## CLI reference
 
 ```
-marvindocs index build   [--docs-path DIR] [--index-path FILE] [--full]
-                                                                # incremental sync by default; --full rebuilds
+marvindocs index build   [--docs-path DIR] [--index-path FILE] [--full [--drop-vectors]]
+                                                                # incremental sync by default (keeps vectors);
+                                                                # --full rebuilds and needs --drop-vectors if vectors exist
 marvindocs index stats   [--index-path FILE] [--by-doc] [--top N]  # show counts
 marvindocs index embed   [--doc SLUG]... [--embedder ollama|onnx] [--batch N]
                                                                 # chunk embeddings, see docs/en/vectors.md
@@ -162,6 +167,12 @@ Page bodies are indexed as well (needed for `search_pages` and
 | `MARVINDOCS_INSECURE` | `1` | allow a public `--http` bind without a token (same as `--insecure`); otherwise `serve` refuses to start |
 | `MARVINDOCS_LOG_LEVEL` | `debug`, `info`, `warn`, `error` | `info` |
 | `MARVINDOCS_LOG_FORMAT` | `text`, `json` | `text` |
+| `MARVINDOCS_EMBEDDER` | `none`, `ollama`, `onnx` | default of `--embedder` (`onnx` for `index embed`, `none` for `serve`) |
+| `MARVINDOCS_OLLAMA_URL`, `MARVINDOCS_OLLAMA_MODEL` | URL, model name | `http://localhost:11434`, `bge-m3` |
+| `MARVINDOCS_MODEL_DIR`, `MARVINDOCS_ONNXRUNTIME` | paths | `data/onnx/model`, `data/onnx/lib/libonnxruntime.so` |
+
+The embedder variables are flag defaults (flags win). `scripts/update.sh` loads
+them from a git-ignored `.env`; copy the template `.env.example`.
 
 ### Docker
 

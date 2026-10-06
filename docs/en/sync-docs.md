@@ -87,6 +87,10 @@ each run the script:
   parser (`parsers/registry.json`): it is reported as `LOCAL ...
   (parser-built, skipped)` and left untouched; with no stamp the slug is
   reported as `FAIL ... (not found)`;
+- a directory with a `.parser` marker (written by `run-parser.sh` after
+  every successful parser run, see [Parsers](parsers.md)) is always
+  reported as `LOCAL` and never overwritten, even with `--force` and even
+  if devdocs.io has the same slug (e.g. `laravel~11`);
 - `--force` bypasses the comparison and always re-downloads;
 - `--check` only prints the status table (`up-to-date`, `OUTDATED`,
   `MISSING`, `LOCAL (parser-built)`, `ERROR (no remote)`) and exits
@@ -114,7 +118,47 @@ a `HEAD` only for slugs absent from the catalog.
    inside every slug directory (pure bash, no Python) — only if at
    least one slug was updated or `docs.json` is missing; otherwise the
    existing file is kept.
-4. *(Unless `--no-index`)* Runs `./bin/marvindocs index build`.
+4. *(Unless `--no-index`)* Runs `./bin/marvindocs index build`
+   (incremental, keeps chunk embeddings).
+
+## Incremental index sync
+
+`index build` decides per doc what to do:
+
+- `mtime` unchanged: the doc is skipped.
+- `mtime` changed but the content did not: only the stored `mtime` is
+  updated and the doc's vectors are kept. The content hash is a sha256 of
+  `db.json` + `index.json`, stored in `docs.content_hash`. This is the
+  typical case after re-running a parser, which rewrites the files with
+  identical content.
+- Content changed: the doc is re-indexed and its old vectors are deleted;
+  `index embed` embeds it again.
+
+An index made by an older version gets the `content_hash` column added
+automatically, and the hashes are backfilled on the first `index build`.
+See [Vector search](vectors.md#keeping-vectors-up-to-date).
+
+## One-command update
+
+`make update` (same as `scripts/update.sh`) refreshes everything:
+
+1. `sync-docs.sh --all --no-index` - devdocs.io docs;
+2. `run-parser.sh --all` - parser-built docs (skipped when no
+   `bin/*-parser` binaries exist);
+3. `marvindocs index build` - incremental;
+4. `marvindocs index embed` - vectors for chunks that have none.
+
+It never drops the index or its vectors. Embedder settings come from `.env`
+(see [Configuration](configuration.md#env-file)). The default embedder is
+local ONNX on CPU, which is slow (hours for the whole dump); the script
+prints a warning about it and how to switch to Ollama via `.env`.
+
+| Option | Meaning |
+|---|---|
+| `--no-parsers` | Skip step 2 (no Docker/GitHub needed). |
+| `--no-embed` | Skip step 4. |
+| `--embed-only` | Only step 4 (this is what `make embed` runs). |
+| `--index-only` | Only steps 3-4. |
 
 ## Built-in popular set
 

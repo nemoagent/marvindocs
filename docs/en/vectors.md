@@ -92,13 +92,22 @@ marvindocs index embed                     # every doc in the index
 | Flag | Default | Notes |
 |---|---|---|
 | `--doc` | all docs | Doc slug; may be repeated. |
-| `--embedder` | `ollama` | `ollama` or `onnx`. |
+| `--embedder` | `onnx` | `ollama` or `onnx`. |
 | `--ollama-url` | `http://localhost:11434` | Ollama base URL. |
 | `--ollama-model` | `bge-m3` | Ollama model name. |
-| `--model-dir` | | onnx: directory with `model_int8.onnx` and `tokenizer.json`. |
-| `--onnxruntime` | | onnx: path to `libonnxruntime.so`. |
+| `--model-dir` | `data/onnx/model` | onnx: directory with `model_int8.onnx` and `tokenizer.json`. |
+| `--onnxruntime` | `data/onnx/lib/libonnxruntime.so` | onnx: path to `libonnxruntime.so`. |
 | `--batch` | 64 | Chunks per embedder call and per transaction. |
 | `--docs-path`, `--index-path` | as in `index build` | |
+
+The embedder defaults come from environment variables, which flags
+override: `MARVINDOCS_EMBEDDER` (`none`, `ollama`, `onnx`),
+`MARVINDOCS_OLLAMA_URL`, `MARVINDOCS_OLLAMA_MODEL`, `MARVINDOCS_MODEL_DIR`
+and `MARVINDOCS_ONNXRUNTIME`. `scripts/update.sh` loads them from a
+git-ignored `.env` (template: `.env.example`); see
+[Configuration](configuration.md#environment-variables). `index embed`
+defaults to `onnx` (local CPU, slow: hours for the whole dump), while
+`serve` still defaults to `none`.
 
 Measured throughput:
 
@@ -193,15 +202,29 @@ CGO_LDFLAGS="-L$PWD/lib" go build -tags "sqlite_fts5 onnx" -o marvindocs ./cmd/m
 ## Keeping vectors up to date
 
 `marvindocs index build` (incremental sync by default) re-indexes only new
-or changed docs, detected by the mtime of the doc files, and deletes their
-rows including vectors. Unchanged docs keep their vectors.
+or changed docs and deletes their rows including vectors. Unchanged docs
+keep their vectors.
+
+A doc counts as changed by its content, not only by mtime: the index stores
+a sha256 of `db.json` + `index.json` in `docs.content_hash`. If the mtime
+changed but the content did not (typical after re-running a parser), only
+the mtime is updated and the vectors are kept. If the content changed, the
+doc is rebuilt and `index embed` embeds it again. An index from an older
+version gets the column added automatically and the hashes backfilled on
+the first `index build`.
 
 `index embed` embeds only chunks without a vector, so after every
 `index build` run `index embed` (or `make embed`) again: only the changed
 docs are embedded.
 
 `index build --full` drops everything, vectors included, so a full
-re-embed is needed (~11 h for the full dump).
+re-embed is needed (~11 h for the full dump). To prevent accidents it
+refuses to run when the index contains vectors and prints an error; add
+`--drop-vectors` to confirm. Use plain `index build` instead.
+
+`make update` (`scripts/update.sh`) does the whole cycle without ever
+dropping vectors: sync, parsers, incremental `index build`, `index embed`.
+See [Syncing the documentation data](sync-docs.md#one-command-update).
 
 A doc with a mix of embedded and not-yet-embedded chunks is treated by
 `get_docs` as having vectors. Run `index embed` to completion before
@@ -212,13 +235,18 @@ relying on hybrid results for that doc.
 ```bash
 scripts/sync-docs.sh     # download the docs
 make index               # build the index
-make embed               # needs Ollama with bge-m3; hours for the full dump
+make embed               # embed chunks; hours for the full dump
 make run-onnx            # serve with the ONNX embedder
 ```
 
-`make embed` runs `index embed --embedder ollama --ollama-url $(OLLAMA_URL)`;
-the default is `http://localhost:11434`, override it with
-`make embed OLLAMA_URL=http://host:11434`.
+`make embed` runs `scripts/update.sh --embed-only`, i.e. `index embed` with
+the embedder from `.env`. The default is local ONNX; to use an Ollama
+server with bge-m3 (much faster on a GPU) put this into `.env`:
+
+```bash
+MARVINDOCS_EMBEDDER=ollama
+MARVINDOCS_OLLAMA_URL=http://host:11434
+```
 
 Instead of re-embedding, you can copy the index file `marvindocs.db` with
 the vectors to the other machine.

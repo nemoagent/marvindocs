@@ -94,13 +94,22 @@ marvindocs index embed                     # все доки индекса
 | Флаг | По умолчанию | Примечания |
 |---|---|---|
 | `--doc` | все доки | Slug доки; можно повторять. |
-| `--embedder` | `ollama` | `ollama` или `onnx`. |
+| `--embedder` | `onnx` | `ollama` или `onnx`. |
 | `--ollama-url` | `http://localhost:11434` | Базовый URL Ollama. |
 | `--ollama-model` | `bge-m3` | Имя модели в Ollama. |
-| `--model-dir` | | onnx: каталог с `model_int8.onnx` и `tokenizer.json`. |
-| `--onnxruntime` | | onnx: путь к `libonnxruntime.so`. |
+| `--model-dir` | `data/onnx/model` | onnx: каталог с `model_int8.onnx` и `tokenizer.json`. |
+| `--onnxruntime` | `data/onnx/lib/libonnxruntime.so` | onnx: путь к `libonnxruntime.so`. |
 | `--batch` | 64 | Чанков на вызов эмбеддера и на транзакцию. |
 | `--docs-path`, `--index-path` | как у `index build` | |
+
+Значения по умолчанию берутся из переменных окружения, флаги их
+переопределяют: `MARVINDOCS_EMBEDDER` (`none`, `ollama`, `onnx`),
+`MARVINDOCS_OLLAMA_URL`, `MARVINDOCS_OLLAMA_MODEL`, `MARVINDOCS_MODEL_DIR` и
+`MARVINDOCS_ONNXRUNTIME`. `scripts/update.sh` загружает их из `.env`
+(в git-игноре; шаблон - `.env.example`); см.
+[Конфигурацию](configuration.md#переменные-окружения). `index embed` по
+умолчанию использует `onnx` (локально на CPU, медленно: для всего дампа
+часы), а `serve` по-прежнему по умолчанию `none`.
 
 Измеренная скорость:
 
@@ -195,16 +204,30 @@ CGO_LDFLAGS="-L$PWD/lib" go build -tags "sqlite_fts5 onnx" -o marvindocs ./cmd/m
 ## Обновление векторов
 
 `marvindocs index build` (по умолчанию инкрементальная синхронизация)
-переиндексирует только новые или изменённые доки, определяя это по mtime
-файлов доки, и удаляет их строки вместе с векторами. У неизменённых док
-векторы сохраняются.
+переиндексирует только новые или изменённые доки и удаляет их строки
+вместе с векторами. У неизменённых док векторы сохраняются.
+
+Изменение определяется по содержимому, а не только по mtime: индекс хранит
+sha256 от `db.json` + `index.json` в `docs.content_hash`. Если mtime
+изменился, а содержимое нет (типично после повторного запуска парсера),
+обновляется только mtime, векторы сохраняются. Если содержимое изменилось,
+дока пересобирается, и `index embed` считает её заново. В индексе от
+старой версии колонка добавляется автоматически, а хеши заполняются при
+первом `index build`.
 
 `index embed` считает эмбеддинги только для чанков без вектора, поэтому
 после каждого `index build` запускайте `index embed` (или `make embed`)
 снова: посчитаются только изменённые доки.
 
 `index build --full` удаляет всё, включая векторы, так что потребуется
-полный пересчёт (~11 ч для полного дампа).
+полный пересчёт (~11 ч для полного дампа). Чтобы не сделать это случайно,
+команда отказывается работать, если в индексе есть векторы, и печатает
+ошибку; для подтверждения добавьте `--drop-vectors`. Вместо этого
+используйте обычный `index build`.
+
+`make update` (`scripts/update.sh`) выполняет весь цикл, никогда не
+удаляя векторы: синхронизация, парсеры, инкрементальный `index build`,
+`index embed`. См. [Синхронизацию данных](sync-docs.md#обновление-одной-командой).
 
 Дока, в которой часть чанков уже с векторами, а часть ещё нет, считается в
 `get_docs` докой с векторами. Доведите `index embed` до конца, прежде чем
@@ -215,13 +238,19 @@ CGO_LDFLAGS="-L$PWD/lib" go build -tags "sqlite_fts5 onnx" -o marvindocs ./cmd/m
 ```bash
 scripts/sync-docs.sh     # скачать доки
 make index               # построить индекс
-make embed               # нужна Ollama с bge-m3; для полного дампа часы
+make embed               # посчитать эмбеддинги; для полного дампа часы
 make run-onnx            # запустить сервер с ONNX-эмбеддером
 ```
 
-`make embed` выполняет `index embed --embedder ollama --ollama-url $(OLLAMA_URL)`;
-по умолчанию `http://localhost:11434`, переопределяется так:
-`make embed OLLAMA_URL=http://host:11434`.
+`make embed` выполняет `scripts/update.sh --embed-only`, то есть
+`index embed` с эмбеддером из `.env`. По умолчанию это локальный ONNX; чтобы
+использовать сервер Ollama с bge-m3 (на GPU заметно быстрее), добавьте в
+`.env`:
+
+```bash
+MARVINDOCS_EMBEDDER=ollama
+MARVINDOCS_OLLAMA_URL=http://host:11434
+```
 
 Вместо пересчёта можно просто скопировать файл индекса `marvindocs.db` с
 векторами на другую машину.

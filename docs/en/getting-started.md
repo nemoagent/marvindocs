@@ -72,8 +72,14 @@ level=INFO msg="index synced" docs=27 entries=120000 pages=0 duration=15s path=m
 The command creates `marvindocs.db`; its size depends on the doc set.
 Page bodies are indexed too (as Markdown chunks), which enables `search_pages` and
 `search --body`. It is safe to rerun: by default the build is
-incremental, so only changed docs are re-indexed. Pass `--full` to
-rebuild everything (the last line then reads `index indexed`).
+incremental, so only changed docs are re-indexed and existing embeddings
+are kept. `--full` rebuilds everything (the last line then reads
+`index indexed`) but refuses to run on an index with vectors unless you
+also pass `--drop-vectors`.
+
+To refresh everything later (devdocs sync, parsers, incremental index,
+embeddings) run `make update`; see
+[Syncing the documentation data](sync-docs.md#one-command-update).
 
 Check the result:
 

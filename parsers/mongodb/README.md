@@ -44,8 +44,11 @@ go build -o ../../bin/mongodb-parser .
 After the parser finishes, refresh the index:
 
 ```bash
-./bin/marvindocs index build --full
+./bin/marvindocs index build
 ```
+
+The build is incremental and keeps existing embeddings; avoid `index build --full`
+(it needs `--drop-vectors` on an index with vectors and discards them all).
 
 The new doc shows up in `marvindocs list`, `marvindocs search`, the web
 UI and MCP `list_docs`. The parser also auto-updates

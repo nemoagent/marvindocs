@@ -60,17 +60,41 @@ never require a token.
 | `MARVINDOCS_INSECURE` | `1` | unset | Same as `--insecure`: allow a non-loopback `--http` bind without a token. |
 | `MARVINDOCS_LOG_LEVEL` | `debug`, `info`, `warn`, `error` | `info` | Log level. |
 | `MARVINDOCS_LOG_FORMAT` | `text`, `json` | `text` | Log format. Logs go to stderr. |
+| `MARVINDOCS_EMBEDDER` | `none`, `ollama`, `onnx` | `onnx` for `index embed`, `none` for `serve` | Default of `--embedder`. |
+| `MARVINDOCS_OLLAMA_URL` | URL | `http://localhost:11434` | Default of `--ollama-url`. |
+| `MARVINDOCS_OLLAMA_MODEL` | model name | `bge-m3` | Default of `--ollama-model`. |
+| `MARVINDOCS_MODEL_DIR` | path | `data/onnx/model` | Default of `--model-dir`. |
+| `MARVINDOCS_ONNXRUNTIME` | path | `data/onnx/lib/libonnxruntime.so` | Default of `--onnxruntime`. |
+
+The embedder variables are read by the binary as flag defaults; an
+explicit flag always wins.
+
+### `.env` file
+
+The binary does not read `.env` itself. `scripts/update.sh` (and so
+`make update` / `make embed`) sources `.env` from the repository root and
+exports it, so the `MARVINDOCS_*` values reach the binary. `.env` is
+git-ignored; copy the template `.env.example` and uncomment what you need:
+
+```bash
+cp .env.example .env
+# MARVINDOCS_EMBEDDER=ollama
+# MARVINDOCS_OLLAMA_URL=http://gpu-host:11434
+```
+
+`docker compose` reads `.env` as well (see [Docker](#docker)).
 
 ## `index build`-only flags
 
 | Flag | Default | Description |
 |---|---|---|
-| `--full` | `false` | Force a full rebuild instead of the default incremental sync (only changed docs are re-indexed). |
+| `--full` | `false` | Force a full rebuild instead of the default incremental sync (only changed docs are re-indexed). Refuses to run when the index has chunk embeddings unless `--drop-vectors` is given. |
+| `--drop-vectors` | `false` | With `--full`: confirm discarding all chunk embeddings. |
 
 ## `index embed`-only flags
 
-`index embed` takes `--doc`, `--embedder` (default `ollama`), `--batch`
-and the same `--ollama-*`, `--model-dir` and `--onnxruntime` flags as
+`index embed` takes `--doc`, `--embedder` (default `onnx`, or
+`MARVINDOCS_EMBEDDER`), `--batch` and the same `--ollama-*`, `--model-dir` and `--onnxruntime` flags as
 `serve`. See [Vector search](vectors.md).
 
 ## Build-time configuration
@@ -111,12 +135,13 @@ All Go targets run inside the `golang:1.25` container.
 | `onnx-fetch` | Run `scripts/fetch-onnx.sh`: download the ONNX libs and the bge-m3 model into `data/onnx/`. |
 | `build-onnx` | `onnx-fetch`, then build `./bin/marvindocs` with `-tags "sqlite_fts5 onnx"` and `CGO_LDFLAGS=-L/src/data/onnx/lib`. |
 | `run-onnx` | `build-onnx`, then `serve --http :3333 --embedder onnx --model-dir data/onnx/model --onnxruntime data/onnx/lib/libonnxruntime.so`. |
-| `embed` | `index embed --embedder ollama --ollama-url $(OLLAMA_URL)`. |
-| `clean` | Remove `bin`, `.gocache`, `.gomodcache` and `marvindocs.db*`. |
+| `embed` | `scripts/update.sh --embed-only`: run `index embed` with the embedder from `.env` (`MARVINDOCS_EMBEDDER`, default `onnx`). |
+| `update` | `scripts/update.sh`: devdocs sync, parsers, incremental `index build`, `index embed`. See [Syncing the documentation data](sync-docs.md#one-command-update). |
+| `clean` | Remove `bin`, `.gocache`, `.gomodcache`. The index `marvindocs.db*` is kept. |
+| `clean-index` | Remove `marvindocs.db*`, including all chunk embeddings. |
 
-Variables used by the ONNX targets: `ONNX_DIR = data/onnx` and
-`OLLAMA_URL` (default `http://localhost:11434`; override with
-`make embed OLLAMA_URL=http://host:11434`). See
+Variable used by the ONNX targets: `ONNX_DIR = data/onnx`. The embedder
+for `make embed` / `make update` is configured in `.env`. See
 [Vector search](vectors.md).
 
 ## Docker

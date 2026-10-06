@@ -22,6 +22,11 @@ marvindocs**. Они пишут те же файлы, что используе�
 | `db.json` | `{<path>: "<html fragment>", ...}` — фрагменты body, без `<html>`/`<head>`. |
 | `.last-modified` | Пустой файл, mtime равен `meta.json.mtime`; нужен для `sync-docs.sh`. |
 
+Дополнительно `scripts/run-parser.sh` после каждого успешного запуска
+кладёт в выходной каталог маркер `.parser` (имя парсера). `sync-docs.sh`
+помечает такие каталоги как `LOCAL` и никогда их не перезаписывает, даже с
+`--force`.
+
 Эти файлы читает `internal/docstore` — тот же путь, что и для дампов
 DevDocs.
 
@@ -46,8 +51,13 @@ make parsers                                          # все парсеры
     --out data/public/docs/laravel~12 --force
 
 # 3. Перестроить индекс. Новый док добавится к остальным.
-./bin/marvindocs index build --full
+./bin/marvindocs index build
 ```
+
+`index build` инкрементальный и сохраняет существующие эмбеддинги. Не
+используйте здесь `index build --full`: на индексе с векторами он
+откажется работать, а `--full --drop-vectors` удалит их все (пересчёт
+занимает часы).
 
 После шага 3 док доступен в Web UI и через MCP-инструменты
 (`list_docs`, `search`, `get_page`).
@@ -60,14 +70,27 @@ Docker-образа `golang`, локальный Go не нужен.
 ## Запуск зарегистрированных парсеров
 
 `parsers/registry.json` перечисляет документы, которые можно собрать
-парсером (slug, имя парсера, фиксированные аргументы, описание).
+парсером. Ключ верхнего уровня — `parsers`; каждая запись содержит имя
+парсера, slug, фиксированные аргументы и описание.
 `scripts/run-parser.sh` читает его и запускает соответствующий бинарь
-`bin/<parser>-parser` с `--out <docs-path>/<slug>` и `--force`:
+`bin/<parser>-parser` с `--out <docs-path>/<slug>` и `--force`.
+
+Запись с `"versions"` — шаблон: её slug содержит `{v}` (`laravel~{v}`,
+`go-dev~{v}`, `go-std~{v}`, `mongodb~{v}`), а `{v}` в `args` заменяется
+версией. Фиксированные записи вроде `go-dev` без `versions`. Принимается
+любая версия, подходящая под шаблон, даже если её ещё нет в списке:
+
+```bash
+./scripts/run-parser.sh go-std~1.26         # работает, хотя 1.26 нет в реестре
+```
+
+После успешного запуска версии, которой нет в списке, она добавляется в
+`versions` в `parsers/registry.json`.
 
 ```bash
 ./scripts/run-parser.sh --list              # slug | parser | description
 ./scripts/run-parser.sh laravel~12          # запустить один slug
-./scripts/run-parser.sh --all               # запустить все slug'и из реестра
+./scripts/run-parser.sh --all               # запустить все slug'и из реестра (не останавливается на ошибках)
 ./scripts/run-parser.sh --check laravel~12  # показать итоговую команду, не запуская
 ```
 
@@ -75,6 +98,10 @@ Docker-образа `golang`, локальный Go не нужен.
 |---|---|
 | `--no-force` | Не передавать `--force` парсеру. |
 | `--docs-path DIR` | Корень вывода (по умолчанию `data/public/docs`). |
+
+`--all` не останавливается на первой ошибке: запускает все slug'и,
+печатает `summary: N ok, M failed` и список упавших и завершается с кодом
+`1`, если хоть один упал.
 
 Требуется `jq`. Коды выхода: `0` — OK, `1` — парсер завершился с
 ошибкой, `2` — ошибка использования, неизвестный slug, нет `jq`/реестра
