@@ -38,7 +38,7 @@
       "parser": "mongodb",
       "slug": "mongodb~{v}",
       "args": ["--version", "v{v}"],
-      "versions": ["7.0", "8.0"],
+      "versions": ["7.0", "8.0", "8.3"],
       "description": "MongoDB {v} Manual from github.com/mongodb/docs"
     }
   ]
