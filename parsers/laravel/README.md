@@ -26,7 +26,7 @@ go build -o ../../bin/laravel-parser .
 | Flag | Default | Notes |
 |---|---|---|
 | `--source` | `https://raw.githubusercontent.com/laravel/docs` | Override only if mirroring the repo elsewhere. |
-| `--version` | `12.x` | Branch in `laravel/docs`. Verified across all 20 release branches: `4.0`, `4.1`, `4.2`, `5.0`-`5.8`, `6.x`-`13.x`, plus `master`. |
+| `--version` | `12.x` | Branch in `laravel/docs`. A bare major (`12`) is normalised to `12.x`; both forms work. Verified across all 20 release branches: `4.0`, `4.1`, `4.2`, `5.0`-`5.8`, `6.x`-`13.x`, plus `master`. |
 | `--release` | (empty -> version) | Free-form label written to `meta.json`. |
 | `--out` | (required) | Output directory. Convention: `data/public/docs/laravel~<short>`. |
 | `--force` | `false` | Overwrite existing files. |
@@ -38,7 +38,7 @@ versions stay intact so they don't collide:
 
 | `--version` | output slug |
 |---|---|
-| `12.x` | `laravel~12` |
+| `12.x` or `12` | `laravel~12` |
 | `6.x` | `laravel~6` |
 | `5.8` | `laravel~5.8` |
 | `4.0` | `laravel~4.0` |
@@ -47,8 +47,11 @@ versions stay intact so they don't collide:
 After the parser finishes, integrate with marvindocs the usual way:
 
 ```bash
-./bin/marvindocs index build --full
+./bin/marvindocs index build
 ```
+
+The build is incremental and keeps existing embeddings; avoid `index build --full`
+(it needs `--drop-vectors` on an index with vectors and discards them all).
 
 The new doc shows up in `marvindocs list`, `marvindocs search`, the web
 UI and MCP `list_docs`.

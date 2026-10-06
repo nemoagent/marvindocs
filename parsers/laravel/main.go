@@ -34,6 +34,7 @@ func main() {
 	if flags.Version == "" {
 		flags.Version = "12.x"
 	}
+	flags.Version = normalizeVersion(flags.Version)
 	if err := flags.Validate(); err != nil {
 		devdocsfmt.Fatal("%s", err)
 	}

@@ -255,3 +255,17 @@ func shortVersion(v string) string {
 	}
 	return v
 }
+
+// normalizeVersion maps a bare major ("12") to its branch name ("12.x").
+// Dotted versions ("5.1", "12.x") and "master" stay as-is.
+func normalizeVersion(v string) string {
+	if v == "" {
+		return v
+	}
+	for _, r := range v {
+		if r < '0' || r > '9' {
+			return v
+		}
+	}
+	return v + ".x"
+}

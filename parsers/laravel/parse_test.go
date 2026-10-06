@@ -95,3 +95,20 @@ func TestShortVersion(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalizeVersion(t *testing.T) {
+	cases := map[string]string{
+		"12":     "12.x",
+		"6":      "6.x",
+		"12.x":   "12.x",
+		"5.1":    "5.1",
+		"4.0":    "4.0",
+		"master": "master",
+		"":       "",
+	}
+	for in, want := range cases {
+		if got := normalizeVersion(in); got != want {
+			t.Errorf("normalizeVersion(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

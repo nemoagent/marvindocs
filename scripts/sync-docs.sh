@@ -33,9 +33,12 @@
 # without any network roundtrip. One GET replaces N HEAD requests,
 # which used to dominate runtime for `--check` and large slug lists.
 #
-# Slugs that are neither in the catalog nor on downloads.devdocs.io but
-# have a local stamp are parser-built docs (parsers/registry.json): they
-# are reported as LOCAL and left untouched.
+# Parser-built docs (parsers/registry.json, written by run-parser.sh) carry
+# a data/public/docs/<slug>/.parser marker. Such slugs are reported as LOCAL
+# and never overwritten, even with --force and even if devdocs.io has the
+# same slug (e.g. laravel~11). Slugs without a marker that are neither in
+# the catalog nor on downloads.devdocs.io but have a local stamp are also
+# reported as LOCAL.
 
 set -euo pipefail
 
@@ -297,6 +300,13 @@ if [ "$CHECK_ONLY" = true ]; then
 	n_err=0
 	for slug in "${SLUGS[@]}"; do
 		lm=$(local_mtime "$slug")
+		if [ -f "$DATA_DIR/$slug/.parser" ]; then
+			rm=""
+			status="LOCAL (parser-built)"
+			n_local=$((n_local + 1))
+			printf '%-22s %-14s %-14s  %s\n' "$slug" "${lm:--}" "-" "$status"
+			continue
+		fi
 		rm=$(remote_mtime "$slug")
 		if [ -z "$rm" ] && [ -n "$lm" ]; then
 			status="LOCAL (parser-built)"
@@ -331,6 +341,11 @@ download_slug() {
 	local dir="$DATA_DIR/$slug"
 	local url="https://downloads.devdocs.io/${slug}.tar.gz"
 	local stamp="$dir/.last-modified"
+
+	if [ -f "$dir/.parser" ]; then
+		echo "  LOCAL   $slug (parser-built, skipped)"
+		return
+	fi
 
 	local remote_ts local_ts lm
 	remote_ts=$(awk -F'\t' -v s="$slug" '$1==s { print $2; exit }' "$CATALOG_TSV")
