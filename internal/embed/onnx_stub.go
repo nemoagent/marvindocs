@@ -12,7 +12,7 @@ type ONNX struct{}
 
 // NewONNX always fails: the binary was built without the onnx tag.
 func NewONNX(modelDir, libPath string) (*ONNX, error) {
-	return nil, errors.New("built without onnx support (rebuild with -tags onnx)")
+	return nil, errors.New("built without onnx support (rebuild with `make build-onnx`)")
 }
 
 // Embed is not available without the onnx tag.

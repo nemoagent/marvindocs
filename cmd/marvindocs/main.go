@@ -31,10 +31,12 @@ const usage = `marvindocs - MCP server and web UI for the DevDocs archive.
 Usage:
   marvindocs serve [--http ADDR] [--stdio] [--auth-token TOKEN] [--insecure] [--docs-path DIR] [--index-path FILE]
                    [--embedder none|ollama|onnx] [--ollama-url URL] [--ollama-model NAME] [--model-dir DIR] [--onnxruntime PATH]
-  marvindocs index build [--full] [--docs-path DIR] [--index-path FILE]
+  marvindocs index build [--full [--drop-vectors]] [--docs-path DIR] [--index-path FILE]
   marvindocs index stats [--index-path FILE] [--by-doc] [--top N]
   marvindocs index embed [--doc SLUG]... [--embedder ollama|onnx] [--ollama-url URL] [--ollama-model NAME]
                          [--model-dir DIR] [--onnxruntime PATH] [--batch N] [--docs-path DIR] [--index-path FILE]
+                         (embedder flags default to MARVINDOCS_EMBEDDER, _OLLAMA_URL, _OLLAMA_MODEL, _MODEL_DIR, _ONNXRUNTIME;
+                          index embed defaults to onnx, which needs a build with make build-onnx)
   marvindocs search QUERY [--doc SLUG] [--limit N] [--json]
   marvindocs get SLUG PATH [--format FORMAT]
   marvindocs list [--json]
@@ -272,9 +274,10 @@ func runIndex(args []string) {
 		fs := flag.NewFlagSet("index build", flag.ExitOnError)
 		full := fs.Bool("full", false, "Force full rebuild instead of incremental sync (default is incremental by mtime)")
 		docsPath := fs.String("docs-path", "data/public/docs", "Path to devdocs data")
+		dropVectors := fs.Bool("drop-vectors", false, "With --full: allow discarding all chunk embeddings (chunk_vecs). Without it --full refuses when vectors exist")
 		indexPath := fs.String("index-path", "marvindocs.db", "Output SQLite file")
 		_ = fs.Parse(args[1:])
-		if err := runIndexBuild(*docsPath, *indexPath, *full); err != nil {
+		if err := runIndexBuild(*docsPath, *indexPath, *full, *dropVectors); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
 		}
@@ -295,7 +298,7 @@ func runIndex(args []string) {
 			docs = append(docs, v)
 			return nil
 		})
-		newEmbedder := embedderFlags(fs, "ollama")
+		newEmbedder := embedderFlags(fs, "onnx")
 		batch := fs.Int("batch", 64, "Chunks per embedder call and per transaction")
 		docsPath := fs.String("docs-path", "data/public/docs", "Path to devdocs data")
 		indexPath := fs.String("index-path", "marvindocs.db", "SQLite index file")
@@ -319,7 +322,7 @@ func runIndex(args []string) {
 	}
 }
 
-func runIndexBuild(docsPath, indexPath string, full bool) error {
+func runIndexBuild(docsPath, indexPath string, full, dropVectors bool) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
@@ -334,6 +337,17 @@ func runIndexBuild(docsPath, indexPath string, full bool) error {
 		return err
 	}
 	defer idx.Close()
+
+	if full && !dropVectors {
+		n, err := idx.VectorCount(ctx)
+		if err != nil {
+			return err
+		}
+		if n > 0 {
+			return fmt.Errorf("--full would discard %d chunk embeddings in %s; re-embedding takes hours. "+
+				"Use `index build` (incremental, keeps vectors) or add --drop-vectors to confirm", n, indexPath)
+		}
+	}
 
 	var stats index.BuildStats
 	if full {
@@ -359,20 +373,30 @@ func runIndexBuild(docsPath, indexPath string, full bool) error {
 		"docs", stats.Docs,
 		"entries", stats.Entries,
 		"pages", stats.Pages,
+		"touched", stats.Touched,
+		"hash_backfilled", stats.HashBackfilled,
 		"duration", stats.Duration.Round(1e6).String(),
 		"path", indexPath)
 	return nil
+}
+
+// envOr returns the environment variable key, or def when it is unset or empty.
+func envOr(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }
 
 // embedderFlags registers the embedder flags on fs with def as the
 // default kind and returns a function that builds the chosen embedder;
 // it returns nil for kind "none".
 func embedderFlags(fs *flag.FlagSet, def string) func() (embed.Embedder, error) {
-	kind := fs.String("embedder", def, "Embedder: none, ollama or onnx (onnx needs a build with -tags onnx)")
-	ollamaURL := fs.String("ollama-url", "http://localhost:11434", "Ollama base URL")
-	ollamaModel := fs.String("ollama-model", "bge-m3", "Ollama model name")
-	modelDir := fs.String("model-dir", "", "onnx: directory with model_int8.onnx and tokenizer.json")
-	ortLib := fs.String("onnxruntime", "", "onnx: path to the ONNX Runtime shared library")
+	kind := fs.String("embedder", envOr("MARVINDOCS_EMBEDDER", def), "Embedder: none, ollama or onnx (onnx needs `make build-onnx`); env MARVINDOCS_EMBEDDER")
+	ollamaURL := fs.String("ollama-url", envOr("MARVINDOCS_OLLAMA_URL", "http://localhost:11434"), "Ollama base URL; env MARVINDOCS_OLLAMA_URL")
+	ollamaModel := fs.String("ollama-model", envOr("MARVINDOCS_OLLAMA_MODEL", "bge-m3"), "Ollama model name; env MARVINDOCS_OLLAMA_MODEL")
+	modelDir := fs.String("model-dir", envOr("MARVINDOCS_MODEL_DIR", "data/onnx/model"), "onnx: directory with model_int8.onnx and tokenizer.json; env MARVINDOCS_MODEL_DIR")
+	ortLib := fs.String("onnxruntime", envOr("MARVINDOCS_ONNXRUNTIME", "data/onnx/lib/libonnxruntime.so"), "onnx: path to the ONNX Runtime shared library; env MARVINDOCS_ONNXRUNTIME")
 	return func() (embed.Embedder, error) {
 		switch *kind {
 		case "none":
