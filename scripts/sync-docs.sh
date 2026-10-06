@@ -409,24 +409,8 @@ if [ "$updated_count" -eq 0 ] && [ -f "$DATA_DIR/docs.json" ]; then
 	count=$(grep -oE '"slug":[[:space:]]*"[^"]*"' "$DATA_DIR/docs.json" | wc -l | tr -d ' ')
 else
 	echo "==> rebuilding docs.json from meta.json files..."
-
-	DOCS_JSON="$DATA_DIR/docs.json"
-	TMP_JSON="$DOCS_JSON.tmp"
-	count=0
-	sep=""
-
-	printf '[' >"$TMP_JSON"
-	for slug in $(ls -1 "$DATA_DIR" | LC_ALL=C sort); do
-		meta="$DATA_DIR/$slug/meta.json"
-		[ -f "$meta" ] || continue
-		printf '%s' "$sep" >>"$TMP_JSON"
-		cat "$meta" >>"$TMP_JSON"
-		sep=","
-		count=$((count + 1))
-	done
-	printf ']' >>"$TMP_JSON"
-	mv "$TMP_JSON" "$DOCS_JSON"
-	echo "  $count docs -> $DOCS_JSON"
+	"$SCRIPT_DIR/rebuild-catalog.sh" "$DATA_DIR"
+	count=$(grep -oE '"slug":[[:space:]]*"[^"]*"' "$DATA_DIR/docs.json" | wc -l | tr -d ' ')
 fi
 
 # ---- rebuild index ----------------------------------------------------------

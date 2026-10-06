@@ -205,6 +205,7 @@ check)
 	;;
 one)
 	run_one "${SLUG}" || exit 1
+	"${ROOT}/scripts/rebuild-catalog.sh" "${DOCS_PATH}"
 	;;
 all)
 	ok=0
@@ -219,6 +220,9 @@ all)
 		fi
 	done < <(jq -r "${CONCRETE_JQ} | .slug" "${REGISTRY}")
 	echo "summary: ${ok} ok, ${#failed[@]} failed"
+	if [[ ${ok} -gt 0 ]]; then
+		"${ROOT}/scripts/rebuild-catalog.sh" "${DOCS_PATH}"
+	fi
 	if [[ ${#failed[@]} -gt 0 ]]; then
 		echo "FAILED: ${failed[*]}" >&2
 		exit 1
