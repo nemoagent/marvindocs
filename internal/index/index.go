@@ -1,6 +1,7 @@
 package index
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -38,7 +39,37 @@ func Open(path string) (*Index, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("migrate schema: %w", err)
 	}
+	if err := addContentHash(db); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("migrate schema: %w", err)
+	}
 	return &Index{db: db, path: path}, nil
+}
+
+// addContentHash adds docs.content_hash to an index made by an older
+// version; Sync backfills the empty values.
+func addContentHash(db *sql.DB) error {
+	rows, err := db.Query(`PRAGMA table_info(docs)`)
+	if err != nil {
+		return err
+	}
+	has := false
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, typ string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk); err != nil {
+			rows.Close()
+			return err
+		}
+		has = has || name == "content_hash"
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil || has {
+		return err
+	}
+	_, err = db.Exec(`ALTER TABLE docs ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''`)
+	return err
 }
 
 // dropLegacyPagesFTS removes the page-level pages_fts table of an older
@@ -58,6 +89,13 @@ func dropLegacyPagesFTS(db *sql.DB) error {
 	}
 	_, err = db.Exec(`DELETE FROM pages`)
 	return err
+}
+
+// VectorCount returns the number of stored chunk embeddings.
+func (i *Index) VectorCount(ctx context.Context) (int64, error) {
+	var n int64
+	err := i.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM chunk_vecs`).Scan(&n)
+	return n, err
 }
 
 // Close closes the underlying DB handle.

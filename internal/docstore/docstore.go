@@ -10,9 +10,12 @@ package docstore
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -108,6 +111,28 @@ func (s *Store) Docs() []Doc { return s.docs }
 
 // Doc returns a document by slug, or nil if not found.
 func (s *Store) Doc(slug string) *Doc { return s.bySlug[slug] }
+
+// ContentHash returns the hex SHA-256 of a doc's db.json followed by its
+// index.json. A missing file is skipped, matching how the index treats
+// docs that ship only one of them.
+func (s *Store) ContentHash(slug string) (string, error) {
+	h := sha256.New()
+	for _, name := range []string{"db.json", "index.json"} {
+		f, err := os.Open(filepath.Join(s.root, slug, name))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return "", fmt.Errorf("hash %s for %s: %w", name, slug, err)
+		}
+		_, err = io.Copy(h, f)
+		f.Close()
+		if err != nil {
+			return "", fmt.Errorf("hash %s for %s: %w", name, slug, err)
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
 
 // Index returns the parsed index.json for the given slug.
 // The result is cached in memory.

@@ -3,7 +3,7 @@
 //
 // The index file contains these tables:
 //
-//	docs(slug PRIMARY KEY, name, type, version, release, mtime)
+//	docs(slug PRIMARY KEY, name, type, version, release, mtime, content_hash)
 //	entries(id INTEGER PK, doc_slug, name, path, type)
 //	pages(id INTEGER PK, doc_slug, path)
 //	chunks(id INTEGER PK, page_id, off, len)
@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS docs (
     type     TEXT NOT NULL,
     version  TEXT NOT NULL,
     release  TEXT NOT NULL,
-    mtime    INTEGER NOT NULL
+    mtime    INTEGER NOT NULL,
+    content_hash TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS entries (

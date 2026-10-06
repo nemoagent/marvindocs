@@ -11,10 +11,14 @@ import (
 
 // BuildStats is returned from Build to describe what was indexed.
 type BuildStats struct {
-	Docs     int
-	Entries  int
-	Pages    int
-	Duration time.Duration
+	Docs    int
+	Entries int
+	Pages   int
+	// Touched counts docs whose mtime changed but content did not (Sync).
+	Touched int
+	// HashBackfilled counts docs whose missing content hash was computed (Sync).
+	HashBackfilled int
+	Duration       time.Duration
 }
 
 // Build (re)populates the index from the given docstore: symbols from
@@ -42,7 +46,7 @@ func (i *Index) Build(ctx context.Context, s *docstore.Store) (BuildStats, error
 	defer func() { _ = tx.Rollback() }()
 
 	docStmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO docs(slug, name, type, version, release, mtime) VALUES (?, ?, ?, ?, ?, ?)`)
+		`INSERT INTO docs(slug, name, type, version, release, mtime, content_hash) VALUES (?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return stats, fmt.Errorf("prepare docs: %w", err)
 	}
@@ -59,8 +63,12 @@ func (i *Index) Build(ctx context.Context, s *docstore.Store) (BuildStats, error
 		if err := ctx.Err(); err != nil {
 			return stats, err
 		}
+		hash, err := s.ContentHash(d.Slug)
+		if err != nil {
+			return stats, fmt.Errorf("hash doc %s: %w", d.Slug, err)
+		}
 		if _, err := docStmt.ExecContext(ctx,
-			d.Slug, d.Name, d.Type, d.Version, d.Release, d.Mtime); err != nil {
+			d.Slug, d.Name, d.Type, d.Version, d.Release, d.Mtime, hash); err != nil {
 			return stats, fmt.Errorf("insert doc %s: %w", d.Slug, err)
 		}
 		stats.Docs++
