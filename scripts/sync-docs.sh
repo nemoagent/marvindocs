@@ -206,8 +206,8 @@ all)
 	fi
 	while IFS= read -r slug; do
 		SLUGS+=("$slug")
-	done < <(grep -oE '"slug":[[:space:]]*"[^"]*"' "$DATA_DIR/docs.json" \
-		| sed -E 's/"slug":[[:space:]]*"([^"]*)"/\1/')
+	done < <(grep -oE '"slug":[[:space:]]*"[^"]*"' "$DATA_DIR/docs.json" |
+		sed -E 's/"slug":[[:space:]]*"([^"]*)"/\1/')
 	;;
 list)
 	SLUGS=("${DEFAULT_SLUGS[@]}")
@@ -381,8 +381,15 @@ download_slug() {
 	# download — saves both wall time and a tmpfile. pipefail makes
 	# curl errors (4xx/5xx, network) fail the whole pipeline, so we
 	# don't end up with a half-extracted tree being stamped.
+	#
+	# The archive ships every page twice: inside db.json and as a loose
+	# *.html file. marvindocs reads pages only from db.json, so the html
+	# copies are skipped — they would double the on-disk footprint.
 	mkdir -p "$dir"
-	if (set -o pipefail; curl -sSfL --max-time 300 "$url" | tar -xz -C "$dir") 2>/dev/null; then
+	if (
+		set -o pipefail
+		curl -sSfL --max-time 300 "$url" | tar -xz -C "$dir" --exclude='*.html'
+	) 2>/dev/null; then
 		touch -d "@$remote_ts" "$stamp" 2>/dev/null || touch -t "$(date -r "$remote_ts" +%Y%m%d%H%M.%S)" "$stamp"
 		echo "  UPDATED $slug"
 	else
