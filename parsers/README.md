@@ -20,7 +20,7 @@ A parser produces, in `<out>/`:
 ```
 meta.json        flat metadata (name, slug, version, release, mtime, db_size, ...)
 index.json       {entries: [{name, path, type}], types: [...]}
-db.json          {<path>: "<html fragment>", ...}
+db.zip           zip archive: one deflated entry per page (name = path, body = html fragment)
 .last-modified   stamp file (mtime = doc mtime) for sync-docs.sh integration
 ```
 

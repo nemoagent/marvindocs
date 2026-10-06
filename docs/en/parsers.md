@@ -7,7 +7,7 @@ Laravel, internal handbooks, OpenAPI specs).
 
 Parsers live in `parsers/` and have **no dependency on the marvindocs
 main module**. They write the same files DevDocs uses (`index.json`,
-`db.json`, `meta.json` and a `.last-modified` stamp) and upsert the
+`db.zip`, `meta.json` and a `.last-modified` stamp) and upsert the
 parent `docs.json`, so the rest of marvindocs picks them up unchanged.
 
 ## On-disk contract
@@ -18,7 +18,7 @@ For a slug `<slug>`, a parser produces in `data/public/docs/<slug>/`:
 |---|---|
 | `meta.json` | Flat metadata: name, slug, type, version, release, mtime, db_size, attribution. |
 | `index.json` | `{entries: [{name, path, type}], types: [{name, count, slug}]}`. |
-| `db.json` | `{<path>: "<html fragment>", ...}` — body fragments only, no `<html>`/`<head>`. |
+| `db.zip` | Zip archive, one deflate-compressed entry per page: entry name = page path, entry body = HTML fragment (body fragments only, no `<html>`/`<head>`). |
 | `.last-modified` | Empty file whose mtime equals `meta.json.mtime`; used by `sync-docs.sh`. |
 
 `scripts/run-parser.sh` additionally writes a `.parser` marker (the parser

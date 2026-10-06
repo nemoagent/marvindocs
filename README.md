@@ -137,9 +137,11 @@ Verify the server with the bundled smoke test (needs `curl` + `jq`):
 ## CLI reference
 
 ```
-marvindocs index build   [--docs-path DIR] [--index-path FILE] [--full [--drop-vectors]]
+marvindocs index build   [--docs-path DIR] [--index-path FILE] [--full [--drop-vectors]] [--rehash]
                                                                 # incremental sync by default (keeps vectors);
-                                                                # --full rebuilds and needs --drop-vectors if vectors exist
+                                                                # --full rebuilds and needs --drop-vectors if vectors exist;
+                                                                # --rehash recomputes content hashes only (once after pack --all)
+marvindocs pack          (--all | SLUG...) [--docs-path DIR]    # convert db.json -> db.zip, remove db.json
 marvindocs index stats   [--index-path FILE] [--by-doc] [--top N]  # show counts
 marvindocs index embed   [--doc SLUG]... [--embedder ollama|onnx] [--batch N]
                                                                 # chunk embeddings, see docs/en/vectors.md
@@ -157,7 +159,7 @@ marvindocs version
 
 Page bodies are indexed as well (needed for `search_pages` and
 `search --body`). The text itself is not stored; snippets are rebuilt from
-`db.json` on demand.
+`db.zip` on demand.
 
 ### Environment variables
 

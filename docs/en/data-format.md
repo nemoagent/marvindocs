@@ -16,10 +16,10 @@ by this project.
 ├── <slug>/
 │   ├── meta.json             # per-doc metadata
 │   ├── index.json            # entries + types
-│   ├── db.json               # page contents, keyed by path
+│   ├── db.zip                # page contents, one zip entry per path
 │   ├── .last-modified        # stamp file: mtime = doc mtime (used by sync-docs.sh)
-│   ├── index.html            # optional: same as db.json["index"]
-│   └── <path>.html           # optional: one file per db.json entry
+│   ├── index.html            # optional: same as the "index" entry of db.zip
+│   └── <path>.html           # optional: one file per db.zip entry
 ├── <other-slug>/
 │   └── ...
 ```
@@ -66,7 +66,7 @@ A JSON **array** of objects, one per indexed doc.
 | `version` | string | yes | May be empty. Human label shown next to `name`. |
 | `release` | string | yes | May be empty. Specific release tag, e.g. `"21.2.0"`. |
 | `mtime` | integer | yes | Unix time (seconds) of last index rebuild. |
-| `db_size` | integer | yes | Uncompressed size of `db.json` in bytes. marvindocs uses it only as a display hint. |
+| `db_size` | integer | yes | Uncompressed size of all pages in bytes (sum of the entry sizes in `db.zip`). marvindocs uses it only as a display hint. |
 | `links` | object | no | String→URL map. Typical keys: `home`, `code`. Shown as-is. |
 | `attribution` | string | no | HTML-safe legal/credits snippet. |
 | `alias` | string | no | Short shorthand (`"ng"` for angular). Not used by marvindocs but preserved. |
@@ -74,7 +74,7 @@ A JSON **array** of objects, one per indexed doc.
 **Invariants**
 
 - Every `slug` in `docs.json` must have a directory `<data-root>/<slug>/`
-  containing at least `index.json` and `db.json`.
+  containing at least `index.json` and `db.zip`.
 - `slug` values must be unique across the array.
 - The array may be in any order.
 
@@ -148,40 +148,51 @@ require `types[]` but keeps it if present.
 
 A `path` is either:
 
-- **`"foo/bar"`** — refers to the page stored as `db.json["foo/bar"]`.
+- **`"foo/bar"`** — refers to the page stored in `db.zip` as the entry `foo/bar`.
 - **`"foo/bar#fragment"`** — refers to a sub-section of that same page;
-  look up `db.json["foo/bar"]` and scroll to the anchor `#fragment`.
+  look up the `db.zip` entry `foo/bar` and scroll to the anchor `#fragment`.
 
-Only the **portion before `#`** is used as a `db.json` key. Everything
+Only the **portion before `#`** is used as a `db.zip` entry name. Everything
 after `#` is forwarded verbatim to the browser / consumer.
 
 In the shipped dump ~80% of entries have a `#fragment` (anchor into a
 larger page) and ~20% point to a page of their own.
 
-## 5. `<slug>/db.json` — page bodies
+## 5. `<slug>/db.zip` — page bodies
 
-A JSON **object** (string → string):
+A standard **zip archive** with one deflate-compressed entry per page:
 
-```json
-{
-  "index":        "<h1>Angular</h1> ...",
-  "guide/ssr":    "<h2>Server-side rendering</h2> ...",
-  "api":          "<section>...</section>"
-}
+```
+db.zip
+├── index          # "<h1>Angular</h1> ..."
+├── guide/ssr      # "<h2>Server-side rendering</h2> ..."
+└── api            # "<section>...</section>"
 ```
 
-- **Keys** are page paths. Every `index.json` entry whose `path` (minus
-  `#fragment`) is not a key here is unreachable — marvindocs silently
-  skips such entries at serve time.
-- **Values** are **HTML fragments**, not full documents. They must not
+- **Entry names** are page paths (e.g. `guide/forms`), without a file
+  extension. Every `index.json` entry whose `path` (minus `#fragment`)
+  is not an entry name here is unreachable — marvindocs silently skips
+  such entries at serve time.
+- **Entry bodies** are raw **HTML fragments**, not full documents,
+  identical to the values of the old `db.json` map. They must not
   contain `<html>`, `<head>`, `<body>`, or `<link rel="stylesheet">`.
   Assume they will be injected into an already-styled host page.
 
-A single page may be very large (tens of KB of HTML) — the whole file
-for angular is ~10 MB and for ansible ~270 MB. marvindocs never holds a
-decoded `db.json` in memory: on first access it scans the file once to
-record the byte range of every value (a few hundred KB per doc, cached
-per slug) and then reads individual pages with a positioned read.
+The archive is ~4x smaller on disk than the JSON map it replaces (the
+full devdocs set: ~8 GB -> ~2.4 GB).
+
+A single page may be very large (tens of KB of HTML) — the uncompressed
+pages of angular total ~10 MB and of ansible ~270 MB. marvindocs never
+inflates a whole archive: on first access it opens the zip central
+directory once and caches it per slug as an offset table (~1 ms per
+slug), then reads a page by seeking to its entry and inflating only that
+entry (~0.1 ms).
+
+devdocs.io archives still ship `db.json` (a JSON map `path -> html`).
+`scripts/sync-docs.sh` converts each freshly downloaded doc with
+`marvindocs pack <slug>` right after extraction and deletes `db.json`
+(see [cli.md](cli.md)). The parsers (go-dev, go-std, laravel, mongodb)
+write `db.zip` directly.
 
 ### 5.1 Allowed HTML
 
@@ -205,20 +216,20 @@ per slug) and then reads individual pages with a positioned read.
 
 ## 6. Optional `.html` files
 
-Some dumps include sibling `.html` files next to each `db.json` entry:
+Some dumps include sibling `.html` files next to each `db.zip` entry:
 
 ```
 angular/
-├── db.json
-├── index.html         # == db.json["index"]
+├── db.zip
+├── index.html         # == db.zip entry "index"
 └── guide/
-    └── ssr.html       # == db.json["guide/ssr"]
+    └── ssr.html       # == db.zip entry "guide/ssr"
 ```
 
-They are identical byte-for-byte to the corresponding `db.json` value
+They are identical byte-for-byte to the corresponding `db.zip` entry
 and exist purely so that devdocs' own Rails app can serve them as
-static files. marvindocs does **not** use them — you can omit them in
-your own dumps.
+static files. They are optional and skipped on extraction; marvindocs
+does **not** use them — you can omit them in your own dumps.
 
 ## 7. Encoding and whitespace
 
@@ -232,11 +243,14 @@ your own dumps.
 For anyone writing a new scraper, the minimal set of steps is:
 
 1. For each doc you want to publish, generate HTML fragments for every
-   reachable page. Store them in a flat `path -> html` map.
+   reachable page.
 2. Generate `index.json` by listing every navigable symbol with its
    `name`, `path` (optionally `#fragment`), and `type`.
 3. Aggregate types into `types[]`; precompute `count`.
-4. Write `db.json` (the map from step 1).
+4. Write `db.zip`: one deflate-compressed entry per page, entry name =
+   page path, entry body = the HTML fragment from step 1. (If you
+   produce a `db.json` map `path -> html` instead, `marvindocs pack`
+   converts it.)
 5. Write `meta.json` with the doc's identity.
 6. After processing all docs, write the global `docs.json` array —
    one entry per `meta.json` you produced.
@@ -255,7 +269,7 @@ python~3.13
 ```
 
 Each is fully independent (own `docs.json` entry, own directory, own
-`db.json`). marvindocs has no special handling — they are just
+`db.zip`). marvindocs has no special handling — they are just
 separate docs whose `type` is usually the same (`"python"`).
 
 ## 10. Size expectations
@@ -265,12 +279,13 @@ Measured on a full dump (830 docs):
 - `docs.json`: ~175 KB (one JSON object per doc).
 - `meta.json`: ~200 bytes typical.
 - `index.json`: 1 KB – 8 MB per doc, median ~100 KB.
-- `db.json`: 30 KB – 280 MB per doc, median ~3 MB.
+- `db.zip`: ~4x smaller than the old `db.json` (which was 30 KB – 280 MB
+  per doc, median ~3 MB); the full set is ~2.4 GB (was ~8 GB).
 
 Plan disk accordingly: the total depends on how many docs you keep. The
 size of marvindocs' own index also depends on the doc set; it tokenizes
 Markdown chunks of the page bodies (with a few bytes of offsets per
 chunk) but does not store the text, so it stays well below the combined
-`db.json` size. For the full devdocs dump (~5.2 M chunks) the index is
+`db.zip` size. For the full devdocs dump (~5.2 M chunks) the index is
 about 2.4 GB, or about 9 GB with chunk vectors (see
 [vectors.md](vectors.md)).

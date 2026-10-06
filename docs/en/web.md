@@ -26,7 +26,7 @@ empty `q` shows a prompt instead of results.
 
 ## Rendering
 
-- The page body is the **raw HTML fragment** from devdocs `db.json`,
+- The page body is the **raw HTML fragment** from the devdocs page (a `db.zip` entry),
   wrapped in a thin shell (topbar, sidebar, CSS reset). No transformation
   is applied, so code blocks, tables and headings look as they did on
   devdocs.io.

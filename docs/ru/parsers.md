@@ -7,7 +7,7 @@
 
 Парсеры лежат в `parsers/` и **не зависят от основного модуля
 marvindocs**. Они пишут те же файлы, что использует DevDocs
-(`index.json`, `db.json`, `meta.json` и метку `.last-modified`) и
+(`index.json`, `db.zip`, `meta.json` и метку `.last-modified`) и
 обновляют родительский `docs.json`, поэтому остальной marvindocs
 подхватывает их без изменений.
 
@@ -19,7 +19,7 @@ marvindocs**. Они пишут те же файлы, что используе�
 |---|---|
 | `meta.json` | Плоская метадата: name, slug, type, version, release, mtime, db_size, attribution. |
 | `index.json` | `{entries: [{name, path, type}], types: [{name, count, slug}]}`. |
-| `db.json` | `{<path>: "<html fragment>", ...}` — фрагменты body, без `<html>`/`<head>`. |
+| `db.zip` | Zip-архив, по одной сжатой (deflate) записи на страницу: имя записи — путь страницы, тело — HTML-фрагмент (только фрагменты body, без `<html>`/`<head>`). |
 | `.last-modified` | Пустой файл, mtime равен `meta.json.mtime`; нужен для `sync-docs.sh`. |
 
 Дополнительно `scripts/run-parser.sh` после каждого успешного запуска

@@ -50,13 +50,15 @@ Heading structure differs: configuration.md (en=12, ru=11)
 Validates the integrity of the devdocs dump on disk:
 
 - `docs.json` is present at the dump root and contains valid JSON
-- for every slug listed in `docs.json`: `index.json`, `db.json`, and
-  `meta.json` exist, are non-empty (empty files are reported as
-  `EMPTY` and counted under "Missing/empty"), and contain valid JSON
+- for every slug listed in `docs.json`: `index.json`, `db.zip`, and
+  `meta.json` exist and are non-empty (empty files are reported as
+  `EMPTY` and counted under "Missing/empty"); the JSON files must
+  contain valid JSON and `db.zip` must pass `unzip -t`
 - orphan slug directories present on disk but absent from `docs.json`
   are reported
 
-`jq` is mandatory (there is no fallback). An invalid `docs.json` aborts
+`jq` is mandatory (there is no fallback), and `unzip` is required to
+validate `db.zip`. An invalid `docs.json` aborts
 the run with exit code `2`.
 
 ### Usage
@@ -102,7 +104,7 @@ re-fetched with:
 ### Example output
 
 ```
-MISSING  rust/db.json
+MISSING  rust/db.zip
 ORPHAN   some-old-slug
 
 Summary:

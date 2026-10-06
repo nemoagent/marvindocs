@@ -37,14 +37,14 @@ data/public/docs/
 ├── angular/
 │   ├── meta.json
 │   ├── index.json
-│   └── db.json
+│   └── db.zip
 ├── python~3.12/
 │   └── ...
 └── ...
 ```
 
 `docs.json` is mandatory. Each doc slug directory must contain at least
-`index.json` and `db.json`.
+`index.json` and `db.zip`.
 
 ## 3. Build the binary
 

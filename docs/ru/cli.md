@@ -26,15 +26,25 @@ marvindocs version
 [Векторный поиск](vectors.md)).
 
 ```bash
-marvindocs index build [--docs-path DIR] [--index-path FILE] [--full [--drop-vectors]]
+marvindocs index build [--docs-path DIR] [--index-path FILE] [--full [--drop-vectors]] [--rehash]
 ```
 
 | Флаг | По умолчанию | Примечание |
 |---|---|---|
-| `--docs-path` | `data/public/docs` | Должен содержать `docs.json` и `<slug>/{index,db}.json`. |
+| `--docs-path` | `data/public/docs` | Должен содержать `docs.json` и `<slug>/{index.json,db.zip}`. |
 | `--index-path` | `marvindocs.db` | Выходной файл SQLite. Обновляется на месте. |
 | `--full` | `false` | Принудительная полная пересборка (удалить всё и вставить заново). Деструктивна: если в индексе есть эмбеддинги чанков, отказывается работать без `--drop-vectors`. |
 | `--drop-vectors` | `false` | Вместе с `--full`: подтверждает удаление всех эмбеддингов чанков (`chunk_vecs`). Пересчёт эмбеддингов всего дампа занимает часы. |
+| `--rehash` | `false` | Пересчитать `docs.content_hash` у документов с неизменным `mtime` без переиндексации и повторных эмбеддингов. |
+
+`--rehash` нужен один раз после [`marvindocs pack --all`](#marvindocs-pack)
+на существующем индексе, потому что определение хеша содержимого
+изменилось: теперь это SHA-256 от центрального каталога `db.zip` (имя
+записи, CRC-32 и несжатый размер каждой записи), за которым идут байты
+`index.json`; страницы не распаковываются. Без `--rehash` ничего не
+ломается (неизменный `mtime` означает пропуск документа), но при
+следующем изменении `mtime` с тем же содержимым документ будет
+переиндексирован вместо простого обновления `mtime`.
 
 После успешной сборки индекс уплотняется: сегменты FTS5 сливаются и,
 если более 10% файла занимают свободные страницы, выполняется `VACUUM`
@@ -121,7 +131,7 @@ marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body] [--index-path
 | `--json` | `false` | Выводить сырой список результатов как JSON в stdout. |
 | `--body` | `false` | Искать по телу страниц (Markdown-чанки, страница ранжируется по лучшему чанку), а не по именам записей. |
 | `--index-path` | `marvindocs.db` | Файл SQLite-индекса (должен существовать). |
-| `--docs-path` | `data/public/docs` | Используется с `--body` для сборки сниппетов из `db.json`; без неё результаты выводятся без фрагментов. |
+| `--docs-path` | `data/public/docs` | Используется с `--body` для сборки сниппетов из `db.zip`; без неё результаты выводятся без фрагментов. |
 
 Позиционные аргументы после флагов склеиваются через пробел, то есть
 `marvindocs search http server` эквивалентно `marvindocs search "http server"`.
@@ -137,7 +147,7 @@ marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body] [--index-path
 ## `marvindocs get`
 
 Возвращает одну страницу из дампа devdocs в виде Markdown или
-исходного HTML. SQLite-индекс не нужен — читает `<slug>/db.json`
+исходного HTML. SQLite-индекс не нужен — читает `<slug>/db.zip`
 напрямую.
 
 ```bash
@@ -147,7 +157,7 @@ marvindocs get SLUG PATH [--format markdown|html] [--docs-path DIR]
 | Флаг | По умолчанию | Примечание |
 |---|---|---|
 | `--format` | `markdown` | `markdown` (алиас `md`) или `html`. |
-| `--docs-path` | `data/public/docs` | Каталог с `<slug>/db.json`. |
+| `--docs-path` | `data/public/docs` | Каталог с `<slug>/db.zip`. |
 
 `PATH` — путь страницы, как он хранится в devdocs (например
 `hooks/use-state` для React). Узнать корректный путь можно через
@@ -169,6 +179,32 @@ marvindocs list [--json] [--index-path FILE]
 Текстовый вывод — колонки `SLUG  NAME  VERSION` (если `version`
 пусто, используется `release`). Итоговая строка идёт в stderr.
 
+## `marvindocs pack`
+
+Конвертирует документы из `<slug>/db.json` (JSON-карта path -> html,
+формат архивов devdocs.io) в `<slug>/db.zip` (по одной сжатой deflate-
+записи на страницу, см.
+[Формат данных](data-format.md#5-slugdbzip--содержимое-страниц)) и
+удаляет `db.json`. SQLite-индекс не нужен.
+
+```bash
+marvindocs pack (--all | SLUG...) [--docs-path DIR]
+```
+
+| Флаг | По умолчанию | Примечание |
+|---|---|---|
+| `--all` | `false` | Конвертировать все документы из `docs.json`. Несовместим с аргументами `SLUG`. |
+| `--docs-path` | `data/public/docs` | Каталог данных с `<slug>/db.json`. |
+
+Документы без `db.json` пропускаются, поэтому команду безопасно
+запускать повторно. `scripts/sync-docs.sh` вызывает
+`marvindocs pack <slug>` сразу после распаковки каждого скачанного
+документа. `--all` мигрирует существующий каталог данных на месте
+(около 12 минут на 830 документов); после этого один раз запусти
+[`marvindocs index build --rehash`](#marvindocs-index-build). Результат
+занимает на диске примерно в 4 раза меньше (полный набор devdocs:
+~8 ГБ -> ~2.4 ГБ).
+
 ## `marvindocs serve`
 
 Запускает MCP-сервер.
@@ -186,7 +222,7 @@ marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] [--insecure] \
 | `--http` | пусто | Web UI на `<addr>/` и MCP Streamable HTTP на `<addr>/mcp`. Голый `:3333` слушает только `127.0.0.1`; для публичного доступа — `0.0.0.0:3333`. |
 | `--auth-token` | пусто | Если задан, каждый HTTP-запрос (включая `/mcp` и веб-интерфейс) должен содержать `Authorization: Bearer TOKEN`; исключение — только `/healthz`. Если флаг пуст — читается `MARVINDOCS_AUTH_TOKEN`. |
 | `--insecure` | `false` | Разрешить `--http` на не-loopback адресе без токена. Без флага (или `MARVINDOCS_INSECURE=1`) `serve` отказывается стартовать на публичном адресе, если токен не задан. |
-| `--docs-path` | `data/public/docs` | Нужен `get_page`, чтобы читать `db.json` по требованию. |
+| `--docs-path` | `data/public/docs` | Нужен `get_page`, чтобы читать `db.zip` по требованию. |
 | `--index-path` | `marvindocs.db` | Файл должен уже существовать (сначала `index build`). |
 | `--embedder` | `none` | `none`, `ollama` или `onnx`. С эмбеддером `get_docs` использует гибридный поиск (векторы + BM25) по докам, у которых есть векторы. |
 | `--ollama-url`, `--ollama-model` | `http://localhost:11434`, `bge-m3` | Настройки Ollama. |

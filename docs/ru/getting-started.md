@@ -36,14 +36,14 @@ data/public/docs/
 ├── angular/
 │   ├── meta.json
 │   ├── index.json
-│   └── db.json
+│   └── db.zip
 ├── python~3.12/
 │   └── ...
 └── ...
 ```
 
 `docs.json` обязателен. В каталоге каждого slug должны быть
-`index.json` и `db.json`.
+`index.json` и `db.zip`.
 
 ## 3. Собрать бинарник
 

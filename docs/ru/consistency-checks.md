@@ -50,13 +50,15 @@ Heading structure differs: configuration.md (en=12, ru=11)
 Проверяет целостность дампа devdocs на диске:
 
 - `docs.json` присутствует в корне дампа и содержит валидный JSON
-- для каждого slug из `docs.json`: файлы `index.json`, `db.json` и
-  `meta.json` существуют, непусты (пустые файлы выводятся как `EMPTY` и
-  учитываются в «Missing/empty») и содержат валидный JSON
+- для каждого slug из `docs.json`: файлы `index.json`, `db.zip` и
+  `meta.json` существуют и непусты (пустые файлы выводятся как `EMPTY` и
+  учитываются в «Missing/empty»); JSON-файлы должны содержать валидный
+  JSON, а `db.zip` — проходить `unzip -t`
 - директории slug'ов, присутствующие на диске, но отсутствующие в
   `docs.json`, выводятся как осиротевшие (orphan)
 
-`jq` обязателен (запасного варианта нет). Невалидный `docs.json`
+`jq` обязателен (запасного варианта нет), а для проверки `db.zip`
+нужен `unzip`. Невалидный `docs.json`
 прерывает проверку с кодом выхода `2`.
 
 ### Использование
@@ -102,7 +104,7 @@ Heading structure differs: configuration.md (en=12, ru=11)
 ### Пример вывода
 
 ```
-MISSING  rust/db.json
+MISSING  rust/db.zip
 ORPHAN   some-old-slug
 
 Summary:

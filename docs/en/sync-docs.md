@@ -113,12 +113,17 @@ a `HEAD` only for slugs absent from the catalog.
    `docs.json`, or the slugs you supplied).
 2. Downloads `https://downloads.devdocs.io/<slug>.tar.gz` in parallel
    with `curl` and extracts each archive into `data/public/docs/<slug>/`.
+   The loose per-page `*.html` files in the archive are optional and are
+   skipped; only `db.json`, `index.json` and `meta.json` are needed.
    Failed slugs (404/403) are reported and skipped without aborting.
-3. Rebuilds `data/public/docs/docs.json` from the `meta.json` file
+3. Right after extraction converts each freshly downloaded doc with
+   `marvindocs pack <slug>` (`db.json` -> `db.zip`, then `db.json` is
+   deleted), see [cli.md](cli.md#marvindocs-pack).
+4. Rebuilds `data/public/docs/docs.json` from the `meta.json` file
    inside every slug directory (pure bash, no Python) — only if at
    least one slug was updated or `docs.json` is missing; otherwise the
    existing file is kept.
-4. *(Unless `--no-index`)* Runs `./bin/marvindocs index build`
+5. *(Unless `--no-index`)* Runs `./bin/marvindocs index build`
    (incremental, keeps chunk embeddings).
 
 ## Incremental index sync
@@ -127,8 +132,11 @@ a `HEAD` only for slugs absent from the catalog.
 
 - `mtime` unchanged: the doc is skipped.
 - `mtime` changed but the content did not: only the stored `mtime` is
-  updated and the doc's vectors are kept. The content hash is a sha256 of
-  `db.json` + `index.json`, stored in `docs.content_hash`. This is the
+  updated and the doc's vectors are kept. The content hash is a SHA-256
+  over the `db.zip` central directory (entry name, CRC-32 and
+  uncompressed size of every entry) followed by the bytes of
+  `index.json`, stored in `docs.content_hash`; pages are never inflated
+  to compute it. This is the
   typical case after re-running a parser, which rewrites the files with
   identical content.
 - Content changed: the doc is re-indexed and its old vectors are deleted;
@@ -136,6 +144,10 @@ a `HEAD` only for slugs absent from the catalog.
 
 An index made by an older version gets the `content_hash` column added
 automatically, and the hashes are backfilled on the first `index build`.
+After migrating an existing data directory with `marvindocs pack --all`
+run `marvindocs index build --rehash` once: the hash definition changed,
+and `--rehash` recomputes `content_hash` for docs with unchanged mtime
+without re-indexing or re-embedding them (see [cli.md](cli.md#marvindocs-index-build)).
 See [Vector search](vectors.md#keeping-vectors-up-to-date).
 
 ## One-command update

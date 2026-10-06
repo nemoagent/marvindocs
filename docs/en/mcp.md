@@ -101,7 +101,7 @@ that aren't entry names — `jsonb operators`, `connection pool size`,
   too, again only when no doc filter is active.
 - **Output:** `{ hits: [{ doc_slug, path, snippet, score }] }`.
   `snippet` is a short excerpt of the best chunk (~24 words around the
-  first match, rebuilt from `db.json` at query time) with the matched terms wrapped in `[ ]`.
+  first match, rebuilt from `db.zip` at query time) with the matched terms wrapped in `[ ]`.
 
 ### `get_page`
 

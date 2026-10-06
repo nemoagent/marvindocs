@@ -206,12 +206,15 @@ or changed docs and deletes their rows including vectors. Unchanged docs
 keep their vectors.
 
 A doc counts as changed by its content, not only by mtime: the index stores
-a sha256 of `db.json` + `index.json` in `docs.content_hash`. If the mtime
+a SHA-256 over the `db.zip` central directory (entry name, CRC-32,
+uncompressed size) + `index.json` in `docs.content_hash`. If the mtime
 changed but the content did not (typical after re-running a parser), only
 the mtime is updated and the vectors are kept. If the content changed, the
 doc is rebuilt and `index embed` embeds it again. An index from an older
 version gets the column added automatically and the hashes backfilled on
-the first `index build`.
+the first `index build`. After converting an existing data directory with
+`marvindocs pack --all`, run `index build --rehash` once to recompute the
+hashes under the new definition without re-indexing or re-embedding.
 
 `index embed` embeds only chunks without a vector, so after every
 `index build` run `index embed` (or `make embed`) again: only the changed
