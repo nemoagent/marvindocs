@@ -5,6 +5,9 @@
 *.test
 *.out
 
+# Local configuration (see .env.example)
+/.env
+
 # SQLite index
 /marvindocs.db
 /marvindocs.db-*

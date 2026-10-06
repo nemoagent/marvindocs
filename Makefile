@@ -9,9 +9,8 @@ DOCKER_RUN = docker run --rm \
 
 # Vector search (optional): see docs/en/vectors.md.
 ONNX_DIR = data/onnx
-OLLAMA_URL = http://localhost:11434
 
-.PHONY: build build-onnx onnx-fetch tidy test test-full vet lint vuln check fmt run-http run-stdio run-onnx index embed parsers parsers-test clean
+.PHONY: build build-onnx onnx-fetch tidy test test-full vet lint vuln check fmt run-http run-stdio run-onnx index embed update parsers parsers-test clean clean-index
 
 build:
 	mkdir -p bin .gocache .gomodcache
@@ -68,9 +67,14 @@ run-onnx: build-onnx
 	./bin/marvindocs serve --http :3333 --embedder onnx \
 		--model-dir $(ONNX_DIR)/model --onnxruntime $(ONNX_DIR)/lib/libonnxruntime.so
 
-# Embed chunks that have no vector yet (incremental) via Ollama bge-m3.
-embed: build
-	./bin/marvindocs index embed --embedder ollama --ollama-url $(OLLAMA_URL)
+# Embed chunks that have no vector yet (incremental). Embedder comes from
+# .env (MARVINDOCS_EMBEDDER, default onnx = local CPU, slow).
+embed:
+	./scripts/update.sh --embed-only
+
+# Safe end-to-end refresh: devdocs sync, parsers, incremental index, embed.
+update:
+	./scripts/update.sh
 
 # Build every parser binary into bin/<name>-parser. Each parser is its
 # own Go module so we iterate; no CGO needed for parsers, hence the
@@ -102,5 +106,10 @@ parsers-test:
 			go test ./... || exit 1; \
 	done
 
+# Build artefacts only; the index is kept (hours of embedding live there).
 clean:
-	rm -rf bin .gocache .gomodcache marvindocs.db*
+	rm -rf bin .gocache .gomodcache
+
+# Delete the SQLite index including all chunk embeddings.
+clean-index:
+	rm -f marvindocs.db marvindocs.db-*
