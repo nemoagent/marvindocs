@@ -50,7 +50,7 @@ func (w *Writer) AddEntry(name, path, typ string) {
 	w.entries = append(w.entries, Entry{Name: name, Path: path, Type: typ})
 }
 
-// Flush writes meta.json, index.json, db.json and .last-modified to
+// Flush writes meta.json, index.json, db.zip and .last-modified to
 // outputDir. The directory is created if missing. When force is
 // false and the directory already contains any of the output files,
 // Flush returns an error so callers don't silently overwrite work.
@@ -66,20 +66,34 @@ func (w *Writer) Flush(outputDir string, force bool) error {
 		return fmt.Errorf("mkdir %s: %w", outputDir, err)
 	}
 	if !force {
-		for _, name := range []string{"meta.json", "index.json", "db.json"} {
+		for _, name := range []string{"meta.json", "index.json", DBName} {
 			if _, err := os.Stat(filepath.Join(outputDir, name)); err == nil {
 				return fmt.Errorf("%s already exists in %s (pass --force to overwrite)", name, outputDir)
 			}
 		}
 	}
 
-	dbBytes, err := json.Marshal(w.pages)
+	// Pages go out sorted by path so the archive is reproducible.
+	paths := make([]string, 0, len(w.pages))
+	for p := range w.pages {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	db, err := NewDBWriter(filepath.Join(outputDir, DBName))
 	if err != nil {
-		return fmt.Errorf("marshal db.json: %w", err)
+		return err
+	}
+	for _, p := range paths {
+		if err := db.Add(p, w.pages[p]); err != nil {
+			return err
+		}
+	}
+	if err := db.Close(); err != nil {
+		return err
 	}
 
 	doc := w.Doc
-	doc.DBSize = int64(len(dbBytes))
+	doc.DBSize = db.Size()
 	if doc.Mtime == 0 {
 		doc.Mtime = time.Now().Unix()
 	}
@@ -92,9 +106,6 @@ func (w *Writer) Flush(outputDir string, force bool) error {
 		Types:   buildTypes(w.entries),
 	}
 
-	if err := writeJSON(filepath.Join(outputDir, "db.json"), dbBytes); err != nil {
-		return err
-	}
 	if err := writeJSONIndent(filepath.Join(outputDir, "index.json"), idx); err != nil {
 		return err
 	}

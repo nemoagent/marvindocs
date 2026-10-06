@@ -1,7 +1,9 @@
 package devdocsfmt
 
 import (
+	"archive/zip"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,7 +30,7 @@ func TestWriterFlush(t *testing.T) {
 	}
 	out := filepath.Join(dir, "demo~1")
 
-	for _, name := range []string{"meta.json", "index.json", "db.json", ".last-modified"} {
+	for _, name := range []string{"meta.json", "index.json", DBName, ".last-modified"} {
 		if _, err := os.Stat(filepath.Join(out, name)); err != nil {
 			t.Fatalf("missing %s: %v", name, err)
 		}
@@ -40,10 +42,9 @@ func TestWriterFlush(t *testing.T) {
 		t.Fatalf("bad meta: %+v", meta)
 	}
 
-	var db map[string]string
-	mustReadJSON(t, filepath.Join(out, "db.json"), &db)
-	if db["index"] == "" || db["guide"] == "" {
-		t.Fatalf("db.json missing pages: %v", db)
+	db := mustReadDB(t, filepath.Join(out, DBName))
+	if db["index"] != "<h1>Demo</h1><p>hi</p>" || db["guide"] != "<h2>Guide</h2>" || len(db) != 2 {
+		t.Fatalf("db.zip has wrong pages: %v", db)
 	}
 
 	var idx struct {
@@ -84,6 +85,29 @@ func TestWriterRequiresPagesAndMeta(t *testing.T) {
 	if err := w2.Flush(t.TempDir(), false); err == nil {
 		t.Fatal("expected error: missing Doc.Name/Slug")
 	}
+}
+
+func mustReadDB(t *testing.T, path string) map[string]string {
+	t.Helper()
+	zr, err := zip.OpenReader(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zr.Close()
+	pages := map[string]string{}
+	for _, f := range zr.File {
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		pages[f.Name] = string(body)
+	}
+	return pages
 }
 
 func mustReadJSON(t *testing.T, path string, v any) {

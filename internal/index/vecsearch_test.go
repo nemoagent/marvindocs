@@ -55,9 +55,6 @@ func vecFixture(t *testing.T) (*Index, *docstore.Store) {
 	files := map[string]string{
 		"docs.json":        `[{"name":"Alpha","slug":"alpha","type":"lib","version":"1","release":"r1","mtime":1}]`,
 		"alpha/index.json": `{"entries":[{"name":"Connect","path":"net/connect","type":"Function"}],"types":[]}`,
-		"alpha/db.json": `{"net/connect":"<h1>Connect</h1><p>Opens a pooled connection to the server.</p>",
-			"net/close":"<h1>Close</h1><p>Releases the connection back to the pool.</p>",
-			"fs/read":"<h1>Read</h1><p>Reads bytes from a file descriptor.</p>"}`,
 	}
 	for name, body := range files {
 		p := filepath.Join(root, name)
@@ -68,6 +65,11 @@ func vecFixture(t *testing.T) (*Index, *docstore.Store) {
 			t.Fatal(err)
 		}
 	}
+	writeDB(t, filepath.Join(root, "alpha"), map[string]string{
+		"net/connect": "<h1>Connect</h1><p>Opens a pooled connection to the server.</p>",
+		"net/close":   "<h1>Close</h1><p>Releases the connection back to the pool.</p>",
+		"fs/read":     "<h1>Read</h1><p>Reads bytes from a file descriptor.</p>",
+	})
 	store, err := docstore.Open(root)
 	if err != nil {
 		t.Fatal(err)

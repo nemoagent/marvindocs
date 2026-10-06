@@ -42,7 +42,7 @@ func TestSecurityHeaders(t *testing.T) {
 
 // fixtureHandler wires a web handler to a one-doc index (slug "go",
 // entry "Println") and a docstore whose docs.json lists the same doc.
-// No db.json is written, so only paths that stop before Store.Page work.
+// No db.zip is written, so only paths that stop before Store.Page work.
 func fixtureHandler(t *testing.T) http.Handler {
 	t.Helper()
 	dir := t.TempDir()
@@ -129,7 +129,7 @@ func TestDocPathETag(t *testing.T) {
 		t.Errorf("ETag = %q, want %q", got, etag)
 	}
 	// Without a matching validator the handler proceeds to load the page;
-	// the fixture has no db.json, so a 404 proves it did not short-circuit.
+	// the fixture has no db.zip, so a 404 proves it did not short-circuit.
 	// A 404 must not carry cache validators.
 	rec = get(h, "/docs/go/fmt/Println", "If-None-Match", `"stale"`)
 	if rec.Code != http.StatusNotFound {

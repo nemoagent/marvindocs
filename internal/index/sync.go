@@ -16,7 +16,12 @@ import (
 // disappeared from docstore are removed. A doc without page rows (index
 // built by an older version without the chunk index) is re-indexed as
 // well. Docs without a stored hash get one computed (HashBackfilled).
-func (i *Index) Sync(ctx context.Context, s *docstore.Store) (BuildStats, error) {
+//
+// With rehash, docs whose mtime is unchanged also get their hash
+// recomputed and stored without re-indexing. This is for when the hash
+// definition changed (e.g. db.json was packed into db.zip), so a later
+// mtime bump with identical content is still recognised as such.
+func (i *Index) Sync(ctx context.Context, s *docstore.Store, rehash bool) (BuildStats, error) {
 	start := time.Now()
 	var stats BuildStats
 
@@ -35,7 +40,7 @@ func (i *Index) Sync(ctx context.Context, s *docstore.Store) (BuildStats, error)
 	for _, d := range s.Docs() {
 		wanted[d.Slug] = struct{}{}
 		ex, ok := existing[d.Slug]
-		if ok && ex.hasPages && ex.mtime == d.Mtime && ex.hash != "" {
+		if ok && ex.hasPages && ex.mtime == d.Mtime && ex.hash != "" && !rehash {
 			stats.Docs++
 			stats.Entries += ex.entries
 			stats.Pages += ex.pages
@@ -49,9 +54,11 @@ func (i *Index) Sync(ctx context.Context, s *docstore.Store) (BuildStats, error)
 		case !ok || !ex.hasPages:
 			plans = append(plans, plan{d, hash})
 			continue
-		case ex.mtime == d.Mtime: // old index without hashes
-			hashes[d.Slug] = hash
-			stats.HashBackfilled++
+		case ex.mtime == d.Mtime: // old index without hashes, or --rehash
+			if ex.hash != hash {
+				hashes[d.Slug] = hash
+				stats.HashBackfilled++
+			}
 		case ex.hash == hash:
 			hashes[d.Slug] = hash
 			stats.Touched++

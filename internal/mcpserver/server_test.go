@@ -13,6 +13,7 @@ import (
 	"github.com/piligrim/marvindocs/internal/docstore"
 	"github.com/piligrim/marvindocs/internal/index"
 	"github.com/piligrim/marvindocs/internal/mdcache"
+	"github.com/piligrim/marvindocs/parsers/devdocsfmt"
 )
 
 // fixtureStore writes a one-doc devdocs tree (slug "go", entry
@@ -23,9 +24,6 @@ func fixtureStore(t *testing.T) *docstore.Store {
 	files := map[string]string{
 		"docs.json":     `[{"name":"Go","slug":"go","type":"lib","version":"1","release":"r1","mtime":0}]`,
 		"go/index.json": `{"entries":[{"name":"Println","path":"fmt/Println","type":"Function"}],"types":[]}`,
-		"go/db.json": `{"fmt/Println":"<h1>Println</h1><p>Println writes to standard output.</p>` +
-			`<h2>Formatting</h2><p>Spaces are always added between operands.</p>",` +
-			`"os/exit":"<h1>Exit</h1><p>Exit causes the program to exit with the given code.</p>"}`,
 	}
 	for name, body := range files {
 		p := filepath.Join(root, name)
@@ -35,6 +33,23 @@ func fixtureStore(t *testing.T) *docstore.Store {
 		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
+	}
+	w, err := devdocsfmt.NewDBWriter(filepath.Join(root, "go", devdocsfmt.DBName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pages := map[string]string{
+		"fmt/Println": "<h1>Println</h1><p>Println writes to standard output.</p>" +
+			"<h2>Formatting</h2><p>Spaces are always added between operands.</p>",
+		"os/exit": "<h1>Exit</h1><p>Exit causes the program to exit with the given code.</p>",
+	}
+	for path, html := range pages {
+		if err := w.Add(path, html); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
 	}
 	s, err := docstore.Open(root)
 	if err != nil {

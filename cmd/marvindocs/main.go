@@ -31,7 +31,7 @@ const usage = `marvindocs - MCP server and web UI for the DevDocs archive.
 Usage:
   marvindocs serve [--http ADDR] [--stdio] [--auth-token TOKEN] [--insecure] [--docs-path DIR] [--index-path FILE]
                    [--embedder none|ollama|onnx] [--ollama-url URL] [--ollama-model NAME] [--model-dir DIR] [--onnxruntime PATH]
-  marvindocs index build [--full [--drop-vectors]] [--docs-path DIR] [--index-path FILE]
+  marvindocs index build [--full [--drop-vectors]] [--rehash] [--docs-path DIR] [--index-path FILE]
   marvindocs index stats [--index-path FILE] [--by-doc] [--top N]
   marvindocs index embed [--doc SLUG]... [--embedder ollama|onnx] [--ollama-url URL] [--ollama-model NAME]
                          [--model-dir DIR] [--onnxruntime PATH] [--batch N] [--docs-path DIR] [--index-path FILE]
@@ -40,6 +40,8 @@ Usage:
   marvindocs search QUERY [--doc SLUG] [--limit N] [--json]
   marvindocs get SLUG PATH [--format FORMAT]
   marvindocs list [--json]
+  marvindocs pack (--all | SLUG...) [--docs-path DIR]
+                  (convert devdocs db.json into db.zip; sync-docs.sh does this per download)
   marvindocs version
 
 Examples:
@@ -70,6 +72,8 @@ func main() {
 		runGet(os.Args[2:])
 	case "list":
 		runList(os.Args[2:])
+	case "pack":
+		runPack(os.Args[2:])
 	case "version", "--version", "-v":
 		fmt.Println("marvindocs", version)
 	case "help", "--help", "-h":
@@ -275,9 +279,10 @@ func runIndex(args []string) {
 		full := fs.Bool("full", false, "Force full rebuild instead of incremental sync (default is incremental by mtime)")
 		docsPath := fs.String("docs-path", "data/public/docs", "Path to devdocs data")
 		dropVectors := fs.Bool("drop-vectors", false, "With --full: allow discarding all chunk embeddings (chunk_vecs). Without it --full refuses when vectors exist")
+		rehash := fs.Bool("rehash", false, "Recompute content hashes of unchanged docs without re-indexing them (after `pack --all`)")
 		indexPath := fs.String("index-path", "marvindocs.db", "Output SQLite file")
 		_ = fs.Parse(args[1:])
-		if err := runIndexBuild(*docsPath, *indexPath, *full, *dropVectors); err != nil {
+		if err := runIndexBuild(*docsPath, *indexPath, *full, *dropVectors, *rehash); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
 		}
@@ -322,7 +327,7 @@ func runIndex(args []string) {
 	}
 }
 
-func runIndexBuild(docsPath, indexPath string, full, dropVectors bool) error {
+func runIndexBuild(docsPath, indexPath string, full, dropVectors, rehash bool) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
@@ -353,7 +358,7 @@ func runIndexBuild(docsPath, indexPath string, full, dropVectors bool) error {
 	if full {
 		stats, err = idx.Build(ctx, store)
 	} else {
-		stats, err = idx.Sync(ctx, store)
+		stats, err = idx.Sync(ctx, store, rehash)
 	}
 	if err != nil {
 		return err

@@ -11,7 +11,7 @@
 //
 //	<outputDir>/meta.json   - flat object describing the doc
 //	<outputDir>/index.json  - {entries: [...], types: [...]}
-//	<outputDir>/db.json     - {<path>: "<html fragment>", ...}
+//	<outputDir>/db.zip      - one deflated entry per page: <path> -> <html fragment>
 //
 // Plus a .last-modified stamp so scripts/sync-docs.sh sees the doc
 // as locally-managed and skips remote checks.
@@ -33,7 +33,7 @@ type Doc struct {
 }
 
 // Entry is one searchable item inside a doc. Path is the
-// db.json key (without trailing .html) plus optional "#anchor".
+// db.zip entry name (without trailing .html) plus optional "#anchor".
 type Entry struct {
 	Name string `json:"name"`
 	Path string `json:"path"`

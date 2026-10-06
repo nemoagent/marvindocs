@@ -9,10 +9,11 @@ import (
 	"testing"
 
 	"github.com/piligrim/marvindocs/internal/docstore"
+	"github.com/piligrim/marvindocs/parsers/devdocsfmt"
 )
 
 // fixtureStore writes a tiny devdocs tree: one doc with index.json and
-// db.json, and a second doc that ships only index.json.
+// db.zip, and a second doc that ships only index.json.
 func fixtureStore(t *testing.T) *docstore.Store {
 	t.Helper()
 	root := t.TempDir()
@@ -20,7 +21,6 @@ func fixtureStore(t *testing.T) *docstore.Store {
 		"docs.json": `[{"name":"Alpha","slug":"alpha","type":"lib","version":"1","release":"r1","mtime":1},
 			{"name":"Beta","slug":"beta","type":"lib","version":"1","release":"r1","mtime":1}]`,
 		"alpha/index.json": `{"entries":[{"name":"Connect","path":"net/connect","type":"Function"}],"types":[]}`,
-		"alpha/db.json":    `{"net/connect":"<h1>Connect</h1><p>Opens a pooled connection to the server.</p>"}`,
 		"beta/index.json":  `{"entries":[{"name":"Other","path":"other","type":"Function"}],"types":[]}`,
 	}
 	for name, body := range files {
@@ -32,11 +32,31 @@ func fixtureStore(t *testing.T) *docstore.Store {
 			t.Fatal(err)
 		}
 	}
+	writeDB(t, filepath.Join(root, "alpha"), map[string]string{
+		"net/connect": "<h1>Connect</h1><p>Opens a pooled connection to the server.</p>",
+	})
 	s, err := docstore.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return s
+}
+
+// writeDB writes pages as dir/db.zip.
+func writeDB(t *testing.T, dir string, pages map[string]string) {
+	t.Helper()
+	w, err := devdocsfmt.NewDBWriter(filepath.Join(dir, devdocsfmt.DBName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for path, html := range pages {
+		if err := w.Add(path, html); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestBuildIndexesPageBodies(t *testing.T) {
@@ -83,7 +103,7 @@ func TestSyncIndexesPageBodies(t *testing.T) {
 	t.Cleanup(func() { _ = idx.Close() })
 
 	ctx := context.Background()
-	stats, err := idx.Sync(ctx, store)
+	stats, err := idx.Sync(ctx, store, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +116,7 @@ func TestSyncIndexesPageBodies(t *testing.T) {
 	if _, err := idx.DB().Exec(`DELETE FROM pages WHERE doc_slug = 'alpha'`); err != nil {
 		t.Fatal(err)
 	}
-	stats, err = idx.Sync(ctx, store)
+	stats, err = idx.Sync(ctx, store, false)
 	if err != nil {
 		t.Fatal(err)
 	}

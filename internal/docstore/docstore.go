@@ -5,12 +5,17 @@
 //	<root>/docs.json                  - list of all documents
 //	<root>/<slug>/meta.json           - per-doc metadata (same shape as docs.json entry)
 //	<root>/<slug>/index.json          - {entries: [...], types: [...]}
-//	<root>/<slug>/db.json             - {path: "<html fragment>", ...}
+//	<root>/<slug>/db.zip              - one deflated entry per page: path -> html fragment
+//
+// db.zip is marvindocs' replacement for devdocs' db.json (see
+// parsers/devdocsfmt.DBWriter and `marvindocs pack`).
 package docstore
 
 import (
-	"bufio"
+	"archive/zip"
+	"compress/flate"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -64,21 +69,26 @@ type Store struct {
 	indexMu  sync.Mutex
 	indexMem map[string]*Index // cached per-slug index.json
 
-	// dbSpans caches, per slug, where each page's JSON string sits in
-	// db.json. Built on first access by one streaming pass; Page() then
-	// reads a single value with ReadAt, so a 270 MiB dump costs a few
+	// dbSpans caches, per slug, where each page's data sits in db.zip.
+	// Built on first access from the central directory; Page() then
+	// reads and inflates a single entry, so a 270 MiB dump costs a few
 	// hundred KiB of RSS instead of the whole decoded map.
 	dbMu    sync.Mutex
 	dbSpans map[string]map[string]span
 	// scanMu serialises first-time scans so concurrent misses for the
-	// same slug (get_docs reads pages in parallel) scan db.json once.
+	// same slug (get_docs reads pages in parallel) read the directory once.
 	scanMu sync.Mutex
 }
 
-// span locates a JSON string value inside db.json.
+// dbName is the per-doc page archive.
+const dbName = "db.zip"
+
+// span locates one entry's data inside db.zip.
 type span struct {
-	off int64
-	n   int64
+	off    int64  // data offset in the archive
+	n      int64  // compressed size
+	size   int64  // uncompressed size
+	method uint16 // zip.Store or zip.Deflate
 }
 
 // Open loads docs.json. Per-doc index/db files are loaded lazily.
@@ -112,23 +122,37 @@ func (s *Store) Docs() []Doc { return s.docs }
 // Doc returns a document by slug, or nil if not found.
 func (s *Store) Doc(slug string) *Doc { return s.bySlug[slug] }
 
-// ContentHash returns the hex SHA-256 of a doc's db.json followed by its
-// index.json. A missing file is skipped, matching how the index treats
-// docs that ship only one of them.
+// ContentHash identifies a doc's content: the SHA-256 over every db.zip
+// entry (path, CRC-32, size, as stored in the central directory) followed
+// by the bytes of index.json. It never inflates a page, so it costs one
+// central-directory read plus the index file, and it does not depend on
+// the deflate implementation that packed the archive. A missing file is
+// skipped, matching how the index treats docs that ship only one of them.
 func (s *Store) ContentHash(slug string) (string, error) {
 	h := sha256.New()
-	for _, name := range []string{"db.json", "index.json"} {
-		f, err := os.Open(filepath.Join(s.root, slug, name))
-		if errors.Is(err, os.ErrNotExist) {
-			continue
+	zr, err := zip.OpenReader(filepath.Join(s.root, slug, dbName))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("hash %s for %s: %w", dbName, slug, err)
+	}
+	if err == nil {
+		var rec [12]byte
+		for _, f := range zr.File {
+			io.WriteString(h, f.Name)
+			binary.LittleEndian.PutUint32(rec[:4], f.CRC32)
+			binary.LittleEndian.PutUint64(rec[4:], f.UncompressedSize64)
+			h.Write(rec[:])
 		}
-		if err != nil {
-			return "", fmt.Errorf("hash %s for %s: %w", name, slug, err)
-		}
+		zr.Close()
+	}
+	f, err := os.Open(filepath.Join(s.root, slug, "index.json"))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("hash index.json for %s: %w", slug, err)
+	}
+	if err == nil {
 		_, err = io.Copy(h, f)
 		f.Close()
 		if err != nil {
-			return "", fmt.Errorf("hash %s for %s: %w", name, slug, err)
+			return "", fmt.Errorf("hash index.json for %s: %w", slug, err)
 		}
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
@@ -159,8 +183,9 @@ func (s *Store) Index(slug string) (*Index, error) {
 }
 
 // Page returns the raw HTML fragment for the given path inside a doc.
-// The first call for a slug scans db.json once to record value offsets;
-// later calls read just the requested page from disk.
+// The first call for a slug reads the db.zip directory once to record
+// where each entry's data sits; later calls read and inflate just the
+// requested page.
 func (s *Store) Page(slug, path string) (string, error) {
 	spans, err := s.spans(slug)
 	if err != nil {
@@ -170,24 +195,30 @@ func (s *Store) Page(slug, path string) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("page not found: %s/%s", slug, path)
 	}
-	f, err := os.Open(filepath.Join(s.root, slug, "db.json"))
+	f, err := os.Open(filepath.Join(s.root, slug, dbName))
 	if err != nil {
-		return "", fmt.Errorf("open db.json for %s: %w", slug, err)
+		return "", fmt.Errorf("open %s for %s: %w", dbName, slug, err)
 	}
 	defer f.Close()
-	buf := make([]byte, sp.n)
-	if _, err := f.ReadAt(buf, sp.off); err != nil {
+	var r io.Reader = io.NewSectionReader(f, sp.off, sp.n)
+	switch sp.method {
+	case zip.Store:
+	case zip.Deflate:
+		fr := flate.NewReader(r)
+		defer fr.Close()
+		r = fr
+	default:
+		return "", fmt.Errorf("read page %s/%s: unsupported zip method %d", slug, path, sp.method)
+	}
+	buf := make([]byte, sp.size)
+	if _, err := io.ReadFull(r, buf); err != nil {
 		return "", fmt.Errorf("read page %s/%s: %w", slug, path, err)
 	}
-	var html string
-	if err := json.Unmarshal(buf, &html); err != nil {
-		return "", fmt.Errorf("decode page %s/%s: %w", slug, path, err)
-	}
-	return html, nil
+	return string(buf), nil
 }
 
-// spans returns the cached offset table for slug, scanning db.json on
-// first use.
+// spans returns the cached entry table for slug, reading the db.zip
+// directory on first use.
 func (s *Store) spans(slug string) (map[string]span, error) {
 	s.dbMu.Lock()
 	spans, ok := s.dbSpans[slug]
@@ -213,176 +244,57 @@ func (s *Store) spans(slug string) (map[string]span, error) {
 	return spans, nil
 }
 
+// scanSpans walks the central directory of db.zip and resolves each
+// entry's data offset. The archive is closed afterwards: Page re-opens
+// the file per read, so the store never holds a descriptor per doc.
 func (s *Store) scanSpans(slug string) (map[string]span, error) {
 	if _, ok := s.bySlug[slug]; !ok {
 		return nil, fmt.Errorf("unknown slug: %s", slug)
 	}
-	f, err := os.Open(filepath.Join(s.root, slug, "db.json"))
+	zr, err := zip.OpenReader(filepath.Join(s.root, slug, dbName))
 	if err != nil {
-		return nil, fmt.Errorf("open db.json for %s: %w", slug, err)
+		return nil, fmt.Errorf("open %s for %s: %w", dbName, slug, err)
 	}
-	defer f.Close()
-	spans, err := scanSpans(bufio.NewReaderSize(f, 1<<20))
-	if err != nil {
-		return nil, fmt.Errorf("scan db.json for %s: %w", slug, err)
-	}
-	return spans, nil
-}
-
-// scanSpans walks a db.json object ({"path": "<html>", ...}) and records
-// the byte range of every string value without decoding it. It relies on
-// the fixed shape of db.json: a flat object whose values are all strings.
-// Anything else is reported as an error.
-//
-// Strings are skipped with ReadSlice so the hot loop runs at buffer
-// speed (~700 MiB/s) instead of byte-by-byte; encoding/json's streaming
-// decoder is roughly ten times slower on the largest dumps.
-func scanSpans(br *bufio.Reader) (map[string]span, error) {
-	var pos int64
-	next := func() (byte, error) {
-		b, err := br.ReadByte()
-		pos++
-		return b, err
-	}
-	skipWS := func() (byte, error) {
-		for {
-			b, err := next()
-			if err != nil {
-				return 0, err
-			}
-			if b != ' ' && b != '\n' && b != '\r' && b != '\t' {
-				return b, nil
-			}
-		}
-	}
-	// skipString consumes a string whose opening quote was already read.
-	// When keep is set, it returns the raw bytes including both quotes.
-	skipString := func(keep bool) ([]byte, error) {
-		var buf []byte
-		if keep {
-			buf = append(buf, '"')
-		}
-		carry := 0 // backslashes at the end of the previous chunk
-		for {
-			seg, err := br.ReadSlice('"')
-			pos += int64(len(seg))
-			if keep {
-				buf = append(buf, seg...)
-			}
-			if errors.Is(err, bufio.ErrBufferFull) {
-				carry = trailingBackslashes(seg, carry)
-				continue
-			}
-			if err != nil {
-				return nil, err
-			}
-			// An odd number of backslashes before the quote escapes it.
-			if trailingBackslashes(seg[:len(seg)-1], carry)%2 == 0 {
-				return buf, nil
-			}
-			carry = 0
-		}
-	}
-
-	b, err := skipWS()
-	if err != nil || b != '{' {
-		return nil, errors.New("expected object")
-	}
-	out := make(map[string]span)
-	for {
-		b, err := skipWS()
+	defer zr.Close()
+	out := make(map[string]span, len(zr.File))
+	for _, f := range zr.File {
+		off, err := f.DataOffset()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scan %s for %s: entry %s: %w", dbName, slug, f.Name, err)
 		}
-		if b == '}' {
-			return out, nil
-		}
-		if b != '"' {
-			return nil, fmt.Errorf("expected key at offset %d", pos-1)
-		}
-		rawKey, err := skipString(true)
-		if err != nil {
-			return nil, err
-		}
-		var key string
-		if err := json.Unmarshal(rawKey, &key); err != nil {
-			return nil, err
-		}
-		if b, err = skipWS(); err != nil || b != ':' {
-			return nil, fmt.Errorf("expected ':' after key %q", key)
-		}
-		if b, err = skipWS(); err != nil || b != '"' {
-			return nil, fmt.Errorf("expected string value for key %q", key)
-		}
-		start := pos - 1
-		if _, err = skipString(false); err != nil {
-			return nil, err
-		}
-		out[key] = span{off: start, n: pos - start}
-		if b, err = skipWS(); err != nil {
-			return nil, err
-		}
-		if b == '}' {
-			return out, nil
-		}
-		if b != ',' {
-			return nil, fmt.Errorf("expected ',' after key %q", key)
+		out[f.Name] = span{
+			off:    off,
+			n:      int64(f.CompressedSize64),
+			size:   int64(f.UncompressedSize64),
+			method: f.Method,
 		}
 	}
+	return out, nil
 }
 
-// trailingBackslashes counts consecutive backslashes at the end of seg.
-// If seg is all backslashes, carry (the count from the preceding chunk)
-// is added so escapes split across chunks are still counted correctly.
-func trailingBackslashes(seg []byte, carry int) int {
-	n := 0
-	for i := len(seg) - 1; i >= 0 && seg[i] == '\\'; i-- {
-		n++
-	}
-	if n == len(seg) {
-		n += carry
-	}
-	return n
-}
-
-// StreamPages calls fn for every page in db.json without holding the whole
-// file in the store cache. Intended for the indexer.
-//
-// Decoding is streamed key-by-key, so peak memory is O(largest single
-// page) instead of O(whole db.json). For multi-hundred-MB devdocs dumps
-// this is the difference between a few MB and several GB of RSS.
+// StreamPages calls fn for every page in db.zip in archive order without
+// caching anything in the store. Intended for the indexer: peak memory is
+// O(largest single page) instead of O(whole dump).
 func (s *Store) StreamPages(slug string, fn func(path, html string) error) error {
 	if _, ok := s.bySlug[slug]; !ok {
 		return fmt.Errorf("unknown slug: %s", slug)
 	}
-	f, err := os.Open(filepath.Join(s.root, slug, "db.json"))
+	zr, err := zip.OpenReader(filepath.Join(s.root, slug, dbName))
 	if err != nil {
-		return fmt.Errorf("open db.json for %s: %w", slug, err)
+		return fmt.Errorf("open %s for %s: %w", dbName, slug, err)
 	}
-	defer f.Close()
-
-	dec := json.NewDecoder(f)
-	tok, err := dec.Token()
-	if err != nil {
-		return fmt.Errorf("decode db.json for %s: %w", slug, err)
-	}
-	if d, ok := tok.(json.Delim); !ok || d != '{' {
-		return fmt.Errorf("decode db.json for %s: expected object, got %v", slug, tok)
-	}
-	for dec.More() {
-		keyTok, err := dec.Token()
+	defer zr.Close()
+	for _, f := range zr.File {
+		rc, err := f.Open()
 		if err != nil {
-			return fmt.Errorf("decode db.json for %s: %w", slug, err)
+			return fmt.Errorf("open page %s/%s: %w", slug, f.Name, err)
 		}
-		key, ok := keyTok.(string)
-		if !ok {
-			return fmt.Errorf("decode db.json for %s: non-string key %v", slug, keyTok)
+		b, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			return fmt.Errorf("read page %s/%s: %w", slug, f.Name, err)
 		}
-		var html string
-		if err := dec.Decode(&html); err != nil {
-			return fmt.Errorf("decode db.json for %s/%s: %w", slug, key, err)
-		}
-		if err := fn(key, html); err != nil {
+		if err := fn(f.Name, string(b)); err != nil {
 			return err
 		}
 	}

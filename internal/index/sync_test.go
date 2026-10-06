@@ -23,7 +23,7 @@ func TestSyncIncrementalSkipsUnchangedDocs(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = idx.Close() })
 
-	first, err := idx.Sync(context.Background(), store)
+	first, err := idx.Sync(context.Background(), store, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestSyncIncrementalSkipsUnchangedDocs(t *testing.T) {
 
 	// Second sync without any changes: should report the same totals,
 	// taking far less wall time (no new inserts).
-	second, err := idx.Sync(context.Background(), store)
+	second, err := idx.Sync(context.Background(), store, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestSyncKeepsVectorsWhenOnlyMtimeChanges(t *testing.T) {
 	root := store.Root()
 
 	// Build stores the hash, so Sync has nothing to do.
-	st, err := idx.Sync(ctx, store)
+	st, err := idx.Sync(ctx, store, false)
 	if err != nil || st.HashBackfilled != 0 || st.Touched != 0 {
 		t.Fatalf("no-op sync: %+v, %v", st, err)
 	}
@@ -59,7 +59,7 @@ func TestSyncKeepsVectorsWhenOnlyMtimeChanges(t *testing.T) {
 	if _, err := idx.db.Exec(`UPDATE docs SET content_hash = ''`); err != nil {
 		t.Fatal(err)
 	}
-	st, err = idx.Sync(ctx, store)
+	st, err = idx.Sync(ctx, store, false)
 	if err != nil || st.HashBackfilled != 1 || st.Touched != 0 {
 		t.Fatalf("backfill sync: %+v, %v", st, err)
 	}
@@ -85,9 +85,9 @@ func TestSyncKeepsVectorsWhenOnlyMtimeChanges(t *testing.T) {
 		}
 	}
 
-	// New mtime, same db.json/index.json: touched, vectors survive.
+	// New mtime, same db.zip/index.json: touched, vectors survive.
 	writeDocs("2")
-	st, err = idx.Sync(ctx, reopen())
+	st, err = idx.Sync(ctx, reopen(), false)
 	if err != nil || st.Touched != 1 || st.HashBackfilled != 0 || st.Docs != 1 {
 		t.Fatalf("touch sync: %+v, %v", st, err)
 	}
@@ -99,13 +99,18 @@ func TestSyncKeepsVectorsWhenOnlyMtimeChanges(t *testing.T) {
 		t.Fatalf("stored mtime = %d, %v", mtime, err)
 	}
 
-	// New mtime and changed db.json: rebuilt, vectors dropped.
-	writeDocs("3")
-	db := `{"net/connect":"<h1>Connect</h1><p>Changed text.</p>"}`
-	if err := os.WriteFile(filepath.Join(root, "alpha", "db.json"), []byte(db), 0o644); err != nil {
-		t.Fatal(err)
+	// Forcing a rehash of an unchanged doc finds the same hash: nothing stored.
+	st, err = idx.Sync(ctx, reopen(), true)
+	if err != nil || st.HashBackfilled != 0 || st.Touched != 0 {
+		t.Fatalf("rehash sync: %+v, %v", st, err)
 	}
-	st, err = idx.Sync(ctx, reopen())
+
+	// New mtime and changed db.zip: rebuilt, vectors dropped.
+	writeDocs("3")
+	writeDB(t, filepath.Join(root, "alpha"), map[string]string{
+		"net/connect": "<h1>Connect</h1><p>Changed text.</p>",
+	})
+	st, err = idx.Sync(ctx, reopen(), false)
 	if err != nil || st.Touched != 0 || st.Pages != 1 {
 		t.Fatalf("rebuild sync: %+v, %v", st, err)
 	}
