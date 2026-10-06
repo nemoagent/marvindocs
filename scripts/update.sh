@@ -30,6 +30,7 @@ RUN_SYNC=true
 RUN_PARSERS=true
 RUN_INDEX=true
 RUN_EMBED=true
+PARSER_FAILED=false
 
 for arg in "$@"; do
 	case "$arg" in
@@ -83,7 +84,9 @@ if [ "$RUN_PARSERS" = true ]; then
 	echo ""
 	echo "==> [2/4] parser-built docs"
 	if ls bin/*-parser >/dev/null 2>&1; then
-		./scripts/run-parser.sh --all
+		# A failed parser must not stop the index/embed steps; the catalog is
+		# rebuilt for the ones that succeeded and the failures are listed.
+		./scripts/run-parser.sh --all || PARSER_FAILED=true
 	else
 		echo "  no bin/*-parser binaries, run 'make parsers' first; skipping"
 	fi
@@ -119,4 +122,8 @@ if [ "$RUN_EMBED" = true ]; then
 fi
 
 echo ""
+if [ "$PARSER_FAILED" = true ]; then
+	echo "Update done, but some parsers failed (see FAILED above)."
+	exit 1
+fi
 echo "Update done."
