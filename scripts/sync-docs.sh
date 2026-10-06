@@ -383,13 +383,18 @@ download_slug() {
 	# don't end up with a half-extracted tree being stamped.
 	#
 	# The archive ships every page twice: inside db.json and as a loose
-	# *.html file. marvindocs reads pages only from db.json, so the html
-	# copies are skipped — they would double the on-disk footprint.
+	# *.html file. marvindocs reads pages only from db.zip (db.json
+	# packed one entry per page, ~4x smaller), so the html copies are
+	# skipped and db.json is converted right after extraction.
 	mkdir -p "$dir"
 	if (
 		set -o pipefail
 		curl -sSfL --max-time 300 "$url" | tar -xz -C "$dir" --exclude='*.html'
 	) 2>/dev/null; then
+		if ! "$BINARY" pack --docs-path "$DATA_DIR" "$slug" >/dev/null 2>&1; then
+			echo "  FAIL    $slug (pack db.json)"
+			return
+		fi
 		touch -d "@$remote_ts" "$stamp" 2>/dev/null || touch -t "$(date -r "$remote_ts" +%Y%m%d%H%M.%S)" "$stamp"
 		echo "  UPDATED $slug"
 	else
@@ -397,7 +402,14 @@ download_slug() {
 	fi
 }
 export -f download_slug
-export DATA_DIR FORCE CATALOG_TSV
+export DATA_DIR FORCE CATALOG_TSV BINARY
+
+# pack runs inside download_slug, so the binary is needed before the
+# first download, not only for the index rebuild.
+if [ ! -x "$BINARY" ]; then
+	echo "==> binary not found at $BINARY, building..."
+	make -C "$REPO_DIR" build
+fi
 
 # ---- parallel download ------------------------------------------------------
 # Tee xargs output so we can both display progress and count UPDATED lines.
@@ -422,11 +434,6 @@ fi
 
 # ---- rebuild index ----------------------------------------------------------
 if [ "$RUN_INDEX" = true ]; then
-	if [ ! -x "$BINARY" ]; then
-		echo ""
-		echo "==> binary not found at $BINARY, building..."
-		make -C "$REPO_DIR" build
-	fi
 	echo ""
 	echo "==> rebuilding marvindocs index..."
 	"$BINARY" index build \

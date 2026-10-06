@@ -2,7 +2,8 @@
 # Validate integrity of a devdocs dump.
 #
 # Checks per slug listed in docs.json:
-#   - index.json, db.json, meta.json exist and are non-empty
+#   - index.json, db.zip, meta.json exist and are non-empty
+#   - the json files parse; db.zip is a readable zip archive
 #   - each file is valid JSON
 # Also reports orphan directories present on disk but absent from docs.json.
 #
@@ -47,10 +48,12 @@ if [[ ! -f "${DOCS_JSON}" ]]; then
 	exit 2
 fi
 
-if ! command -v jq &>/dev/null; then
-	echo "error: jq is required but not found in PATH" >&2
-	exit 2
-fi
+for tool in jq unzip; do
+	if ! command -v "$tool" &>/dev/null; then
+		echo "error: $tool is required but not found in PATH" >&2
+		exit 2
+	fi
+done
 
 # Validate docs.json itself
 if ! jq empty "${DOCS_JSON}" 2>/dev/null; then
@@ -64,7 +67,7 @@ count_missing=0
 count_invalid=0
 count_orphan=0
 
-REQUIRED_FILES=("index.json" "db.json" "meta.json")
+REQUIRED_FILES=("index.json" "db.zip" "meta.json")
 
 # Read slugs from docs.json
 mapfile -t slugs < <(jq -r '.[].slug' "${DOCS_JSON}")
@@ -90,7 +93,12 @@ for slug in "${slugs[@]}"; do
 			continue
 		fi
 
-		if ! jq empty "${fpath}" 2>/dev/null; then
+		if [[ "${fname}" == *.zip ]]; then
+			valid=$(unzip -tq "${fpath}" >/dev/null 2>&1 && echo yes || echo no)
+		else
+			valid=$(jq empty "${fpath}" 2>/dev/null && echo yes || echo no)
+		fi
+		if [[ "${valid}" != yes ]]; then
 			echo "INVALID  ${slug}/${fname}"
 			((count_invalid++)) || true
 			slug_ok=false
