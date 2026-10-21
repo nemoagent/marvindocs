@@ -85,6 +85,9 @@ func TestBench(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer idx.Close()
+	if os.Getenv("BENCH_SYNONYMS") == "off" {
+		idx.SetSynonyms(nil)
+	}
 	d := Deps{Store: store, Index: idx, MDCache: mdcache.New(64)}
 	if u := os.Getenv("BENCH_OLLAMA"); u != "" {
 		d.Embedder = &cachingEmbedder{Embedder: embed.NewOllama(u, "bge-m3"), vecs: map[string][]float32{}}

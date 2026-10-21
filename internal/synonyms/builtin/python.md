@@ -1,0 +1,3 @@
+# python
+
+synonyms:: py

@@ -1,0 +1,3 @@
+# asynchronous
+
+synonyms:: async, асинхронный

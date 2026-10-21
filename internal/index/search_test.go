@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/piligrim/marvindocs/internal/docstore"
+	"github.com/piligrim/marvindocs/internal/synonyms"
 )
 
 // sharedIdx is built once per `go test` run and reused by all search tests
@@ -430,12 +431,80 @@ func TestCompareVersions(t *testing.T) {
 }
 
 func TestChunkFTSQueryPrefix(t *testing.T) {
-	got := chunkFTSQuery(`wait for a group of goroutines`)
-	want := `"wait"* "for" "a" "group"* "of" "goroutines"*`
+	got := chunkFTSQuery(nil, `wait for a group of goroutines`)
+	want := `"wait"* AND "for" AND "a" AND "group"* AND "of" AND "goroutines"*`
 	if got != want {
 		t.Errorf("chunkFTSQuery = %s, want %s", got, want)
 	}
-	if got := sanitizeFTSQuery(`a go`); got != `"a"* "go"*` {
+	if got := sanitizeFTSQuery(nil, `a go`); got != `"a"* AND "go"*` {
 		t.Errorf("sanitizeFTSQuery = %s", got)
+	}
+}
+
+func TestFTSQuerySynonyms(t *testing.T) {
+	th := &synonyms.Thesaurus{}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "re.md"), []byte("# regular expression\nsynonyms:: regex, re\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := th.LoadDir(dir); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct{ got, want string }{
+		{chunkFTSQuery(th, `regex flags`), `("regex"* OR "regular expression"* OR "re") AND "flags"*`},
+		{chunkFTSQuery(th, `Regular Expression`), `("Regular Expression"* OR "regex"* OR "re")`},
+		{anyWordFTSQuery(th, `re flags`), `"re" OR "regular expression" OR "regex" OR "flags"`},
+		{snippetQuery(th, `re flags`), `re regular expression regex flags`},
+	}
+	for _, c := range cases {
+		if c.got != c.want {
+			t.Errorf("got %s, want %s", c.got, c.want)
+		}
+	}
+}
+
+func TestSearchSynonyms(t *testing.T) {
+	idx, err := Open(filepath.Join(t.TempDir(), "syn.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = idx.Close() })
+	for _, slug := range []string{"postgresql~17", "kubernetes"} {
+		if _, err := idx.db.Exec(`INSERT INTO docs(slug, name, type, version, release, mtime) VALUES(?,?,'lib','','',0)`, slug, slug); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, e := range [][2]string{{"postgresql~17", "jsonb_path_query"}, {"kubernetes", "kubernetes deployment"}} {
+		if _, err := idx.db.Exec(`INSERT INTO entries(doc_slug, name, path, type) VALUES(?,?,?,'Function')`, e[0], e[1], e[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx := context.Background()
+
+	// "pg" names the postgresql doc through the builtin thesaurus.
+	hits, err := idx.Search(ctx, "pg jsonb", "", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) == 0 || hits[0].DocSlug != "postgresql~17" {
+		t.Errorf("pg jsonb: %v", hits)
+	}
+
+	// "k8s" expands to "kubernetes" in the FTS query.
+	hits, err = idx.Search(ctx, "k8s deployment", "kubernetes", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].Name != "kubernetes deployment" {
+		t.Errorf("k8s deployment: %v", hits)
+	}
+
+	idx.SetSynonyms(nil)
+	hits, err = idx.Search(ctx, "k8s deployment", "kubernetes", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 0 {
+		t.Errorf("k8s deployment without synonyms: %v", hits)
 	}
 }

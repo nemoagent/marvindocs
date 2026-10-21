@@ -1,0 +1,3 @@
+# go
+
+synonyms:: golang

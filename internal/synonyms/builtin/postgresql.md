@@ -1,0 +1,3 @@
+# postgresql
+
+synonyms:: postgres, pg

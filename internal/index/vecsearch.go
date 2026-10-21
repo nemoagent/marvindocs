@@ -209,7 +209,7 @@ func SetFusionWeights(lex, title float64) {
 // word of query, best bm25 first, each as a candidate for the page's
 // first chunk. No any-word fallback: on the bench it changed nothing.
 func (i *Index) topEntryPages(ctx context.Context, query string, docSlugs []string, n int) ([]chunkCand, error) {
-	q := sanitizeFTSQuery(query)
+	q := sanitizeFTSQuery(i.syn, query)
 	if q == "" || n <= 0 {
 		return nil, nil
 	}
@@ -382,7 +382,7 @@ func (i *Index) SearchPagesVec(ctx context.Context, pages PageSource, q []float3
 	if err != nil {
 		return nil, err
 	}
-	return pageHits(ctx, pages, cands, query, limit)
+	return pageHits(ctx, pages, cands, snippetQuery(i.syn, query), limit)
 }
 
 // SearchChunksHybrid mirrors SearchChunks but ranks by the query vector

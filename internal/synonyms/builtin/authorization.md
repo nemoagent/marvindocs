@@ -1,0 +1,3 @@
+# authorization
+
+synonyms:: authz, авторизация

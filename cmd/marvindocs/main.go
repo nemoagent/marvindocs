@@ -23,6 +23,7 @@ import (
 	"github.com/piligrim/marvindocs/internal/logging"
 	"github.com/piligrim/marvindocs/internal/mcpserver"
 	"github.com/piligrim/marvindocs/internal/mdcache"
+	"github.com/piligrim/marvindocs/internal/synonyms"
 	"github.com/piligrim/marvindocs/internal/web"
 )
 
@@ -93,6 +94,7 @@ func runServe(args []string) {
 	authToken := fs.String("auth-token", "", "If set, HTTP requests must carry 'Authorization: Bearer <token>'. Reads MARVINDOCS_AUTH_TOKEN if empty")
 	insecure := fs.Bool("insecure", false, "Allow a non-loopback --http bind without --auth-token. Also enabled by MARVINDOCS_INSECURE=1")
 	newEmbedder := embedderFlags(fs, "none")
+	synDir := synonymsFlag(fs)
 	_ = fs.Parse(args)
 
 	if *httpAddr == "" && !*stdio {
@@ -113,7 +115,7 @@ func runServe(args []string) {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
-	if err := runServeWith(addr, *stdio, *docsPath, *indexPath, token, e); err != nil {
+	if err := runServeWith(addr, *stdio, *docsPath, *indexPath, token, *synDir, e); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
@@ -169,7 +171,7 @@ func bearerAuthHandler(token string, next http.Handler) http.Handler {
 	})
 }
 
-func runServeWith(httpAddr string, stdio bool, docsPath, indexPath, authToken string, e embed.Embedder) error {
+func runServeWith(httpAddr string, stdio bool, docsPath, indexPath, authToken, synDir string, e embed.Embedder) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	if e != nil {
@@ -188,6 +190,9 @@ func runServeWith(httpAddr string, stdio bool, docsPath, indexPath, authToken st
 		return err
 	}
 	defer idx.Close()
+	if err := applySynonyms(idx, synDir); err != nil {
+		return err
+	}
 
 	// Cache HTML→Markdown for hot pages. 1024 entries ~= a few MB at
 	// typical doc page sizes; tuned for MCP agents that re-fetch the
@@ -391,6 +396,33 @@ func envOr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// synonymsFlag registers --synonyms on fs; see applySynonyms.
+func synonymsFlag(fs *flag.FlagSet) *string {
+	return fs.String("synonyms", envOr("MARVINDOCS_SYNONYMS", ""), "Directory of extra synonym files (*.md with 'synonyms::' lines) added to the builtin ones; 'off' disables query expansion; env MARVINDOCS_SYNONYMS")
+}
+
+// applySynonyms sets the query thesaurus of idx from a --synonyms value:
+// empty keeps the builtin one, "off" disables it, a directory adds its
+// files to the builtin ones.
+func applySynonyms(idx *index.Index, val string) error {
+	switch val {
+	case "":
+		return nil
+	case "off":
+		idx.SetSynonyms(nil)
+		return nil
+	}
+	th, err := synonyms.Builtin()
+	if err != nil {
+		return err
+	}
+	if err := th.LoadDir(val); err != nil {
+		return err
+	}
+	idx.SetSynonyms(th)
+	return nil
 }
 
 // embedderFlags registers the embedder flags on fs with def as the

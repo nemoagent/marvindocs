@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"sync"
+
+	"github.com/piligrim/marvindocs/internal/synonyms"
 )
 
 // Index is a handle to an open SQLite index file.
@@ -19,6 +21,8 @@ type Index struct {
 
 	vecMu    sync.Mutex
 	vecCache map[string]*docVecs // doc slug -> vectors, loaded lazily
+
+	syn *synonyms.Thesaurus // query expansion; nil disables it
 }
 
 // Open opens (or creates) an index file and ensures the schema exists.
@@ -43,7 +47,18 @@ func Open(path string) (*Index, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("migrate schema: %w", err)
 	}
-	return &Index{db: db, path: path}, nil
+	syn, err := synonyms.Builtin()
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return &Index{db: db, path: path, syn: syn}, nil
+}
+
+// SetSynonyms replaces the thesaurus used to expand search queries
+// (the builtin one by default); nil disables the expansion.
+func (i *Index) SetSynonyms(t *synonyms.Thesaurus) {
+	i.syn = t
 }
 
 // addContentHash adds docs.content_hash to an index made by an older

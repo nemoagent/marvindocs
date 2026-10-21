@@ -1,0 +1,3 @@
+# authentication
+
+synonyms:: authn, аутентификация

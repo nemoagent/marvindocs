@@ -1,0 +1,3 @@
+# closure
+
+synonyms:: замыкание

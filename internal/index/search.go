@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/piligrim/marvindocs/internal/docstore"
+	"github.com/piligrim/marvindocs/internal/synonyms"
 )
 
 // SearchHit is one result from Search.
@@ -51,19 +53,12 @@ func (i *Index) docCatalog(ctx context.Context) (slugs map[string]bool, names ma
 	return i.catalogSlugs, i.catalogNames, i.catalogErr
 }
 
-// docAliases maps short tokens to canonical slug prefixes.
-var docAliases = map[string]string{
-	"js":    "javascript",
-	"py":    "python",
-	"ts":    "typescript",
-	"pg":    "postgresql",
-	"mongo": "mongodb",
-}
-
 // extractDocFilter inspects query tokens and returns a cleaned query
-// and matched doc slugs. If no token matches a known doc, matchedSlugs is nil.
-// If the caller already passed a non-empty callerDocSlug, auto-filter is skipped.
-func extractDocFilter(query string, knownSlugs map[string]bool, callerDocSlug string) (cleanQuery string, matchedSlugs []string) {
+// and matched doc slugs. A token names a doc by itself or through a
+// synonym in th ("pg" -> "postgresql"). If no token matches a known
+// doc, matchedSlugs is nil. If the caller already passed a non-empty
+// callerDocSlug, auto-filter is skipped.
+func extractDocFilter(query string, knownSlugs map[string]bool, callerDocSlug string, th *synonyms.Thesaurus) (cleanQuery string, matchedSlugs []string) {
 	if callerDocSlug != "" {
 		return query, nil
 	}
@@ -77,39 +72,12 @@ func extractDocFilter(query string, knownSlugs map[string]bool, callerDocSlug st
 
 	for idx, tok := range tokens {
 		t := strings.ToLower(tok)
-		if alias, ok := docAliases[t]; ok {
-			t = alias
-		}
-		for slug := range knownSlugs {
-			sl := strings.ToLower(slug)
-			if sl == t {
-				matchIdx = idx
-				matchedPrefix = t
-				goto found
-			}
-			if tilde := strings.Index(sl, "~"); tilde >= 0 {
-				pre := sl[:tilde]
-				if pre == t {
+		for _, name := range append([]string{t}, th.Lookup(t)...) {
+			for slug := range knownSlugs {
+				if slugNamed(strings.ToLower(slug), name) {
 					matchIdx = idx
-					matchedPrefix = pre
+					matchedPrefix = name
 					goto found
-				}
-				if dash := strings.Index(pre, "-"); dash >= 0 {
-					base := pre[:dash]
-					if base == t {
-						matchIdx = idx
-						matchedPrefix = base
-						goto found
-					}
-				}
-			} else {
-				if dash := strings.Index(sl, "-"); dash >= 0 {
-					base := sl[:dash]
-					if base == t {
-						matchIdx = idx
-						matchedPrefix = base
-						goto found
-					}
 				}
 			}
 		}
@@ -134,33 +102,28 @@ func extractDocFilter(query string, knownSlugs map[string]bool, callerDocSlug st
 	cleanQuery = strings.Join(remaining, " ")
 
 	for slug := range knownSlugs {
-		sl := strings.ToLower(slug)
-		if sl == matchedPrefix {
+		if slugNamed(strings.ToLower(slug), matchedPrefix) {
 			matchedSlugs = append(matchedSlugs, slug)
-			continue
-		}
-		if tilde := strings.Index(sl, "~"); tilde >= 0 {
-			pre := sl[:tilde]
-			if pre == matchedPrefix {
-				matchedSlugs = append(matchedSlugs, slug)
-				continue
-			}
-			if dash := strings.Index(pre, "-"); dash >= 0 {
-				if pre[:dash] == matchedPrefix {
-					matchedSlugs = append(matchedSlugs, slug)
-					continue
-				}
-			}
-		} else {
-			if dash := strings.Index(sl, "-"); dash >= 0 {
-				if sl[:dash] == matchedPrefix {
-					matchedSlugs = append(matchedSlugs, slug)
-					continue
-				}
-			}
 		}
 	}
 	return cleanQuery, newestPerDoc(matchedSlugs)
+}
+
+// slugNamed reports whether name names the lower-case doc slug sl: the
+// whole slug, its part before "~" or that part's base before "-".
+func slugNamed(sl, name string) bool {
+	if sl == name {
+		return true
+	}
+	pre := sl
+	if tilde := strings.Index(sl, "~"); tilde >= 0 {
+		pre = sl[:tilde]
+		if pre == name {
+			return true
+		}
+	}
+	dash := strings.Index(pre, "-")
+	return dash >= 0 && pre[:dash] == name
 }
 
 // newestPerDoc keeps one slug per doc: when several versions of the same
@@ -257,7 +220,7 @@ func leadingDigits(s string) string {
 //     by a small constant for "popular" docs so that, all else equal,
 //     a hit in postgresql/python/react/go beats one in haxe/pony.
 func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([]SearchHit, error) {
-	if sanitizeFTSQuery(query) == "" {
+	if sanitizeFTSQuery(i.syn, query) == "" {
 		return nil, nil
 	}
 	if limit <= 0 {
@@ -272,7 +235,7 @@ func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([
 	// fall back to a global search when the filtered one finds nothing.
 	slugMap, _, catErr := i.docCatalog(ctx)
 	if catErr == nil && len(slugMap) > 0 {
-		cleanQ, matched := extractDocFilter(query, slugMap, "")
+		cleanQ, matched := extractDocFilter(query, slugMap, "", i.syn)
 		if len(matched) > 0 {
 			hits, err := i.searchIn(ctx, cleanQ, matched, limit)
 			if err != nil || len(hits) > 0 {
@@ -286,7 +249,7 @@ func (i *Index) Search(ctx context.Context, query, docSlug string, limit int) ([
 // searchIn runs the FTS search plus substring fallback. An empty
 // docSlugs means a global search with the popularity boost.
 func (i *Index) searchIn(ctx context.Context, query string, docSlugs []string, limit int) ([]SearchHit, error) {
-	q := sanitizeFTSQuery(query)
+	q := sanitizeFTSQuery(i.syn, query)
 	if q == "" {
 		return nil, nil
 	}
@@ -547,7 +510,7 @@ func (i *Index) SearchPages(ctx context.Context, pages PageSource, query, docSlu
 	if err != nil {
 		return nil, err
 	}
-	return pageHits(ctx, pages, cands, query, limit)
+	return pageHits(ctx, pages, cands, snippetQuery(i.syn, query), limit)
 }
 
 // pageHits turns score-ordered candidates into at most limit page hits.
@@ -653,7 +616,7 @@ func (i *Index) searchChunksAuto(ctx context.Context, query, docSlug string, pag
 	}
 	slugMap, _, catErr := i.docCatalog(ctx)
 	if catErr == nil && len(slugMap) > 0 {
-		cleanQ, matched := extractDocFilter(query, slugMap, "")
+		cleanQ, matched := extractDocFilter(query, slugMap, "", i.syn)
 		if len(matched) > 0 {
 			cands, err := i.searchChunksIn(ctx, cleanQ, matched, pages, perPage)
 			if err != nil || len(cands) > 0 {
@@ -667,7 +630,7 @@ func (i *Index) searchChunksAuto(ctx context.Context, query, docSlug string, pag
 // searchChunksIn runs the chunk FTS search, first requiring every word
 // (with prefix matching), then falling back to any-word matching.
 func (i *Index) searchChunksIn(ctx context.Context, query string, docSlugs []string, pages, perPage int) ([]chunkCand, error) {
-	q := chunkFTSQuery(query)
+	q := chunkFTSQuery(i.syn, query)
 	if q == "" {
 		return nil, nil
 	}
@@ -677,7 +640,7 @@ func (i *Index) searchChunksIn(ctx context.Context, query string, docSlugs []str
 	}
 	// Natural-language queries rarely have every word in one chunk;
 	// fall back to any-word matching and let bm25 rank by overlap.
-	return i.queryChunks(ctx, anyWordFTSQuery(query), docSlugs, pages, perPage)
+	return i.queryChunks(ctx, anyWordFTSQuery(i.syn, query), docSlugs, pages, perPage)
 }
 
 // queryChunks runs one FTS MATCH and returns the top perPage chunks of
@@ -841,10 +804,11 @@ type DocRow struct {
 // sanitizeFTSQuery escapes a user-supplied query so that arbitrary input
 // can't produce FTS5 syntax errors. Each whitespace-separated token is
 // wrapped in double quotes with embedded quotes doubled; a trailing * is
-// appended to enable prefix matching. An empty input yields an empty
-// string (caller should treat as "no query").
-func sanitizeFTSQuery(q string) string {
-	return ftsQuery(q, 1)
+// appended to enable prefix matching. A term with synonyms in th becomes
+// an OR group of the term and its synonyms. An empty input yields an
+// empty string (caller should treat as "no query").
+func sanitizeFTSQuery(th *synonyms.Thesaurus, q string) string {
+	return ftsQuery(th, q, 1)
 }
 
 // chunkMinPrefix is the shortest token that gets a prefix * in the
@@ -854,40 +818,78 @@ const chunkMinPrefix = 4
 
 // chunkFTSQuery is sanitizeFTSQuery for chunks_fts: tokens shorter than
 // chunkMinPrefix are matched exactly.
-func chunkFTSQuery(q string) string {
-	return ftsQuery(q, chunkMinPrefix)
+func chunkFTSQuery(th *synonyms.Thesaurus, q string) string {
+	return ftsQuery(th, q, chunkMinPrefix)
 }
 
-// anyWordFTSQuery builds an OR query of exact (non-prefix) tokens for
-// the natural-language fallback: prefixes on short words like "a" or
-// "in" would match nearly everything.
-func anyWordFTSQuery(q string) string {
-	fields := strings.Fields(q)
-	parts := make([]string, 0, len(fields))
-	for _, f := range fields {
-		parts = append(parts, `"`+strings.ReplaceAll(f, `"`, `""`)+`"`)
+// anyWordFTSQuery builds an OR query of exact (non-prefix) tokens and
+// their synonyms for the natural-language fallback: prefixes on short
+// words like "a" or "in" would match nearly everything.
+func anyWordFTSQuery(th *synonyms.Thesaurus, q string) string {
+	var parts []string
+	for _, alts := range queryTerms(th, q) {
+		for _, a := range alts {
+			parts = append(parts, ftsPhrase(a, math.MaxInt))
+		}
 	}
 	return strings.Join(parts, " OR ")
 }
 
-// ftsQuery quotes every token of q and appends a prefix * to tokens of
-// at least minPrefix runes.
-func ftsQuery(q string, minPrefix int) string {
-	fields := strings.Fields(q)
-	if len(fields) == 0 {
-		return ""
+// ftsQuery quotes every term of q and appends a prefix * to terms whose
+// last word has at least minPrefix runes. Terms are joined by an
+// explicit AND: FTS5 has no implicit AND next to a parenthesised group.
+func ftsQuery(th *synonyms.Thesaurus, q string, minPrefix int) string {
+	terms := queryTerms(th, q)
+	parts := make([]string, 0, len(terms))
+	for _, alts := range terms {
+		ors := make([]string, len(alts))
+		for k, a := range alts {
+			ors[k] = ftsPhrase(a, minPrefix)
+		}
+		if len(ors) == 1 {
+			parts = append(parts, ors[0])
+		} else {
+			parts = append(parts, "("+strings.Join(ors, " OR ")+")")
+		}
 	}
-	parts := make([]string, 0, len(fields))
-	for _, f := range fields {
-		escaped := strings.ReplaceAll(f, `"`, `""`)
-		if escaped == "" {
+	return strings.Join(parts, " AND ")
+}
+
+// ftsPhrase quotes s as an FTS5 phrase, with a prefix * when its last
+// word has at least minPrefix runes.
+func ftsPhrase(s string, minPrefix int) string {
+	t := `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
+	if utf8.RuneCountInString(s[strings.LastIndex(s, " ")+1:]) >= minPrefix {
+		t += "*"
+	}
+	return t
+}
+
+// queryTerms splits q into terms, each a list of alternatives: the
+// query words themselves, then their synonyms. A run of words that is a
+// multi-word term of th ("regular expression") makes a single term.
+func queryTerms(th *synonyms.Thesaurus, q string) [][]string {
+	words := strings.Fields(q)
+	var terms [][]string
+	for k := 0; k < len(words); {
+		n, syns := th.Match(words[k:])
+		if n == 0 {
+			terms = append(terms, []string{words[k]})
+			k++
 			continue
 		}
-		t := `"` + escaped + `"`
-		if utf8.RuneCountInString(f) >= minPrefix {
-			t += "*"
-		}
-		parts = append(parts, t)
+		terms = append(terms, append([]string{strings.Join(words[k:k+n], " ")}, syns...))
+		k += n
 	}
-	return strings.Join(parts, " ")
+	return terms
+}
+
+// snippetQuery returns q with the synonyms of its terms appended, so that
+// snippet highlights the words the expanded FTS query matched.
+func snippetQuery(th *synonyms.Thesaurus, q string) string {
+	var words []string
+	for _, alts := range queryTerms(th, q) {
+		words = append(words, alts...)
+	}
+	return strings.Join(words, " ")
 }
