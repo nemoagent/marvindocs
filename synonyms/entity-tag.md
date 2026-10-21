@@ -1,0 +1,3 @@
+# entity tag
+
+synonyms:: etag

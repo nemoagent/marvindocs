@@ -1,0 +1,3 @@
+# php archive
+
+synonyms:: phar

@@ -1,0 +1,3 @@
+# secure shell
+
+synonyms:: ssh

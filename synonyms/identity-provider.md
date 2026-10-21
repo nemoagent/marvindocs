@@ -1,0 +1,3 @@
+# identity provider
+
+synonyms:: idp
