@@ -12,7 +12,7 @@ documentation sets (React, Python, Go, Rust, …) from a local SQLite index.
 | **MCP server** | Expose five tools to AI agents over stdio or HTTP |
 | **HTML→Markdown** | `get_page` converts devdocs HTML to clean Markdown on the fly |
 | **Full-text search** | SQLite FTS5, BM25 ranking, prefix matching |
-| **Synonyms** | Search queries expand with a synonym dictionary (`k8s` finds `kubernetes`), see [docs/en/synonyms.md](docs/en/synonyms.md) |
+| **Synonyms** | Search queries expand with a synonym dictionary (`k8s` finds `kubernetes`), see [docs/en/synonyms.md](docs/en/synonyms.md); `synonyms suggest` mines candidates from the docs |
 | **Vector search** | Optional hybrid bge-m3 + BM25 search for `get_docs`, see [docs/en/vectors.md](docs/en/vectors.md) |
 
 ## Requirements
@@ -155,6 +155,10 @@ marvindocs search QUERY  [--doc SLUG] [--limit N] [--json] [--body] [--index-pat
                                                                 # --body searches page bodies
 marvindocs get SLUG PATH [--format markdown|html] [--docs-path DIR]  # fetch one page
 marvindocs list          [--json] [--index-path FILE]           # list indexed docs
+marvindocs synonyms suggest [--docs-path DIR] [--doc SLUG]... [--min-docs N] [--min-count N]
+                         [--names-only] [--synonyms DIR] [--out FILE]
+                                                                # mine abbreviation candidates (TSV), see docs/en/synonyms.md
+marvindocs synonyms import FILE --out DIR [--force]             # reviewed TSV -> dictionary files for --synonyms
 marvindocs version
 ```
 

@@ -110,6 +110,135 @@ Add only true equivalents: abbreviations, alternative spellings,
 translations. An OR group ranks every synonym equally with the original
 word, so a broad synonym drags loosely related pages up the ranking.
 
+## Building a dictionary from the docs
+
+Writing a dictionary by hand is slow. `marvindocs synonyms suggest` mines
+abbreviation candidates from the docs themselves, and
+`marvindocs synonyms import` turns a reviewed table into dictionary files.
+
+### Mining candidates: `synonyms suggest`
+
+```bash
+marvindocs synonyms suggest [--docs-path DIR] [--doc SLUG]... [--min-docs N] [--min-count N] \
+                            [--names-only] [--synonyms DIR] [--out FILE]
+```
+
+The command looks for pairs written as `Server-Side Rendering (SSR)` or
+`SSR (Server-Side Rendering)`. The abbreviation (3-10 letters, at least 2
+capitals, plural `s` dropped: `ASGs` -> `asg`) must be made of leading
+letters of the words of the name, in order. Each word gives at least one
+letter; stop words like `of`, `and`, `the`, `for`, `in`, `to` may give
+none. The name must have at least two words; parts of a hyphenated word
+count as separate words. Before a parenthesised abbreviation the shortest
+run of preceding words that spells it is taken, so
+`Migrating from Create React App (CRA)` gives `create react app`.
+
+It scans entry names (`index.json`) and page text (`db.zip`) of **one
+version per doc** (the most recently scraped one, because versions repeat
+the same text), in parallel on all CPUs. Versions of a doc count as one
+doc.
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--docs-path` | `data/public/docs` | Directory with `docs.json` and `<slug>/{index.json,db.zip}`. |
+| `--doc` | all docs | Scan only this slug; repeatable. Exact slugs, including the version. |
+| `--min-docs` | `2` | Keep pairs found in at least N docs. |
+| `--min-count` | `3` | Keep pairs with at least N occurrences. |
+| `--names-only` | `false` | Scan entry names only: seconds instead of minutes. |
+| `--synonyms` | empty | Same flag and `MARVINDOCS_SYNONYMS` variable as in `serve`. Terms that already have synonyms in the built-in dictionary or in DIR are skipped, so re-running after an import suggests only new ones. |
+| `--out` | stdout | Write the table to a file. |
+
+On the full archive (830 docs, 234 doc names, 2.7 GB of `db.zip`):
+
+| Mode | Time | Memory | Candidates |
+|---|---|---|---|
+| `--names-only` | about 2 s | | 5 |
+| full text | about 10 min | about 500 MB | about 420 |
+
+The top rows of a full run: `universally unique identifier` / `uuid`,
+`transport layer security` / `tls`, `cross-origin resource sharing` /
+`cors`, `content security policy` / `csp`, `abstract syntax tree` / `ast`,
+`document object model` / `dom`, `server-side rendering` / `ssr`,
+`json web token` / `jwt`, `common table expression` / `cte`.
+
+### Filters
+
+- An abbreviation with several meanings is dropped, unless one meaning
+  makes at least 60% of its uses.
+- Name spellings that differ by a final `s` are merged; the singular form
+  is used as the concept when it was seen.
+- Several abbreviations of one name share one row.
+- If the name has hyphens, its spaced form is added as a synonym
+  (`server-side rendering` -> `ssr, server side rendering`), because
+  queries are split on spaces.
+
+### Output format
+
+A TSV table. The first line is a comment header:
+
+```
+# concept<TAB>synonyms<TAB>count<TAB>docs<TAB>examples
+```
+
+| Column | Content |
+|---|---|
+| `concept` | The full name. |
+| `synonyms` | Comma-separated abbreviations and spellings. |
+| `count` | Number of occurrences. |
+| `docs` | Number of docs where the pair was found. |
+| `examples` | Up to 5 example doc names. |
+
+Rows are sorted by number of docs, then by count.
+
+### Writing files: `synonyms import`
+
+```bash
+marvindocs synonyms import FILE --out DIR [--force]
+```
+
+`FILE` is the table; `-` reads stdin. It may come before or after the
+flags. Only the first two columns are used (concept and comma-separated
+synonyms); blank lines and lines starting with `#` are ignored; rows of
+the same concept are merged.
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--out` | required | Dictionary directory; created if missing. |
+| `--force` | `false` | Overwrite existing files. Without it existing files are skipped, so hand edits survive. |
+
+One file per concept is written in the [dictionary format](#file-format):
+`# concept`, a blank line, `synonyms:: a, b`. The file name is the concept
+lower-cased, with every run of non letter/digit characters replaced by `-`,
+plus `.md` (`server-side rendering` -> `server-side-rendering.md`;
+Cyrillic letters are kept).
+
+### Recommended workflow
+
+1. Mine the candidates:
+   ```bash
+   marvindocs synonyms suggest --out synonyms.tsv
+   ```
+2. Review the table. Delete rows whose abbreviation is a common English
+   word or is otherwise harmful for search: in a real run these were
+   `dos`, `pie`, `pic`, `cow`, `mic`, `des`, `tos`, `dst` (a query word
+   `pie` would also search `position independent executables`). Delete
+   off-topic rows. Add Russian or other translations and spellings to the
+   `synonyms` column. An LLM can do a first pass over the table (ask it to
+   keep only exact equivalents and add established Russian terms), then a
+   human skims the result: it is a few hundred rows.
+3. Write the dictionary files:
+   ```bash
+   marvindocs synonyms import synonyms.tsv --out synonyms/
+   ```
+4. Start the server with the dictionary:
+   ```bash
+   marvindocs serve --synonyms synonyms/
+   ```
+   or set `MARVINDOCS_SYNONYMS=synonyms/`.
+5. Check the benchmark against the default (see the note below).
+
+No index rebuild is needed: expansion happens at query time.
+
 ## Benchmark note
 
 The `get_docs` benchmark in `internal/mcpserver` has 96 cases. Result with
@@ -124,4 +253,11 @@ One case improved (`async await`: from a miss to rank 4), no case got
 worse. Broad concept synonyms (cleanup/teardown, hash map/dictionary) were
 tried and removed from the built-in set because they hurt ranking.
 
-To run the benchmark without synonyms, set `BENCH_SYNONYMS=off`.
+`BENCH_SYNONYMS` accepts `off` (no synonyms at all) or a directory (added
+to the built-in dictionary, like `--synonyms`). To compare a dictionary
+built with `synonyms import` against the default:
+
+```bash
+BENCH_INDEX=marvindocs.db BENCH_DOCS=data/public/docs BENCH_SYNONYMS=synonyms \
+  go test -tags sqlite_fts5 -run TestBench -v ./internal/mcpserver/
+```

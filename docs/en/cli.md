@@ -203,6 +203,44 @@ directory in place (about 12 minutes for 830 docs); afterwards run
 [`marvindocs index build --rehash`](#marvindocs-index-build) once. The
 result is ~4x smaller on disk (full devdocs set: ~8 GB -> ~2.4 GB).
 
+## `marvindocs synonyms suggest`
+
+Mines abbreviation candidates (`Server-Side Rendering (SSR)`) from the
+docs and prints them as a TSV table. Reads `index.json` and `db.zip`, does
+not need the SQLite index. Details, filters and the review workflow are in
+[Synonyms](synonyms.md#building-a-dictionary-from-the-docs).
+
+```bash
+marvindocs synonyms suggest [--docs-path DIR] [--doc SLUG]... [--min-docs N] [--min-count N] [--names-only] [--synonyms DIR] [--out FILE]
+```
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--docs-path` | `data/public/docs` | Directory with `docs.json` and `<slug>/{index.json,db.zip}`. |
+| `--doc` | all docs | Scan only this slug (exact, including the version); repeatable. |
+| `--min-docs` | `2` | Keep pairs found in at least N docs. |
+| `--min-count` | `3` | Keep pairs with at least N occurrences. |
+| `--names-only` | `false` | Scan entry names only: seconds instead of minutes. |
+| `--synonyms` | empty | Skip terms that already have synonyms in the builtin dictionary or in DIR. Falls back to `MARVINDOCS_SYNONYMS`. |
+| `--out` | stdout | Write the table to a file. |
+
+The full-text scan of the whole archive takes about 10 minutes.
+
+## `marvindocs synonyms import`
+
+Turns a reviewed table from `synonyms suggest` into dictionary files, one
+`*.md` per concept. `FILE` may be `-` (stdin) and may come before or after
+the flags. See [Synonyms](synonyms.md#writing-files-synonyms-import).
+
+```bash
+marvindocs synonyms import FILE --out DIR [--force]
+```
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--out` | required | Dictionary directory; created if missing. |
+| `--force` | `false` | Overwrite existing files. Without it existing files are skipped, so hand edits survive. |
+
 ## `marvindocs serve`
 
 Runs the MCP server.
