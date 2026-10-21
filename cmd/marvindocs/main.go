@@ -43,6 +43,10 @@ Usage:
   marvindocs list [--json]
   marvindocs pack (--all | SLUG...) [--docs-path DIR]
                   (convert devdocs db.json into db.zip; sync-docs.sh does this per download)
+  marvindocs synonyms suggest [--docs-path DIR] [--doc SLUG]... [--min-docs N] [--min-count N] [--names-only]
+                              [--synonyms DIR] [--out FILE]
+  marvindocs synonyms import FILE --out DIR [--force]
+                  (mine abbreviation candidates from the docs into a TSV table, review it, write *.md files)
   marvindocs version
 
 Examples:
@@ -75,6 +79,8 @@ func main() {
 		runList(os.Args[2:])
 	case "pack":
 		runPack(os.Args[2:])
+	case "synonyms":
+		runSynonyms(os.Args[2:])
 	case "version", "--version", "-v":
 		fmt.Println("marvindocs", version)
 	case "help", "--help", "-h":

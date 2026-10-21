@@ -12,6 +12,7 @@ import (
 	"github.com/piligrim/marvindocs/internal/embed"
 	"github.com/piligrim/marvindocs/internal/index"
 	"github.com/piligrim/marvindocs/internal/mdcache"
+	"github.com/piligrim/marvindocs/internal/synonyms"
 )
 
 // benchCase is one retrieval question: the query as a developer would type
@@ -67,7 +68,8 @@ func TestBenchCases(t *testing.T) {
 // TestBench measures get_docs retrieval quality on testdata/bench_cases.json.
 // It is skipped unless BENCH_INDEX and BENCH_DOCS point at an index and the
 // docs it was built from; BENCH_OLLAMA switches on the hybrid search and
-// BENCH_WEIGHTS ("lex:title,lex:title,...") runs it once per weight pair:
+// BENCH_WEIGHTS ("lex:title,lex:title,...") runs it once per weight pair;
+// BENCH_SYNONYMS is "off" or a directory added to the builtin synonyms:
 //
 //	BENCH_INDEX=marvindocs.db BENCH_DOCS=data/public/docs BENCH_OLLAMA=http://localhost:11434 \
 //	BENCH_WEIGHTS=0.5:0,0.5:0.5 go test -tags sqlite_fts5 -run TestBench -v ./internal/mcpserver/
@@ -85,8 +87,19 @@ func TestBench(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer idx.Close()
-	if os.Getenv("BENCH_SYNONYMS") == "off" {
+	switch v := os.Getenv("BENCH_SYNONYMS"); v {
+	case "":
+	case "off":
 		idx.SetSynonyms(nil)
+	default: // a directory added to the builtin synonyms, like --synonyms
+		th, err := synonyms.Builtin()
+		if err == nil {
+			err = th.LoadDir(v)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		idx.SetSynonyms(th)
 	}
 	d := Deps{Store: store, Index: idx, MDCache: mdcache.New(64)}
 	if u := os.Getenv("BENCH_OLLAMA"); u != "" {
