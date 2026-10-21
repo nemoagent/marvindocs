@@ -121,17 +121,18 @@ Runs a full-text search against the index and prints hits. Useful for
 shell pipelines and quick lookups without starting a server.
 
 ```bash
-marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body] [--index-path FILE] [--docs-path DIR]
+marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body] [--index-path FILE] [--docs-path DIR] [--synonyms DIR]
 ```
 
 | Flag | Default | Notes |
 |---|---|---|
-| `--doc` | empty | Restrict results to a single doc slug (e.g. `react`, `python~3.13`). If omitted, a query token matching a known slug or its prefix (up to `~`/`-`) is removed and applied as an automatic filter; if that finds nothing, the full query is searched globally. Aliases: `js`, `py`, `ts`, `pg`, `mongo`. |
+| `--doc` | empty | Restrict results to a single doc slug (e.g. `react`, `python~3.13`). If omitted, a query token matching a known slug or its prefix (up to `~`/`-`) is removed and applied as an automatic filter; if that finds nothing, the full query is searched globally. Synonyms of a doc name work too (`pg` -> `postgresql`, `golang` -> `go`), see [Synonyms](synonyms.md). |
 | `--limit` | `20` | Maximum number of results (1–100). |
 | `--json` | `false` | Emit the raw hit list as JSON on stdout. |
 | `--body` | `false` | Search page bodies (Markdown chunks, a page is ranked by its best chunk) instead of entry names. |
 | `--index-path` | `marvindocs.db` | SQLite index file (must exist). |
 | `--docs-path` | `data/public/docs` | Used with `--body` to build snippets from `db.zip`; without it hits are listed without excerpts. |
+| `--synonyms` | empty | Directory with extra synonym `*.md` files, added to the builtin dictionary; `off` disables query expansion. Falls back to `MARVINDOCS_SYNONYMS`; see [Synonyms](synonyms.md). |
 
 Positional arguments after the flags are joined with spaces, so
 `marvindocs search http server` is equivalent to `marvindocs search "http server"`.
@@ -210,7 +211,8 @@ Runs the MCP server.
 marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] [--insecure] \
                  [--docs-path DIR] [--index-path FILE] \
                  [--embedder none|ollama|onnx] [--ollama-url URL] \
-                 [--ollama-model NAME] [--model-dir DIR] [--onnxruntime PATH]
+                 [--ollama-model NAME] [--model-dir DIR] [--onnxruntime PATH] \
+                 [--synonyms DIR]
 ```
 
 | Flag | Default | Notes |
@@ -224,6 +226,7 @@ marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] [--insecure] \
 | `--embedder` | `none` | `none`, `ollama` or `onnx`. With an embedder, `get_docs` uses hybrid vector + BM25 search for docs that have vectors. |
 | `--ollama-url`, `--ollama-model` | `http://localhost:11434`, `bge-m3` | Ollama settings. |
 | `--model-dir`, `--onnxruntime` | | onnx: model directory and path to `libonnxruntime.so`. |
+| `--synonyms` | empty | Directory with extra synonym `*.md` files, added to the builtin dictionary; `off` disables query expansion. Falls back to `MARVINDOCS_SYNONYMS`. A non-existent directory is a startup error. See [Synonyms](synonyms.md). |
 
 The embedder flags are the same as in `index embed`; see
 [Vector search](vectors.md).

@@ -35,6 +35,7 @@ Both `data/public/` and `marvindocs.db*` are in `.gitignore`.
 | `--ollama-model NAME` | `bge-m3` | Ollama model name (`--embedder ollama`). |
 | `--model-dir DIR` | empty | `--embedder onnx`: directory with `model_int8.onnx` and `tokenizer.json`. |
 | `--onnxruntime PATH` | empty | `--embedder onnx`: path to `libonnxruntime.so`. |
+| `--synonyms DIR` | empty | Directory with extra synonym `*.md` files, added to the builtin dictionary. `off` disables query expansion. Falls back to `MARVINDOCS_SYNONYMS`; see [Synonyms](synonyms.md). |
 
 You must specify at least one of `--stdio` or `--http`.
 
@@ -65,6 +66,7 @@ never require a token.
 | `MARVINDOCS_OLLAMA_MODEL` | model name | `bge-m3` | Default of `--ollama-model`. |
 | `MARVINDOCS_MODEL_DIR` | path | `data/onnx/model` | Default of `--model-dir`. |
 | `MARVINDOCS_ONNXRUNTIME` | path | `data/onnx/lib/libonnxruntime.so` | Default of `--onnxruntime`. |
+| `MARVINDOCS_SYNONYMS` | directory, `off` | empty | Default of `--synonyms`. |
 
 The embedder variables are read by the binary as flag defaults; an
 explicit flag always wins.

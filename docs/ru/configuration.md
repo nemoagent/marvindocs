@@ -35,6 +35,7 @@ bin/marvindocs        скомпилированный бинарь (в .gitigno
 | `--ollama-model NAME` | `bge-m3` | Имя модели в Ollama (`--embedder ollama`). |
 | `--model-dir DIR` | пусто | `--embedder onnx`: каталог с `model_int8.onnx` и `tokenizer.json`. |
 | `--onnxruntime PATH` | пусто | `--embedder onnx`: путь к `libonnxruntime.so`. |
+| `--synonyms DIR` | пусто | Каталог с дополнительными файлами синонимов `*.md`, они добавляются к встроенному словарю. `off` отключает расширение запросов. Если флаг пуст — читается `MARVINDOCS_SYNONYMS`; см. [Синонимы](synonyms.md). |
 
 Надо указать хотя бы один из `--stdio` / `--http`.
 
@@ -65,6 +66,7 @@ Loopback-привязка токена не требует.
 | `MARVINDOCS_OLLAMA_MODEL` | имя модели | `bge-m3` | Значение `--ollama-model` по умолчанию. |
 | `MARVINDOCS_MODEL_DIR` | путь | `data/onnx/model` | Значение `--model-dir` по умолчанию. |
 | `MARVINDOCS_ONNXRUNTIME` | путь | `data/onnx/lib/libonnxruntime.so` | Значение `--onnxruntime` по умолчанию. |
+| `MARVINDOCS_SYNONYMS` | каталог, `off` | пусто | Значение `--synonyms` по умолчанию. |
 
 Переменные эмбеддера бинарь читает как значения флагов по умолчанию;
 явно заданный флаг всегда приоритетнее.

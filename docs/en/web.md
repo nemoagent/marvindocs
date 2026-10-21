@@ -21,7 +21,8 @@ Open `http://localhost:3333/` in any browser.
 
 `/search` uses the same index search as the MCP `search` tool: the doc
 filter is auto-detected from the query when `doc` is empty, popular docs
-get a small boost, and a substring fallback tops up sparse results. An
+get a small boost, and a substring fallback tops up sparse results. Query terms are
+expanded with [synonyms](synonyms.md). An
 empty `q` shows a prompt instead of results.
 
 ## Rendering

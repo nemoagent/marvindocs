@@ -121,17 +121,18 @@ qt~6.9                               45235           0
 Удобно для shell-пайплайнов и быстрых проверок без запуска сервера.
 
 ```bash
-marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body] [--index-path FILE] [--docs-path DIR]
+marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body] [--index-path FILE] [--docs-path DIR] [--synonyms DIR]
 ```
 
 | Флаг | По умолчанию | Примечание |
 |---|---|---|
-| `--doc` | пусто | Ограничить поиск одним slug (например, `react`, `python~3.13`). Если флаг не задан, поиск авто-определяет doc-фильтр по токенам запроса: токен, совпадающий со slug'ом или его префиксом (до `~`/`-`), удаляется и применяется как фильтр; если так ничего не найдено, полный запрос ищется глобально. Алиасы: `js`, `py`, `ts`, `pg`, `mongo`. |
+| `--doc` | пусто | Ограничить поиск одним slug (например, `react`, `python~3.13`). Если флаг не задан, поиск авто-определяет doc-фильтр по токенам запроса: токен, совпадающий со slug'ом или его префиксом (до `~`/`-`), удаляется и применяется как фильтр; если так ничего не найдено, полный запрос ищется глобально. Работают и синонимы названия дока (`pg` -> `postgresql`, `golang` -> `go`), см. [Синонимы](synonyms.md). |
 | `--limit` | `20` | Максимум результатов (1–100). |
 | `--json` | `false` | Выводить сырой список результатов как JSON в stdout. |
 | `--body` | `false` | Искать по телу страниц (Markdown-чанки, страница ранжируется по лучшему чанку), а не по именам записей. |
 | `--index-path` | `marvindocs.db` | Файл SQLite-индекса (должен существовать). |
 | `--docs-path` | `data/public/docs` | Используется с `--body` для сборки сниппетов из `db.zip`; без неё результаты выводятся без фрагментов. |
+| `--synonyms` | пусто | Каталог с дополнительными файлами синонимов `*.md`, они добавляются к встроенному словарю; `off` отключает расширение запросов. Если флаг пуст — читается `MARVINDOCS_SYNONYMS`; см. [Синонимы](synonyms.md). |
 
 Позиционные аргументы после флагов склеиваются через пробел, то есть
 `marvindocs search http server` эквивалентно `marvindocs search "http server"`.
@@ -213,7 +214,8 @@ marvindocs pack (--all | SLUG...) [--docs-path DIR]
 marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] [--insecure] \
                  [--docs-path DIR] [--index-path FILE] \
                  [--embedder none|ollama|onnx] [--ollama-url URL] \
-                 [--ollama-model NAME] [--model-dir DIR] [--onnxruntime PATH]
+                 [--ollama-model NAME] [--model-dir DIR] [--onnxruntime PATH] \
+                 [--synonyms DIR]
 ```
 
 | Флаг | По умолчанию | Примечание |
@@ -227,6 +229,7 @@ marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] [--insecure] \
 | `--embedder` | `none` | `none`, `ollama` или `onnx`. С эмбеддером `get_docs` использует гибридный поиск (векторы + BM25) по докам, у которых есть векторы. |
 | `--ollama-url`, `--ollama-model` | `http://localhost:11434`, `bge-m3` | Настройки Ollama. |
 | `--model-dir`, `--onnxruntime` | | onnx: каталог с моделью и путь к `libonnxruntime.so`. |
+| `--synonyms` | пусто | Каталог с дополнительными файлами синонимов `*.md`, они добавляются к встроенному словарю; `off` отключает расширение запросов. Если флаг пуст — читается `MARVINDOCS_SYNONYMS`. Несуществующий каталог — ошибка при старте. См. [Синонимы](synonyms.md). |
 
 Флаги эмбеддера те же, что у `index embed`; см.
 [Векторный поиск](vectors.md).

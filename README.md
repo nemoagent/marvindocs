@@ -12,6 +12,7 @@ documentation sets (React, Python, Go, Rust, …) from a local SQLite index.
 | **MCP server** | Expose five tools to AI agents over stdio or HTTP |
 | **HTML→Markdown** | `get_page` converts devdocs HTML to clean Markdown on the fly |
 | **Full-text search** | SQLite FTS5, BM25 ranking, prefix matching |
+| **Synonyms** | Search queries expand with a synonym dictionary (`k8s` finds `kubernetes`), see [docs/en/synonyms.md](docs/en/synonyms.md) |
 | **Vector search** | Optional hybrid bge-m3 + BM25 search for `get_docs`, see [docs/en/vectors.md](docs/en/vectors.md) |
 
 ## Requirements
@@ -148,9 +149,9 @@ marvindocs index embed   [--doc SLUG]... [--embedder ollama|onnx] [--batch N]
 marvindocs serve         [--stdio] [--http ADDR] [--auth-token TOKEN] [--insecure]
                          [--docs-path DIR] [--index-path FILE]
                          [--embedder none|ollama|onnx] [--ollama-url URL] [--ollama-model NAME]
-                         [--model-dir DIR] [--onnxruntime PATH]
+                         [--model-dir DIR] [--onnxruntime PATH] [--synonyms DIR]
                                                                 # start server; --embedder enables hybrid get_docs
-marvindocs search QUERY  [--doc SLUG] [--limit N] [--json] [--body] [--index-path FILE] [--docs-path DIR]
+marvindocs search QUERY  [--doc SLUG] [--limit N] [--json] [--body] [--index-path FILE] [--docs-path DIR] [--synonyms DIR]
                                                                 # --body searches page bodies
 marvindocs get SLUG PATH [--format markdown|html] [--docs-path DIR]  # fetch one page
 marvindocs list          [--json] [--index-path FILE]           # list indexed docs
@@ -172,6 +173,7 @@ Page bodies are indexed as well (needed for `search_pages` and
 | `MARVINDOCS_EMBEDDER` | `none`, `ollama`, `onnx` | default of `--embedder` (`onnx` for `index embed`, `none` for `serve`) |
 | `MARVINDOCS_OLLAMA_URL`, `MARVINDOCS_OLLAMA_MODEL` | URL, model name | `http://localhost:11434`, `bge-m3` |
 | `MARVINDOCS_MODEL_DIR`, `MARVINDOCS_ONNXRUNTIME` | paths | `data/onnx/model`, `data/onnx/lib/libonnxruntime.so` |
+| `MARVINDOCS_SYNONYMS` | directory, `off` | empty (builtin dictionary only). Default of `--synonyms`; a directory adds its `*.md` files to the builtin dictionary, `off` disables query expansion |
 
 The embedder variables are flag defaults (flags win). `scripts/update.sh` loads
 them from a git-ignored `.env`; copy the template `.env.example`.
@@ -206,6 +208,7 @@ internal/embed/          embedding backends (Ollama, ONNX) and int8 vector quant
 internal/mdcache/        in-memory LRU cache of HTML→Markdown conversions
 internal/logging/        slog setup (level and text/json format)
 internal/index/          indexer and FTS search
+internal/synonyms/       synonym dictionary for query expansion (builtin/*.md embedded in binary)
 internal/mcpserver/      MCP tools (list_docs, search, search_pages, get_page, get_docs)
 internal/web/            browser UI (templates + CSS, embedded in binary)
 docs/en/                 English documentation
@@ -224,6 +227,7 @@ docs/ru/                 Russian documentation
 | Client setup | [docs/en/clients.md](docs/en/clients.md) | [docs/ru/clients.md](docs/ru/clients.md) |
 | Web UI | [docs/en/web.md](docs/en/web.md) | [docs/ru/web.md](docs/ru/web.md) |
 | Data format | [docs/en/data-format.md](docs/en/data-format.md) | [docs/ru/data-format.md](docs/ru/data-format.md) |
+| Synonyms | [docs/en/synonyms.md](docs/en/synonyms.md) | [docs/ru/synonyms.md](docs/ru/synonyms.md) |
 | Vector search | [docs/en/vectors.md](docs/en/vectors.md) | [docs/ru/vectors.md](docs/ru/vectors.md) |
 | Parsers | [docs/en/parsers.md](docs/en/parsers.md) | [docs/ru/parsers.md](docs/ru/parsers.md) |
 | Go docs via Docker | [docs/en/go-doc.md](docs/en/go-doc.md) | [docs/ru/go-doc.md](docs/ru/go-doc.md) |

@@ -51,9 +51,10 @@ active.
     prefixes up to `~`/`-`): the first matching token is removed from the
     query and the search is automatically scoped to that doc. When
     several versions of the doc are installed (`python~2.7`,
-    `python~3.14`) only the newest one is used. Aliases map to canonical names: `js` → javascript,
-    `py` → python, `ts` → typescript, `pg` → postgresql, `mongo` →
-    mongodb. If the doc token is the only token, no filter is applied.
+    `python~3.14`) only the newest one is used. Synonyms of a doc name
+    resolve to it (`pg` → postgresql, `golang` → go, see
+    [Synonyms](synonyms.md)). If the doc token is the only token, no
+    filter is applied.
     If the scoped search finds nothing (e.g. `async function`, where
     `async` is also a doc slug), the original query is searched globally.
     Example: `{"query": "python requests"}` → scoped to the newest
