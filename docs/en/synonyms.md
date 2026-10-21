@@ -54,6 +54,27 @@ The built-in dictionary lives in `internal/synonyms/builtin/*.md`
 | `authentication` | `authn`, `аутентификация` |
 | `authorization` | `authz`, `авторизация` |
 
+## Abbreviation dictionary (`synonyms/`)
+
+The repository also ships an optional dictionary of 289 IT abbreviations in
+`synonyms/`: `dns`, `csrf`, `jwt`, `cte`, `ssr`, `rbac` and others. It was
+mined from the docs with `synonyms suggest`, then reviewed by an LLM:
+
+- kept only exact equivalents;
+- dropped abbreviations that are ordinary words or tokens (`pie`, `dos`,
+  `cow`, `jar`, `pod`), ambiguous ones (`csr`, `san`, `sse`) and non-IT ones;
+- added established Russian terms to 96 concepts, so `система доменных имён`
+  or `межсайтовая подделка запроса` find English pages.
+
+It is not embedded in the binary. Enable it with:
+
+```bash
+marvindocs serve --synonyms synonyms/
+```
+
+On the 96-case benchmark it changes nothing (no regressions): the benchmark
+has almost no queries with such abbreviations.
+
 ## Configuration
 
 | Flag | Environment variable | Meaning |

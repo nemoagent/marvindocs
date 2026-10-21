@@ -215,6 +215,7 @@ internal/index/          indexer and FTS search
 internal/synonyms/       synonym dictionary for query expansion (builtin/*.md embedded in binary)
 internal/mcpserver/      MCP tools (list_docs, search, search_pages, get_page, get_docs)
 internal/web/            browser UI (templates + CSS, embedded in binary)
+synonyms/                optional IT abbreviation dictionary for --synonyms (289 concepts)
 docs/en/                 English documentation
 docs/ru/                 Russian documentation
 ```
