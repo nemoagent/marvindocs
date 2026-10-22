@@ -162,3 +162,18 @@ MARVINDOCS_AUTH_TOKEN=change-me
 `error: --http 0.0.0.0:3333 is reachable from other hosts but no auth token is set`.
 На машине, недоступной никому другому, можно запустить без аутентификации:
 `MARVINDOCS_INSECURE=1 docker compose up -d`.
+
+По умолчанию контейнер отвечает только лексическим поиском. Для гибридного
+поиска `get_docs` нужен эмбеддер; проще всего — Ollama на docker-хосте,
+который контейнер видит как `host.docker.internal`:
+
+```
+MARVINDOCS_AUTH_TOKEN=change-me
+MARVINDOCS_EMBEDDER=ollama
+MARVINDOCS_OLLAMA_URL=http://host.docker.internal:11434
+MARVINDOCS_OLLAMA_MODEL=bge-m3
+```
+
+В индексе уже должны быть векторы (`index embed`), см.
+[Векторный поиск](vectors.md). Первый запрос после старта занимает несколько
+секунд, пока Ollama загружает модель; прогретые запросы — десятки миллисекунд.

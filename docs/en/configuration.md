@@ -155,9 +155,11 @@ builds the image and serves HTTP on port 3333, with bind mounts
 Build the index beforehand so that `./data/index/marvindocs.db` exists, e.g.
 `./bin/marvindocs index build --index-path data/index/marvindocs.db`.
 The compose file sets `MARVINDOCS_LOG_FORMAT=json` and
-`MARVINDOCS_LOG_LEVEL=info`, and passes `MARVINDOCS_AUTH_TOKEN` and
-`MARVINDOCS_INSECURE` through from the host environment (or a `.env`
-file next to `docker-compose.yml`).
+`MARVINDOCS_LOG_LEVEL=info`, and passes `MARVINDOCS_AUTH_TOKEN`,
+`MARVINDOCS_INSECURE`, `MARVINDOCS_EMBEDDER` (default `none`),
+`MARVINDOCS_OLLAMA_URL` (default `http://host.docker.internal:11434`, the
+docker host via `extra_hosts`) and `MARVINDOCS_OLLAMA_MODEL` through from
+the host environment (or a `.env` file next to `docker-compose.yml`).
 
 The image `CMD` is `serve --http 0.0.0.0:3333 --docs-path /data
 --index-path /index/marvindocs.db`. Because this is a non-loopback bind

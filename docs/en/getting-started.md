@@ -162,3 +162,18 @@ Without a token the container exits with
 `error: --http 0.0.0.0:3333 is reachable from other hosts but no auth token is set`.
 On a machine nobody else can reach, `MARVINDOCS_INSECURE=1 docker compose up -d`
 runs it unauthenticated.
+
+By default the container serves lexical search only. For the hybrid
+`get_docs` search it needs an embedder; the simplest is an Ollama running
+on the docker host, which the container reaches as `host.docker.internal`:
+
+```
+MARVINDOCS_AUTH_TOKEN=change-me
+MARVINDOCS_EMBEDDER=ollama
+MARVINDOCS_OLLAMA_URL=http://host.docker.internal:11434
+MARVINDOCS_OLLAMA_MODEL=bge-m3
+```
+
+The index must already contain vectors (`index embed`); see
+[Vector search](vectors.md). The first query after start takes a few
+seconds while Ollama loads the model; warm queries are tens of milliseconds.

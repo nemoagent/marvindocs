@@ -156,9 +156,11 @@ FTS5 отсутствует и индекс не откроется). Бинар
 `./data/index/marvindocs.db`, например:
 `./bin/marvindocs index build --index-path data/index/marvindocs.db`.
 Compose-файл задаёт `MARVINDOCS_LOG_FORMAT=json` и
-`MARVINDOCS_LOG_LEVEL=info`, а также пробрасывает `MARVINDOCS_AUTH_TOKEN` и
-`MARVINDOCS_INSECURE` из окружения хоста (или из `.env` рядом с
-`docker-compose.yml`).
+`MARVINDOCS_LOG_LEVEL=info`, а также пробрасывает `MARVINDOCS_AUTH_TOKEN`,
+`MARVINDOCS_INSECURE`, `MARVINDOCS_EMBEDDER` (по умолчанию `none`),
+`MARVINDOCS_OLLAMA_URL` (по умолчанию `http://host.docker.internal:11434` —
+docker-хост через `extra_hosts`) и `MARVINDOCS_OLLAMA_MODEL` из окружения
+хоста (или из `.env` рядом с `docker-compose.yml`).
 
 `CMD` образа: `serve --http 0.0.0.0:3333 --docs-path /data
 --index-path /index/marvindocs.db`. Это не-loopback привязка, а compose

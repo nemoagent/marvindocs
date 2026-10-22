@@ -5,8 +5,13 @@
 #   docker compose down          # stop
 #
 # Bring your own data: scripts/sync-docs.sh writes into ./data/public/docs,
-# and the SQLite index lands in ./data/index/. Both are bind-mounted so
-# rebuilds are persistent across container recreates.
+# and the SQLite index is expected in ./data/index/marvindocs.db (a
+# directory, not a single file: SQLite WAL needs to create -wal/-shm
+# next to it). Both are bind-mounted so rebuilds persist across recreates.
+#
+# Vector search: set MARVINDOCS_EMBEDDER=ollama and MARVINDOCS_OLLAMA_URL
+# in .env. An Ollama running on the docker host is reachable from the
+# container as http://host.docker.internal:11434 (see extra_hosts).
 #
 # The container binds 0.0.0.0 and port 3333 is published on every host
 # interface, so the server refuses to start without a token. Either:
@@ -27,11 +32,16 @@ services:
     volumes:
       - ./data/public/docs:/data:ro
       - ./data/index:/index
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       MARVINDOCS_LOG_FORMAT: json
       MARVINDOCS_LOG_LEVEL: info
       MARVINDOCS_AUTH_TOKEN: ${MARVINDOCS_AUTH_TOKEN:-}
       MARVINDOCS_INSECURE: ${MARVINDOCS_INSECURE:-}
+      MARVINDOCS_EMBEDDER: ${MARVINDOCS_EMBEDDER:-none}
+      MARVINDOCS_OLLAMA_URL: ${MARVINDOCS_OLLAMA_URL:-http://host.docker.internal:11434}
+      MARVINDOCS_OLLAMA_MODEL: ${MARVINDOCS_OLLAMA_MODEL:-bge-m3}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3333/healthz"]
       interval: 30s
