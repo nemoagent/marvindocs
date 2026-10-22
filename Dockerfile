@@ -14,6 +14,7 @@ RUN apk add --no-cache build-base sqlite-dev
 WORKDIR /src
 
 COPY go.mod go.sum ./
+COPY parsers/devdocsfmt/go.mod ./parsers/devdocsfmt/
 RUN go mod download
 
 COPY . .
