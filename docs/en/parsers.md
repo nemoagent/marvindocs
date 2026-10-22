@@ -37,6 +37,7 @@ path that handles upstream DevDocs dumps.
 | `go-dev` | go.dev/doc/ | `go-dev` (overview) and `go-dev~1.X` (release notes) | `parsers/go-dev/README.md` |
 | `go-std` | `go doc` inside a Go Docker image | `go-std~<version>` (e.g. `go-std~1.25`) | `parsers/go-std/README.md` |
 | `mongodb` | github.com/mongodb/docs (reST Manual sources) | `mongodb~<version>` (e.g. `mongodb~8.0`) | `parsers/mongodb/README.md` |
+| `metasploit` | docs.metasploit.com (HTML) | `metasploit` | [Metasploit](metasploit.md) |
 
 ## Workflow
 

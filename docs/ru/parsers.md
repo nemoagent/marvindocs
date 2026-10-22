@@ -38,6 +38,7 @@ DevDocs.
 | `go-dev` | go.dev/doc/ | `go-dev` (обзор) и `go-dev~1.X` (release notes конкретной версии) | `parsers/go-dev/README.md` |
 | `go-std` | `go doc` внутри Docker-образа Go | `go-std~<version>` (например `go-std~1.25`) | `parsers/go-std/README.md` |
 | `mongodb` | github.com/mongodb/docs (reST-исходники Manual) | `mongodb~<version>` (например `mongodb~8.0`) | `parsers/mongodb/README.md` |
+| `metasploit` | docs.metasploit.com (HTML) | `metasploit` | [Metasploit](metasploit.md) |
 
 ## Workflow
 

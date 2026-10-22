@@ -234,6 +234,7 @@ docs/ru/                 Russian documentation
 | Data format | [docs/en/data-format.md](docs/en/data-format.md) | [docs/ru/data-format.md](docs/ru/data-format.md) |
 | Synonyms | [docs/en/synonyms.md](docs/en/synonyms.md) | [docs/ru/synonyms.md](docs/ru/synonyms.md) |
 | Vector search | [docs/en/vectors.md](docs/en/vectors.md) | [docs/ru/vectors.md](docs/ru/vectors.md) |
+| Metasploit docs | [docs/en/metasploit.md](docs/en/metasploit.md) | [docs/ru/metasploit.md](docs/ru/metasploit.md) |
 | Parsers | [docs/en/parsers.md](docs/en/parsers.md) | [docs/ru/parsers.md](docs/ru/parsers.md) |
 | Go docs via Docker | [docs/en/go-doc.md](docs/en/go-doc.md) | [docs/ru/go-doc.md](docs/ru/go-doc.md) |
 | Consistency checks | [docs/en/consistency-checks.md](docs/en/consistency-checks.md) | [docs/ru/consistency-checks.md](docs/ru/consistency-checks.md) |

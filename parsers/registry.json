@@ -1,6 +1,12 @@
 {
   "parsers": [
     {
+      "parser": "metasploit",
+      "slug": "metasploit",
+      "args": [],
+      "description": "Metasploit Framework documentation from docs.metasploit.com"
+    },
+    {
       "parser": "laravel",
       "slug": "laravel~{v}",
       "args": ["--version", "{v}"],

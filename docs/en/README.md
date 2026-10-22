@@ -1,5 +1,6 @@
 # marvindocs documentation (English)
 
+- [Metasploit Framework](metasploit.md) — import and update official documentation
 - [Project overview](overview.md) — what it is and how it works, no technical details
 - [Getting started](getting-started.md) — install, build, first index
 - [Syncing docs](sync-docs.md) — download the devdocs data with the helper script
