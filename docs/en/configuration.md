@@ -30,9 +30,11 @@ Both `data/public/` and `marvindocs.db*` are in `.gitignore`.
 | `--http ADDR` | empty | Listen for HTTP clients on `ADDR`. MCP Streamable transport is at `/mcp`. A bare `:3333` binds `127.0.0.1` only; use `0.0.0.0:3333` for public access. |
 | `--auth-token TOKEN` | empty | Require `Authorization: Bearer TOKEN` on every HTTP request (web UI and `/mcp` included) except `/healthz`. Falls back to `MARVINDOCS_AUTH_TOKEN`. |
 | `--insecure` | `false` | Allow `--http` on a non-loopback address without a token. Also enabled by `MARVINDOCS_INSECURE=1`. |
-| `--embedder NAME` | `none` | `none`, `ollama` or `onnx`. Enables hybrid vector + BM25 search in `get_docs`; see [Vector search](vectors.md). |
+| `--embedder NAME` | `none` | `none`, `ollama`, `openai` or `onnx`. Enables hybrid vector + BM25 search in `get_docs`; see [Vector search](vectors.md). |
 | `--ollama-url URL` | `http://localhost:11434` | Ollama base URL (`--embedder ollama`). |
 | `--ollama-model NAME` | `bge-m3` | Ollama model name (`--embedder ollama`). |
+| `--openai-url URL` | `http://localhost:8000/v1` | Base URL of an OpenAI-compatible server such as vLLM, including `/v1` (`--embedder openai`). |
+| `--openai-model NAME` | `bge-m3` | Embedding model name on that server (`--embedder openai`). |
 | `--model-dir DIR` | empty | `--embedder onnx`: directory with `model_int8.onnx` and `tokenizer.json`. |
 | `--onnxruntime PATH` | empty | `--embedder onnx`: path to `libonnxruntime.so`. |
 | `--synonyms DIR` | empty | Directory with extra synonym `*.md` files, added to the builtin dictionary. `off` disables query expansion. Falls back to `MARVINDOCS_SYNONYMS`; see [Synonyms](synonyms.md). |
@@ -61,9 +63,11 @@ never require a token.
 | `MARVINDOCS_INSECURE` | `1` | unset | Same as `--insecure`: allow a non-loopback `--http` bind without a token. |
 | `MARVINDOCS_LOG_LEVEL` | `debug`, `info`, `warn`, `error` | `info` | Log level. |
 | `MARVINDOCS_LOG_FORMAT` | `text`, `json` | `text` | Log format. Logs go to stderr. |
-| `MARVINDOCS_EMBEDDER` | `none`, `ollama`, `onnx` | `onnx` for `index embed`, `none` for `serve` | Default of `--embedder`. |
+| `MARVINDOCS_EMBEDDER` | `none`, `ollama`, `openai`, `onnx` | `onnx` for `index embed`, `none` for `serve` | Default of `--embedder`. |
 | `MARVINDOCS_OLLAMA_URL` | URL | `http://localhost:11434` | Default of `--ollama-url`. |
 | `MARVINDOCS_OLLAMA_MODEL` | model name | `bge-m3` | Default of `--ollama-model`. |
+| `MARVINDOCS_OPENAI_URL` | URL | `http://localhost:8000/v1` | Default of `--openai-url`. |
+| `MARVINDOCS_OPENAI_MODEL` | model name | `bge-m3` | Default of `--openai-model`. |
 | `MARVINDOCS_MODEL_DIR` | path | `data/onnx/model` | Default of `--model-dir`. |
 | `MARVINDOCS_ONNXRUNTIME` | path | `data/onnx/lib/libonnxruntime.so` | Default of `--onnxruntime`. |
 | `MARVINDOCS_SYNONYMS` | directory, `off` | empty | Default of `--synonyms`. |
@@ -96,7 +100,7 @@ cp .env.example .env
 ## `index embed`-only flags
 
 `index embed` takes `--doc`, `--embedder` (default `onnx`, or
-`MARVINDOCS_EMBEDDER`), `--batch` and the same `--ollama-*`, `--model-dir` and `--onnxruntime` flags as
+`MARVINDOCS_EMBEDDER`), `--batch` and the same `--ollama-*`, `--openai-*`, `--model-dir` and `--onnxruntime` flags as
 `serve`. See [Vector search](vectors.md).
 
 ## Build-time configuration
@@ -158,7 +162,9 @@ The compose file sets `MARVINDOCS_LOG_FORMAT=json` and
 `MARVINDOCS_LOG_LEVEL=info`, and passes `MARVINDOCS_AUTH_TOKEN`,
 `MARVINDOCS_INSECURE`, `MARVINDOCS_EMBEDDER` (default `none`),
 `MARVINDOCS_OLLAMA_URL` (default `http://host.docker.internal:11434`, the
-docker host via `extra_hosts`) and `MARVINDOCS_OLLAMA_MODEL` through from
+docker host via `extra_hosts`), `MARVINDOCS_OLLAMA_MODEL`,
+`MARVINDOCS_OPENAI_URL` (default `http://host.docker.internal:8000/v1`) and
+`MARVINDOCS_OPENAI_MODEL` through from
 the host environment (or a `.env` file next to `docker-compose.yml`).
 
 The image `CMD` is `serve --http 0.0.0.0:3333 --docs-path /data

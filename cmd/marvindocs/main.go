@@ -31,12 +31,14 @@ const usage = `marvindocs - MCP server and web UI for the DevDocs archive.
 
 Usage:
   marvindocs serve [--http ADDR] [--stdio] [--auth-token TOKEN] [--insecure] [--docs-path DIR] [--index-path FILE]
-                   [--embedder none|ollama|onnx] [--ollama-url URL] [--ollama-model NAME] [--model-dir DIR] [--onnxruntime PATH]
+                   [--embedder none|ollama|openai|onnx] [--ollama-url URL] [--ollama-model NAME]
+                   [--openai-url URL] [--openai-model NAME] [--model-dir DIR] [--onnxruntime PATH]
   marvindocs index build [--full [--drop-vectors]] [--rehash] [--docs-path DIR] [--index-path FILE]
   marvindocs index stats [--index-path FILE] [--by-doc] [--top N]
-  marvindocs index embed [--doc SLUG]... [--embedder ollama|onnx] [--ollama-url URL] [--ollama-model NAME]
-                         [--model-dir DIR] [--onnxruntime PATH] [--batch N] [--docs-path DIR] [--index-path FILE]
-                         (embedder flags default to MARVINDOCS_EMBEDDER, _OLLAMA_URL, _OLLAMA_MODEL, _MODEL_DIR, _ONNXRUNTIME;
+  marvindocs index embed [--doc SLUG]... [--embedder ollama|openai|onnx] [--ollama-url URL] [--ollama-model NAME]
+                         [--openai-url URL] [--openai-model NAME] [--model-dir DIR] [--onnxruntime PATH] [--batch N] [--docs-path DIR] [--index-path FILE]
+                         (embedder flags default to MARVINDOCS_EMBEDDER, _OLLAMA_URL, _OLLAMA_MODEL, _OPENAI_URL, _OPENAI_MODEL,
+                          _MODEL_DIR, _ONNXRUNTIME;
                           index embed defaults to onnx, which needs a build with make build-onnx)
   marvindocs search QUERY [--doc SLUG] [--limit N] [--json]
   marvindocs get SLUG PATH [--format FORMAT]
@@ -325,7 +327,7 @@ func runIndex(args []string) {
 			os.Exit(1)
 		}
 		if e == nil {
-			fmt.Fprintln(os.Stderr, "error: index embed needs --embedder ollama or onnx")
+			fmt.Fprintln(os.Stderr, "error: index embed needs --embedder ollama, openai or onnx")
 			os.Exit(2)
 		}
 		if err := runIndexEmbed(*docsPath, *indexPath, docs, e, *batch); err != nil {
@@ -435,9 +437,11 @@ func applySynonyms(idx *index.Index, val string) error {
 // default kind and returns a function that builds the chosen embedder;
 // it returns nil for kind "none".
 func embedderFlags(fs *flag.FlagSet, def string) func() (embed.Embedder, error) {
-	kind := fs.String("embedder", envOr("MARVINDOCS_EMBEDDER", def), "Embedder: none, ollama or onnx (onnx needs `make build-onnx`); env MARVINDOCS_EMBEDDER")
+	kind := fs.String("embedder", envOr("MARVINDOCS_EMBEDDER", def), "Embedder: none, ollama, openai or onnx (onnx needs `make build-onnx`); env MARVINDOCS_EMBEDDER")
 	ollamaURL := fs.String("ollama-url", envOr("MARVINDOCS_OLLAMA_URL", "http://localhost:11434"), "Ollama base URL; env MARVINDOCS_OLLAMA_URL")
 	ollamaModel := fs.String("ollama-model", envOr("MARVINDOCS_OLLAMA_MODEL", "bge-m3"), "Ollama model name; env MARVINDOCS_OLLAMA_MODEL")
+	openaiURL := fs.String("openai-url", envOr("MARVINDOCS_OPENAI_URL", "http://localhost:8000/v1"), "OpenAI-compatible API base URL with /v1 (vLLM); env MARVINDOCS_OPENAI_URL")
+	openaiModel := fs.String("openai-model", envOr("MARVINDOCS_OPENAI_MODEL", "bge-m3"), "OpenAI-compatible embedding model name; env MARVINDOCS_OPENAI_MODEL")
 	modelDir := fs.String("model-dir", envOr("MARVINDOCS_MODEL_DIR", "data/onnx/model"), "onnx: directory with model_int8.onnx and tokenizer.json; env MARVINDOCS_MODEL_DIR")
 	ortLib := fs.String("onnxruntime", envOr("MARVINDOCS_ONNXRUNTIME", "data/onnx/lib/libonnxruntime.so"), "onnx: path to the ONNX Runtime shared library; env MARVINDOCS_ONNXRUNTIME")
 	return func() (embed.Embedder, error) {
@@ -446,10 +450,12 @@ func embedderFlags(fs *flag.FlagSet, def string) func() (embed.Embedder, error) 
 			return nil, nil
 		case "ollama":
 			return embed.NewOllama(*ollamaURL, *ollamaModel), nil
+		case "openai":
+			return embed.NewOpenAI(*openaiURL, *openaiModel), nil
 		case "onnx":
 			return embed.NewONNX(*modelDir, *ortLib)
 		}
-		return nil, fmt.Errorf("unknown embedder %q (want none, ollama or onnx)", *kind)
+		return nil, fmt.Errorf("unknown embedder %q (want none, ollama, openai or onnx)", *kind)
 	}
 }
 

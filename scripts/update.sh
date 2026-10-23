@@ -11,7 +11,7 @@
 #
 # Nothing here drops the index or its vectors; `index build --full` is
 # never used. Embedder settings come from .env (see .env.example):
-# MARVINDOCS_EMBEDDER=onnx (default, local CPU, slow) or ollama.
+# MARVINDOCS_EMBEDDER=onnx (default, local CPU, slow), ollama or openai.
 #
 # Usage:
 #   ./scripts/update.sh                 # full refresh
@@ -111,6 +111,10 @@ if [ "$RUN_EMBED" = true ]; then
 	ollama)
 		echo "  embedder: ollama at ${MARVINDOCS_OLLAMA_URL:-http://localhost:11434}" \
 			"(model ${MARVINDOCS_OLLAMA_MODEL:-bge-m3})"
+		;;
+	openai)
+		echo "  embedder: openai at ${MARVINDOCS_OPENAI_URL:-http://localhost:8000/v1}" \
+			"(model ${MARVINDOCS_OPENAI_MODEL:-bge-m3})"
 		;;
 	none)
 		echo "  MARVINDOCS_EMBEDDER=none: skipping, search stays lexical"

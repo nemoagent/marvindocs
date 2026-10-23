@@ -92,17 +92,20 @@ marvindocs index embed                     # every doc in the index
 | Flag | Default | Notes |
 |---|---|---|
 | `--doc` | all docs | Doc slug; may be repeated. |
-| `--embedder` | `onnx` | `ollama` or `onnx`. |
+| `--embedder` | `onnx` | `ollama`, `openai` or `onnx`. |
 | `--ollama-url` | `http://localhost:11434` | Ollama base URL. |
 | `--ollama-model` | `bge-m3` | Ollama model name. |
+| `--openai-url` | `http://localhost:8000/v1` | OpenAI-compatible server base URL, with `/v1`. |
+| `--openai-model` | `bge-m3` | Embedding model name on that server. |
 | `--model-dir` | `data/onnx/model` | onnx: directory with `model_int8.onnx` and `tokenizer.json`. |
 | `--onnxruntime` | `data/onnx/lib/libonnxruntime.so` | onnx: path to `libonnxruntime.so`. |
 | `--batch` | 64 | Chunks per embedder call and per transaction. |
 | `--docs-path`, `--index-path` | as in `index build` | |
 
 The embedder defaults come from environment variables, which flags
-override: `MARVINDOCS_EMBEDDER` (`none`, `ollama`, `onnx`),
-`MARVINDOCS_OLLAMA_URL`, `MARVINDOCS_OLLAMA_MODEL`, `MARVINDOCS_MODEL_DIR`
+override: `MARVINDOCS_EMBEDDER` (`none`, `ollama`, `openai`, `onnx`),
+`MARVINDOCS_OLLAMA_URL`, `MARVINDOCS_OLLAMA_MODEL`, `MARVINDOCS_OPENAI_URL`,
+`MARVINDOCS_OPENAI_MODEL`, `MARVINDOCS_MODEL_DIR`
 and `MARVINDOCS_ONNXRUNTIME`. `scripts/update.sh` loads them from a
 git-ignored `.env` (template: `.env.example`); see
 [Configuration](configuration.md#environment-variables). `index embed`
@@ -126,9 +129,24 @@ ollama pull bge-m3
 marvindocs index embed --doc react
 ```
 
+### OpenAI-compatible server (vLLM)
+
+`--embedder openai` calls `POST {url}/embeddings` of any OpenAI-compatible
+server. With vLLM:
+
+```bash
+docker run --gpus all -p 8000:8000 vllm/vllm-openai:v0.32.0 \
+    BAAI/bge-m3 --served-model-name bge-m3
+marvindocs index embed --embedder openai \
+    --openai-url http://localhost:8000/v1 --openai-model bge-m3
+```
+
+bge-m3 in vLLM and in Ollama gives the same vectors up to rounding, so an
+index embedded through one can be served through the other.
+
 ## Serving with vectors
 
-`serve` accepts the same embedder flags, with `--embedder none|ollama|onnx`
+`serve` accepts the same embedder flags, with `--embedder none|ollama|openai|onnx`
 (default `none`).
 
 ```bash

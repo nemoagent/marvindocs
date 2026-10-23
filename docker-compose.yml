@@ -12,6 +12,8 @@
 # Vector search: set MARVINDOCS_EMBEDDER=ollama and MARVINDOCS_OLLAMA_URL
 # in .env. An Ollama running on the docker host is reachable from the
 # container as http://host.docker.internal:11434 (see extra_hosts).
+# For an OpenAI-compatible server such as vLLM set MARVINDOCS_EMBEDDER=openai
+# and MARVINDOCS_OPENAI_URL (for example http://host.docker.internal:8000/v1).
 #
 # The container binds 0.0.0.0 and port 3333 is published on every host
 # interface, so the server refuses to start without a token. Either:
@@ -42,6 +44,8 @@ services:
       MARVINDOCS_EMBEDDER: ${MARVINDOCS_EMBEDDER:-none}
       MARVINDOCS_OLLAMA_URL: ${MARVINDOCS_OLLAMA_URL:-http://host.docker.internal:11434}
       MARVINDOCS_OLLAMA_MODEL: ${MARVINDOCS_OLLAMA_MODEL:-bge-m3}
+      MARVINDOCS_OPENAI_URL: ${MARVINDOCS_OPENAI_URL:-http://host.docker.internal:8000/v1}
+      MARVINDOCS_OPENAI_MODEL: ${MARVINDOCS_OPENAI_MODEL:-bge-m3}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3333/healthz"]
       interval: 30s

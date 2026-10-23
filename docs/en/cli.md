@@ -77,7 +77,7 @@ used by the hybrid search in `get_docs` when `serve` runs with
 all flags.
 
 ```bash
-marvindocs index embed [--doc SLUG]... [--embedder ollama|onnx] [--batch N]
+marvindocs index embed [--doc SLUG]... [--embedder ollama|openai|onnx] [--batch N]
 ```
 
 `--embedder` defaults to `onnx` (local CPU, slow: hours for the whole
@@ -248,8 +248,9 @@ Runs the MCP server.
 ```bash
 marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] [--insecure] \
                  [--docs-path DIR] [--index-path FILE] \
-                 [--embedder none|ollama|onnx] [--ollama-url URL] \
-                 [--ollama-model NAME] [--model-dir DIR] [--onnxruntime PATH] \
+                 [--embedder none|ollama|openai|onnx] [--ollama-url URL] \
+                 [--ollama-model NAME] [--openai-url URL] [--openai-model NAME] \
+                 [--model-dir DIR] [--onnxruntime PATH] \
                  [--synonyms DIR]
 ```
 
@@ -261,8 +262,9 @@ marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] [--insecure] \
 | `--insecure` | `false` | Allow a non-loopback `--http` bind without an auth token. Without it (or `MARVINDOCS_INSECURE=1`) `serve` refuses to start on a public address when no token is set. |
 | `--docs-path` | `data/public/docs` | Needed by `get_page` to read `db.zip` on demand. |
 | `--index-path` | `marvindocs.db` | Must already exist (run `index build` first). |
-| `--embedder` | `none` | `none`, `ollama` or `onnx`. With an embedder, `get_docs` uses hybrid vector + BM25 search for docs that have vectors. |
+| `--embedder` | `none` | `none`, `ollama`, `openai` or `onnx`. With an embedder, `get_docs` uses hybrid vector + BM25 search for docs that have vectors. |
 | `--ollama-url`, `--ollama-model` | `http://localhost:11434`, `bge-m3` | Ollama settings. |
+| `--openai-url`, `--openai-model` | `http://localhost:8000/v1`, `bge-m3` | OpenAI-compatible server settings (vLLM). |
 | `--model-dir`, `--onnxruntime` | | onnx: model directory and path to `libonnxruntime.so`. |
 | `--synonyms` | empty | Directory with extra synonym `*.md` files, added to the builtin dictionary; `off` disables query expansion. Falls back to `MARVINDOCS_SYNONYMS`. A non-existent directory is a startup error. See [Synonyms](synonyms.md). |
 

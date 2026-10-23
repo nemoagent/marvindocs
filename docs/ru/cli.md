@@ -77,7 +77,7 @@ SQLite и т.д.), `2` — ошибка использования.
 флаги — в разделе [Векторный поиск](vectors.md).
 
 ```bash
-marvindocs index embed [--doc SLUG]... [--embedder ollama|onnx] [--batch N]
+marvindocs index embed [--doc SLUG]... [--embedder ollama|openai|onnx] [--batch N]
 ```
 
 `--embedder` по умолчанию `onnx` (локально на CPU, медленно: для всего
@@ -251,8 +251,9 @@ marvindocs synonyms import FILE --out DIR [--force]
 ```bash
 marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] [--insecure] \
                  [--docs-path DIR] [--index-path FILE] \
-                 [--embedder none|ollama|onnx] [--ollama-url URL] \
-                 [--ollama-model NAME] [--model-dir DIR] [--onnxruntime PATH] \
+                 [--embedder none|ollama|openai|onnx] [--ollama-url URL] \
+                 [--ollama-model NAME] [--openai-url URL] [--openai-model NAME] \
+                 [--model-dir DIR] [--onnxruntime PATH] \
                  [--synonyms DIR]
 ```
 
@@ -264,8 +265,9 @@ marvindocs serve [--stdio] [--http ADDR] [--auth-token TOKEN] [--insecure] \
 | `--insecure` | `false` | Разрешить `--http` на не-loopback адресе без токена. Без флага (или `MARVINDOCS_INSECURE=1`) `serve` отказывается стартовать на публичном адресе, если токен не задан. |
 | `--docs-path` | `data/public/docs` | Нужен `get_page`, чтобы читать `db.zip` по требованию. |
 | `--index-path` | `marvindocs.db` | Файл должен уже существовать (сначала `index build`). |
-| `--embedder` | `none` | `none`, `ollama` или `onnx`. С эмбеддером `get_docs` использует гибридный поиск (векторы + BM25) по докам, у которых есть векторы. |
+| `--embedder` | `none` | `none`, `ollama`, `openai` или `onnx`. С эмбеддером `get_docs` использует гибридный поиск (векторы + BM25) по докам, у которых есть векторы. |
 | `--ollama-url`, `--ollama-model` | `http://localhost:11434`, `bge-m3` | Настройки Ollama. |
+| `--openai-url`, `--openai-model` | `http://localhost:8000/v1`, `bge-m3` | Настройки OpenAI-совместимого сервера (vLLM). |
 | `--model-dir`, `--onnxruntime` | | onnx: каталог с моделью и путь к `libonnxruntime.so`. |
 | `--synonyms` | пусто | Каталог с дополнительными файлами синонимов `*.md`, они добавляются к встроенному словарю; `off` отключает расширение запросов. Если флаг пуст — читается `MARVINDOCS_SYNONYMS`. Несуществующий каталог — ошибка при старте. См. [Синонимы](synonyms.md). |
 

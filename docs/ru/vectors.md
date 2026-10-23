@@ -94,17 +94,20 @@ marvindocs index embed                     # все доки индекса
 | Флаг | По умолчанию | Примечания |
 |---|---|---|
 | `--doc` | все доки | Slug доки; можно повторять. |
-| `--embedder` | `onnx` | `ollama` или `onnx`. |
+| `--embedder` | `onnx` | `ollama`, `openai` или `onnx`. |
 | `--ollama-url` | `http://localhost:11434` | Базовый URL Ollama. |
 | `--ollama-model` | `bge-m3` | Имя модели в Ollama. |
+| `--openai-url` | `http://localhost:8000/v1` | Базовый URL OpenAI-совместимого сервера, вместе с `/v1`. |
+| `--openai-model` | `bge-m3` | Имя модели эмбеддингов на этом сервере. |
 | `--model-dir` | `data/onnx/model` | onnx: каталог с `model_int8.onnx` и `tokenizer.json`. |
 | `--onnxruntime` | `data/onnx/lib/libonnxruntime.so` | onnx: путь к `libonnxruntime.so`. |
 | `--batch` | 64 | Чанков на вызов эмбеддера и на транзакцию. |
 | `--docs-path`, `--index-path` | как у `index build` | |
 
 Значения по умолчанию берутся из переменных окружения, флаги их
-переопределяют: `MARVINDOCS_EMBEDDER` (`none`, `ollama`, `onnx`),
-`MARVINDOCS_OLLAMA_URL`, `MARVINDOCS_OLLAMA_MODEL`, `MARVINDOCS_MODEL_DIR` и
+переопределяют: `MARVINDOCS_EMBEDDER` (`none`, `ollama`, `openai`, `onnx`),
+`MARVINDOCS_OLLAMA_URL`, `MARVINDOCS_OLLAMA_MODEL`, `MARVINDOCS_OPENAI_URL`,
+`MARVINDOCS_OPENAI_MODEL`, `MARVINDOCS_MODEL_DIR` и
 `MARVINDOCS_ONNXRUNTIME`. `scripts/update.sh` загружает их из `.env`
 (в git-игноре; шаблон - `.env.example`); см.
 [Конфигурацию](configuration.md#переменные-окружения). `index embed` по
@@ -128,9 +131,24 @@ ollama pull bge-m3
 marvindocs index embed --doc react
 ```
 
+### OpenAI-совместимый сервер (vLLM)
+
+`--embedder openai` вызывает `POST {url}/embeddings` любого
+OpenAI-совместимого сервера. С vLLM:
+
+```bash
+docker run --gpus all -p 8000:8000 vllm/vllm-openai:v0.32.0 \
+    BAAI/bge-m3 --served-model-name bge-m3
+marvindocs index embed --embedder openai \
+    --openai-url http://localhost:8000/v1 --openai-model bge-m3
+```
+
+bge-m3 в vLLM и в Ollama даёт одинаковые с точностью до округления векторы,
+поэтому индекс, посчитанный через один сервер, можно обслуживать через другой.
+
 ## Запуск сервера с векторами
 
-`serve` принимает те же флаги эмбеддера, `--embedder none|ollama|onnx`
+`serve` принимает те же флаги эмбеддера, `--embedder none|ollama|openai|onnx`
 (по умолчанию `none`).
 
 ```bash

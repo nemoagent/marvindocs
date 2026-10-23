@@ -30,9 +30,11 @@ bin/marvindocs        скомпилированный бинарь (в .gitigno
 | `--http ADDR` | пусто | Слушать HTTP-клиентов на `ADDR`. MCP Streamable transport — на `/mcp`. Голый `:3333` слушает только `127.0.0.1`; для публичного доступа — `0.0.0.0:3333`. |
 | `--auth-token TOKEN` | пусто | Требовать `Authorization: Bearer TOKEN` на каждый HTTP-запрос (включая веб-интерфейс и `/mcp`), кроме `/healthz`. Если флаг пуст — читается `MARVINDOCS_AUTH_TOKEN`. |
 | `--insecure` | `false` | Разрешить `--http` на не-loopback адресе без токена. Также включается через `MARVINDOCS_INSECURE=1`. |
-| `--embedder NAME` | `none` | `none`, `ollama` или `onnx`. Включает гибридный поиск (векторы + BM25) в `get_docs`; см. [Векторный поиск](vectors.md). |
+| `--embedder NAME` | `none` | `none`, `ollama`, `openai` или `onnx`. Включает гибридный поиск (векторы + BM25) в `get_docs`; см. [Векторный поиск](vectors.md). |
 | `--ollama-url URL` | `http://localhost:11434` | Базовый URL Ollama (`--embedder ollama`). |
 | `--ollama-model NAME` | `bge-m3` | Имя модели в Ollama (`--embedder ollama`). |
+| `--openai-url URL` | `http://localhost:8000/v1` | Базовый URL OpenAI-совместимого сервера, например vLLM, вместе с `/v1` (`--embedder openai`). |
+| `--openai-model NAME` | `bge-m3` | Имя модели эмбеддингов на этом сервере (`--embedder openai`). |
 | `--model-dir DIR` | пусто | `--embedder onnx`: каталог с `model_int8.onnx` и `tokenizer.json`. |
 | `--onnxruntime PATH` | пусто | `--embedder onnx`: путь к `libonnxruntime.so`. |
 | `--synonyms DIR` | пусто | Каталог с дополнительными файлами синонимов `*.md`, они добавляются к встроенному словарю. `off` отключает расширение запросов. Если флаг пуст — читается `MARVINDOCS_SYNONYMS`; см. [Синонимы](synonyms.md). |
@@ -61,9 +63,11 @@ Loopback-привязка токена не требует.
 | `MARVINDOCS_INSECURE` | `1` | не задана | То же, что `--insecure`: разрешить не-loopback `--http` без токена. |
 | `MARVINDOCS_LOG_LEVEL` | `debug`, `info`, `warn`, `error` | `info` | Уровень логирования. |
 | `MARVINDOCS_LOG_FORMAT` | `text`, `json` | `text` | Формат логов. Логи пишутся в stderr. |
-| `MARVINDOCS_EMBEDDER` | `none`, `ollama`, `onnx` | `onnx` для `index embed`, `none` для `serve` | Значение `--embedder` по умолчанию. |
+| `MARVINDOCS_EMBEDDER` | `none`, `ollama`, `openai`, `onnx` | `onnx` для `index embed`, `none` для `serve` | Значение `--embedder` по умолчанию. |
 | `MARVINDOCS_OLLAMA_URL` | URL | `http://localhost:11434` | Значение `--ollama-url` по умолчанию. |
 | `MARVINDOCS_OLLAMA_MODEL` | имя модели | `bge-m3` | Значение `--ollama-model` по умолчанию. |
+| `MARVINDOCS_OPENAI_URL` | URL | `http://localhost:8000/v1` | Значение `--openai-url` по умолчанию. |
+| `MARVINDOCS_OPENAI_MODEL` | имя модели | `bge-m3` | Значение `--openai-model` по умолчанию. |
 | `MARVINDOCS_MODEL_DIR` | путь | `data/onnx/model` | Значение `--model-dir` по умолчанию. |
 | `MARVINDOCS_ONNXRUNTIME` | путь | `data/onnx/lib/libonnxruntime.so` | Значение `--onnxruntime` по умолчанию. |
 | `MARVINDOCS_SYNONYMS` | каталог, `off` | пусто | Значение `--synonyms` по умолчанию. |
@@ -96,7 +100,7 @@ cp .env.example .env
 ## Флаги только для `index embed`
 
 `index embed` принимает `--doc`, `--embedder` (по умолчанию `onnx` или
-`MARVINDOCS_EMBEDDER`), `--batch` и те же `--ollama-*`, `--model-dir` и `--onnxruntime`, что и
+`MARVINDOCS_EMBEDDER`), `--batch` и те же `--ollama-*`, `--openai-*`, `--model-dir` и `--onnxruntime`, что и
 `serve`. См. [Векторный поиск](vectors.md).
 
 ## Конфигурация времени сборки
@@ -159,7 +163,9 @@ Compose-файл задаёт `MARVINDOCS_LOG_FORMAT=json` и
 `MARVINDOCS_LOG_LEVEL=info`, а также пробрасывает `MARVINDOCS_AUTH_TOKEN`,
 `MARVINDOCS_INSECURE`, `MARVINDOCS_EMBEDDER` (по умолчанию `none`),
 `MARVINDOCS_OLLAMA_URL` (по умолчанию `http://host.docker.internal:11434` —
-docker-хост через `extra_hosts`) и `MARVINDOCS_OLLAMA_MODEL` из окружения
+docker-хост через `extra_hosts`), `MARVINDOCS_OLLAMA_MODEL`,
+`MARVINDOCS_OPENAI_URL` (по умолчанию `http://host.docker.internal:8000/v1`) и
+`MARVINDOCS_OPENAI_MODEL` из окружения
 хоста (или из `.env` рядом с `docker-compose.yml`).
 
 `CMD` образа: `serve --http 0.0.0.0:3333 --docs-path /data
