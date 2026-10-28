@@ -25,13 +25,22 @@ one line per item, fields separated by ` | `.
 
 ### `list_docs`
 
-Returns every indexed documentation set.
+Finds documentation sets by name, like `resolve-library-id` in Context7.
+`name` is matched case-insensitively as a substring of the slug and the
+name: `name: "django"` returns `django~5.2`, `django~4.2`, ... Without
+`name` only the number of indexed sets is returned: the full list
+(800+ sets) would waste the agent's context, and `get_docs` detects the
+documentation from the topic anyway.
 
-- **Input:** `{}`
+- **Input:** `{ name?: string }`
 - **Output:** `{ docs: [{ slug, name, type, version, release, mtime }] }`
 
-Use this first to discover available slugs; pass any `slug` value as
-`doc_slug` to `search` or `get_page`.
+Pass a `slug` as `doc_slug` to `get_docs`, `search` or `get_page` to pin
+a library or version.
+
+The server also sends MCP `instructions` (shown by clients that support
+them in the system prompt): the agent has reference documentation and
+should call `get_docs` before answering about an API from memory.
 
 ### `search`
 
@@ -219,12 +228,12 @@ Expected output (abbreviated; the doc count depends on your dump):
 ==> tools/list
     - get_docs: Get documentation fragments about a topic within a token budget ...
     - get_page: Fetch a documentation page ...
-    - list_docs: List all indexed documentation sets ...
+    - list_docs: Find documentation sets for a library, language or tool ...
     - search: Search across all indexed documentation ...
     - search_pages: Full-text search across page bodies (not just symbol names). Use this ...
-==> tools/call list_docs (first 3)
-    791 docs, first 3:
-      angular  Angular
+==> tools/call list_docs name=react (first 3)
+    3 docs, first 3:
+      react  React
       ...
 ==> tools/call search query=useState limit=3
     react  useState  reference/react/usestate
@@ -266,5 +275,5 @@ on subsequent `tools/list` / `tools/call` requests.
 |---|---|
 | `index file not found` | Run `marvindocs index build` first. |
 | `open docs.json: no such file` | `--docs-path` is wrong; expected `<path>/docs.json`. |
-| Tool call returns an empty `hits` list | Query has no prefix matches, or the doc isn't indexed. Try `list_docs` first. |
+| Tool call returns an empty `hits` list | Query has no prefix matches, or the doc isn't indexed. Check the slug with `list_docs(name)`. |
 | `get_page` returns "page not found" | `path` must be a value from `search.path` or `index.json`, not a URL. |

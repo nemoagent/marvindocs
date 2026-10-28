@@ -2,7 +2,7 @@
 //
 // Five tools are registered:
 //
-//	list_docs    -> list all indexed documents
+//	list_docs    -> find documentation sets by name
 //	search       -> FTS5 search over entry names and paths
 //	search_pages -> FTS5 search over page bodies, with snippets
 //	get_page     -> fetch a page as Markdown (default) or raw HTML
@@ -38,13 +38,21 @@ type Deps struct {
 	Embedder embed.Embedder
 }
 
+// instructions tell the agent what the server is for; clients that support
+// MCP server instructions add them to the system prompt.
+const instructions = "Reference documentation for hundreds of languages, frameworks, " +
+	"libraries and tools (React, Django, PostgreSQL, Go, Python, Docker, ...), " +
+	"often in several versions. Before answering from memory about an API, " +
+	"option or behaviour, call get_docs with the topic. To pin a library or " +
+	"version, find its slug with list_docs(name) and pass it as doc_slug."
+
 // New builds a configured mcp.Server with all marvindocs tools registered.
 // Version identifies the server to clients.
 func New(deps Deps, version string) *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{
 		Name:    "marvindocs",
 		Version: version,
-	}, nil)
+	}, &mcp.ServerOptions{Instructions: instructions})
 	registerListDocs(s, deps)
 	registerSearch(s, deps)
 	registerSearchPages(s, deps)
@@ -57,7 +65,9 @@ func New(deps Deps, version string) *mcp.Server {
 // list_docs
 // -------------------------------------------------------------------------
 
-type listDocsInput struct{}
+type listDocsInput struct {
+	Name string `json:"name,omitempty" jsonschema:"library or tool to look for, e.g. 'react', 'postgres', 'django'; matched as a substring of the slug and name"`
+}
 
 type listDocsOutput struct {
 	Docs []index.DocRow `json:"docs"`
@@ -65,13 +75,30 @@ type listDocsOutput struct {
 
 func registerListDocs(s *mcp.Server, d Deps) {
 	mcp.AddTool(s, &mcp.Tool{
-		Name:        "list_docs",
-		Description: "List all indexed documentation sets (name, slug, version).",
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ listDocsInput) (*mcp.CallToolResult, listDocsOutput, error) {
+		Name: "list_docs",
+		Description: "Find documentation sets for a library, language or tool by name " +
+			"and get their slugs and versions (e.g. name='django' -> django~5.2, django~4.2, ...). " +
+			"Use the slug as doc_slug in get_docs, search or get_page to pin a version. " +
+			"Not needed for a plain question: get_docs detects the documentation from the topic.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in listDocsInput) (*mcp.CallToolResult, listDocsOutput, error) {
 		docs, err := d.Index.ListDocs(ctx)
 		if err != nil {
 			return nil, listDocsOutput{}, err
 		}
+		name := strings.ToLower(strings.TrimSpace(in.Name))
+		if name == "" {
+			return textResult(fmt.Sprintf("%d documentation sets indexed (languages, "+
+					"frameworks, libraries, tools). Pass name to find one, e.g. name='react'.", len(docs))),
+				listDocsOutput{Docs: []index.DocRow{}}, nil
+		}
+		matched := []index.DocRow{}
+		for _, doc := range docs {
+			if strings.Contains(strings.ToLower(doc.Slug), name) ||
+				strings.Contains(strings.ToLower(doc.Name), name) {
+				matched = append(matched, doc)
+			}
+		}
+		docs = matched
 		return textResult(formatDocs(docs)),
 			listDocsOutput{Docs: docs}, nil
 	})
@@ -269,7 +296,11 @@ func (d Deps) markdown(slug, path, html string) (string, error) {
 
 func formatDocs(docs []index.DocRow) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%d documents indexed (slug | name | version):\n", len(docs))
+	if len(docs) == 0 {
+		return "No documentation set matches this name. Try a shorter or different name, " +
+			"or call get_docs with the topic directly."
+	}
+	fmt.Fprintf(&b, "%d documentation sets (slug | name | version):\n", len(docs))
 	for _, d := range docs {
 		fmt.Fprintf(&b, "%s | %s | %s\n", d.Slug, d.Name, d.Version)
 	}

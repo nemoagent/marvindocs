@@ -111,13 +111,21 @@ func TestListTools(t *testing.T) {
 
 func TestCallListDocsText(t *testing.T) {
 	cs := connect(t)
-	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "list_docs"})
-	if err != nil {
-		t.Fatal(err)
+	call := func(args map[string]any) string {
+		res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "list_docs", Arguments: args})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Content[0].(*mcp.TextContent).Text
 	}
-	text := res.Content[0].(*mcp.TextContent).Text
-	if !strings.Contains(text, "go | Go | 1") {
+	if text := call(map[string]any{"name": "GO"}); !strings.Contains(text, "go | Go | 1") {
 		t.Errorf("text block lacks doc: %q", text)
+	}
+	if text := call(map[string]any{"name": "rust"}); !strings.Contains(text, "No documentation set") {
+		t.Errorf("unexpected match: %q", text)
+	}
+	if text := call(nil); !strings.Contains(text, "1 documentation sets indexed") || strings.Contains(text, "go | Go") {
+		t.Errorf("no-name call should only summarize: %q", text)
 	}
 }
 

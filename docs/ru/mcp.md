@@ -25,13 +25,22 @@ marvindocs реализует [Model Context Protocol](https://modelcontextproto
 
 ### `list_docs`
 
-Возвращает список всех проиндексированных наборов документации.
+Ищет наборы документации по имени, как `resolve-library-id` в Context7.
+`name` сравнивается без учёта регистра как подстрока slug и названия:
+`name: "django"` возвращает `django~5.2`, `django~4.2`, ... Без `name`
+возвращается только число наборов: полный список (800+ наборов) зря
+расходует контекст агента, а `get_docs` и так определяет документацию
+по теме.
 
-- **Вход:** `{}`
+- **Вход:** `{ name?: string }`
 - **Выход:** `{ docs: [{ slug, name, type, version, release, mtime }] }`
 
-Используй первым, чтобы узнать доступные slug'и; любой `slug` можно
-передать в `search` или `get_page` как `doc_slug`.
+`slug` передаётся как `doc_slug` в `get_docs`, `search` или `get_page`,
+чтобы закрепить библиотеку или версию.
+
+Сервер также отдаёт MCP `instructions` (клиенты, которые их
+поддерживают, добавляют их в системный промпт): у агента есть справочная
+документация, и перед ответом об API по памяти стоит вызвать `get_docs`.
 
 ### `search`
 
@@ -221,12 +230,12 @@ marvindocs serve --http :3333 &
 ==> tools/list
     - get_docs: Get documentation fragments about a topic within a token budget ...
     - get_page: Fetch a documentation page ...
-    - list_docs: List all indexed documentation sets ...
+    - list_docs: Find documentation sets for a library, language or tool ...
     - search: Search across all indexed documentation ...
     - search_pages: Full-text search across page bodies (not just symbol names). Use this ...
-==> tools/call list_docs (first 3)
-    791 docs, first 3:
-      angular  Angular
+==> tools/call list_docs name=react (first 3)
+    3 docs, first 3:
+      react  React
       ...
 ==> tools/call search query=useState limit=3
     react  useState  reference/react/usestate
@@ -268,5 +277,5 @@ curl -sS -i -X POST http://localhost:3333/mcp \
 |---|---|
 | `index file not found` | Сначала запусти `marvindocs index build`. |
 | `open docs.json: no such file` | Неправильный `--docs-path`; ожидается `<path>/docs.json`. |
-| Tool возвращает пустой `hits` | Нет префиксных совпадений или этот док не в индексе. Сначала `list_docs`. |
+| Tool возвращает пустой `hits` | Нет префиксных совпадений или этот док не в индексе. Проверь slug через `list_docs(name)`. |
 | `get_page` возвращает «page not found» | `path` должен быть значением `search.path` или из `index.json`, а не URL'ом. |

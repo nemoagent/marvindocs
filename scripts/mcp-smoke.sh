@@ -54,8 +54,8 @@ echo "==> tools/list"
 call tools/list | jq -r '.result.tools[] | "    - \(.name): \(.description[0:70])"'
 
 # --- 3. list_docs ---------------------------------------------------------
-echo "==> tools/call list_docs (first 3)"
-call tools/call '{"name":"list_docs","arguments":{}}' \
+echo "==> tools/call list_docs name=react (first 3)"
+call tools/call '{"name":"list_docs","arguments":{"name":"react"}}' \
   | jq -r '.result.structuredContent.docs | length as $n
            | "    \($n) docs, first 3:",
              (.[0:3][] | "      \(.slug)\t\(.name)")'
