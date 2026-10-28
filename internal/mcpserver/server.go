@@ -72,7 +72,7 @@ func registerListDocs(s *mcp.Server, d Deps) {
 		if err != nil {
 			return nil, listDocsOutput{}, err
 		}
-		return textResult(fmt.Sprintf("%d documents indexed", len(docs))),
+		return textResult(formatDocs(docs)),
 			listDocsOutput{Docs: docs}, nil
 	})
 }
@@ -120,7 +120,7 @@ func registerSearch(s *mcp.Server, d Deps) {
 		if hits == nil {
 			hits = []index.SearchHit{}
 		}
-		return textResult(fmt.Sprintf("%d hits for %q", len(hits), in.Query)),
+		return textResult(formatHits(in.Query, hits)),
 			searchOutput{Hits: hits}, nil
 	})
 }
@@ -182,7 +182,7 @@ func registerSearchPages(s *mcp.Server, d Deps) {
 		if hits == nil {
 			hits = []index.PageHit{}
 		}
-		return textResult(fmt.Sprintf("%d page hits for %q", len(hits), in.Query)),
+		return textResult(formatPageHits(in.Query, hits)),
 			searchPagesOutput{Hits: hits}, nil
 	})
 }
@@ -261,6 +261,42 @@ func (d Deps) markdown(slug, path, html string) (string, error) {
 	}
 	d.MDCache.Add(key, md)
 	return md, nil
+}
+
+// The format* helpers render tool results as the text block: many MCP
+// clients pass only content (not structuredContent) to the model, so the
+// text must carry the data itself, one compact line per item.
+
+func formatDocs(docs []index.DocRow) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d documents indexed (slug | name | version):\n", len(docs))
+	for _, d := range docs {
+		fmt.Fprintf(&b, "%s | %s | %s\n", d.Slug, d.Name, d.Version)
+	}
+	return b.String()
+}
+
+func formatHits(query string, hits []index.SearchHit) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d hits for %q (doc_slug | path | name | type):\n", len(hits), query)
+	for _, h := range hits {
+		fmt.Fprintf(&b, "%s | %s | %s | %s\n", h.DocSlug, h.Path, oneLine(h.Name), h.Type)
+	}
+	return b.String()
+}
+
+func formatPageHits(query string, hits []index.PageHit) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d page hits for %q (doc_slug | path | snippet):\n", len(hits), query)
+	for _, h := range hits {
+		fmt.Fprintf(&b, "%s | %s | %s\n", h.DocSlug, h.Path, oneLine(h.Snippet))
+	}
+	return b.String()
+}
+
+// oneLine collapses whitespace runs (including newlines) into single spaces.
+func oneLine(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 // textResult builds a CallToolResult with a single TextContent block — the

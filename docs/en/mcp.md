@@ -18,6 +18,11 @@ explicit host: `--http 0.0.0.0:3333`.
 
 ## Tools
 
+Every tool returns its data twice: as `structuredContent` (the JSON
+shapes below) and as a text block. Many clients pass only the text block
+to the model, so for `list_docs`, `search` and `search_pages` it holds
+one line per item, fields separated by ` | `.
+
 ### `list_docs`
 
 Returns every indexed documentation set.

@@ -109,6 +109,33 @@ func TestListTools(t *testing.T) {
 	}
 }
 
+func TestCallListDocsText(t *testing.T) {
+	cs := connect(t)
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "list_docs"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := res.Content[0].(*mcp.TextContent).Text
+	if !strings.Contains(text, "go | Go | 1") {
+		t.Errorf("text block lacks doc: %q", text)
+	}
+}
+
+func TestCallSearchPagesText(t *testing.T) {
+	cs := connect(t)
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "search_pages",
+		Arguments: map[string]any{"query": "operands spaces"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := res.Content[0].(*mcp.TextContent).Text
+	if !strings.Contains(text, "go | fmt/Println | ") || !strings.Contains(text, "Spaces") {
+		t.Errorf("text block lacks page hit: %q", text)
+	}
+}
+
 func TestCallSearch(t *testing.T) {
 	cs := connect(t)
 	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
@@ -121,7 +148,12 @@ func TestCallSearch(t *testing.T) {
 	if res.IsError {
 		t.Fatalf("tool returned error: %+v", res.Content)
 	}
-	// Hits travel in structured content; the text block only has a summary.
+	// The text block must carry the hits too: clients may ignore
+	// structured content.
+	text := res.Content[0].(*mcp.TextContent).Text
+	if !strings.Contains(text, "go | fmt/Println | Println | Function") {
+		t.Errorf("text block lacks hit: %q", text)
+	}
 	b, err := json.Marshal(res.StructuredContent)
 	if err != nil {
 		t.Fatal(err)
