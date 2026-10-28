@@ -109,6 +109,63 @@ func extractDocFilter(query string, knownSlugs map[string]bool, callerDocSlug st
 	return cleanQuery, newestPerDoc(matchedSlugs)
 }
 
+// ResolveDocSlug maps a doc_slug from an agent to a known slug. An exact
+// slug is returned as-is; a doc name or synonym ("postgres", "python")
+// or a substring of a slug resolves to the newest version when it names
+// exactly one doc. Otherwise slug is empty and candidates lists the
+// newest version of each matching doc (at most 10).
+func (i *Index) ResolveDocSlug(ctx context.Context, name string) (slug string, candidates []string, err error) {
+	slugMap, _, err := i.docCatalog(ctx)
+	if err != nil {
+		return "", nil, err
+	}
+	if slugMap[name] {
+		return name, nil, nil
+	}
+	n := strings.ToLower(strings.TrimSpace(name))
+	var named, sub []string
+	for s := range slugMap {
+		ls := strings.ToLower(s)
+		for _, alias := range append([]string{n}, i.syn.Lookup(n)...) {
+			if slugNamed(ls, alias) {
+				named = append(named, s)
+				break
+			}
+		}
+		if n != "" && strings.Contains(ls, n) {
+			sub = append(sub, s)
+		}
+	}
+	for _, found := range [][]string{newestPerDoc(named), newestPerDoc(sub)} {
+		if len(found) == 1 {
+			return found[0], nil, nil
+		}
+		if len(found) > 1 {
+			return "", found[:min(len(found), 10)], nil
+		}
+	}
+	return "", nil, nil
+}
+
+// oldVersions lists the slugs that have a newer version of the same doc.
+func oldVersions(slugMap map[string]bool) []string {
+	all := make([]string, 0, len(slugMap))
+	for s := range slugMap {
+		all = append(all, s)
+	}
+	newest := make(map[string]bool)
+	for _, s := range newestPerDoc(all) {
+		newest[s] = true
+	}
+	var old []string
+	for _, s := range all {
+		if !newest[s] {
+			old = append(old, s)
+		}
+	}
+	return old
+}
+
 // slugNamed reports whether name names the lower-case doc slug sl: the
 // whole slug, its part before "~" or that part's base before "-".
 func slugNamed(sl, name string) bool {
@@ -659,10 +716,18 @@ func (i *Index) queryChunks(ctx context.Context, q string, docSlugs []string, pa
 				ROW_NUMBER() OVER w AS rn, MIN(m.rank) OVER w AS best
 			FROM m JOIN chunks c ON c.id = m.rid JOIN pages p ON p.id = c.page_id`
 	args := []any{q}
-	if hasDocFilter {
-		placeholders := strings.Repeat("?,", len(docSlugs))
-		sqlText += ` WHERE p.doc_slug IN (` + placeholders[:len(placeholders)-1] + `)`
-		for _, s := range docSlugs {
+	// A global search skips older versions of a doc, so a topic without a
+	// version gets the current release (postgresql~18, not ~10).
+	filter, op := docSlugs, "IN"
+	if !hasDocFilter {
+		if slugMap, _, err := i.docCatalog(ctx); err == nil {
+			filter, op = oldVersions(slugMap), "NOT IN"
+		}
+	}
+	if len(filter) > 0 {
+		placeholders := strings.Repeat("?,", len(filter))
+		sqlText += ` WHERE p.doc_slug ` + op + ` (` + placeholders[:len(placeholders)-1] + `)`
+		for _, s := range filter {
 			args = append(args, s)
 		}
 	}

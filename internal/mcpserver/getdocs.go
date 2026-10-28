@@ -69,7 +69,11 @@ func registerGetDocs(s *mcp.Server, d Deps) {
 		if budget > getDocsMaxTokens {
 			budget = getDocsMaxTokens
 		}
-		frags, err := d.collectFragments(ctx, in.Topic, in.DocSlug, budget)
+		slug, err := d.resolveSlug(ctx, in.DocSlug)
+		if err != nil {
+			return nil, getDocsOutput{}, err
+		}
+		frags, err := d.collectFragments(ctx, in.Topic, slug, budget)
 		if err != nil {
 			return nil, getDocsOutput{}, err
 		}

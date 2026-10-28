@@ -134,12 +134,16 @@ func registerSearch(s *mcp.Server, d Deps) {
 		if limit > 100 {
 			limit = 100
 		}
-		hits, err := d.Index.Search(ctx, in.Query, in.DocSlug, limit)
+		slug, err := d.resolveSlug(ctx, in.DocSlug)
+		if err != nil {
+			return nil, searchOutput{}, err
+		}
+		hits, err := d.Index.Search(ctx, in.Query, slug, limit)
 		if err != nil {
 			return nil, searchOutput{}, err
 		}
 		if len(hits) == 0 {
-			hits, err = searchPagesFallback(ctx, d, in.Query, in.DocSlug, limit)
+			hits, err = searchPagesFallback(ctx, d, in.Query, slug, limit)
 			if err != nil {
 				return nil, searchOutput{}, err
 			}
@@ -202,7 +206,11 @@ func registerSearchPages(s *mcp.Server, d Deps) {
 		if limit > 100 {
 			limit = 100
 		}
-		hits, err := d.Index.SearchPages(ctx, d.Store, in.Query, in.DocSlug, limit)
+		slug, err := d.resolveSlug(ctx, in.DocSlug)
+		if err != nil {
+			return nil, searchPagesOutput{}, err
+		}
+		hits, err := d.Index.SearchPages(ctx, d.Store, in.Query, slug, limit)
 		if err != nil {
 			return nil, searchPagesOutput{}, err
 		}
@@ -328,6 +336,25 @@ func formatPageHits(query string, hits []index.PageHit) string {
 // oneLine collapses whitespace runs (including newlines) into single spaces.
 func oneLine(s string) string {
 	return strings.Join(strings.Fields(s), " ")
+}
+
+// resolveSlug turns the doc_slug an agent passed into a known slug: a doc
+// name such as "postgres" means its newest version. An empty slug stays
+// empty. An unknown one is an error naming the closest docs.
+func (d Deps) resolveSlug(ctx context.Context, slug string) (string, error) {
+	if slug == "" {
+		return "", nil
+	}
+	got, cands, err := d.Index.ResolveDocSlug(ctx, slug)
+	if err != nil || got != "" {
+		return got, err
+	}
+	if len(cands) > 0 {
+		return "", fmt.Errorf("unknown doc_slug %q; did you mean: %s? "+
+			"Or omit doc_slug to search all documentation", slug, strings.Join(cands, ", "))
+	}
+	return "", fmt.Errorf("unknown doc_slug %q; find the slug with list_docs(name) "+
+		"or omit doc_slug to search all documentation", slug)
 }
 
 // textResult builds a CallToolResult with a single TextContent block — the

@@ -238,3 +238,23 @@ func TestCallGetDocs(t *testing.T) {
 		t.Errorf("text block = %q", text)
 	}
 }
+
+func TestCallGetDocsResolvesSlug(t *testing.T) {
+	cs := connect(t)
+	for slug, wantErr := range map[string]bool{"Go": false, "nosuch": true} {
+		res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+			Name:      "get_docs",
+			Arguments: map[string]any{"topic": "operands spaces", "doc_slug": slug},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := res.Content[0].(*mcp.TextContent).Text
+		if res.IsError != wantErr {
+			t.Errorf("doc_slug %q: IsError = %v, text %q", slug, res.IsError, text)
+		}
+		if wantErr && !strings.Contains(text, "unknown doc_slug") {
+			t.Errorf("doc_slug %q: text %q", slug, text)
+		}
+	}
+}

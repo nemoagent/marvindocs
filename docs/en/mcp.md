@@ -36,7 +36,12 @@ documentation from the topic anyway.
 - **Output:** `{ docs: [{ slug, name, type, version, release, mtime }] }`
 
 Pass a `slug` as `doc_slug` to `get_docs`, `search` or `get_page` to pin
-a library or version.
+a library or version. In `get_docs`, `search` and `search_pages` an exact
+slug is used as is; a doc name, a synonym or a slug without the version
+(`postgres`, `postgresql`) means the newest version (`postgresql~18`).
+An unknown `doc_slug` is an error listing the closest docs, not an empty
+result. Without `doc_slug`, `get_docs` searches only the newest version of
+each versioned doc.
 
 The server also sends MCP `instructions` (shown by clients that support
 them in the system prompt): the agent has reference documentation and

@@ -508,3 +508,49 @@ func TestSearchSynonyms(t *testing.T) {
 		t.Errorf("k8s deployment without synonyms: %v", hits)
 	}
 }
+
+func TestResolveDocSlug(t *testing.T) {
+	idx, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = idx.Close() })
+	th, err := synonyms.Builtin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	idx.SetSynonyms(th)
+	for _, s := range []string{"postgresql~9.4", "postgresql~18", "python~3.13", "react", "react_native", "go"} {
+		if _, err := idx.db.Exec(`INSERT INTO docs(slug, name, type, version, release, mtime) VALUES(?,?,'lib','','',0)`, s, s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cases := []struct {
+		in, want string
+		cands    int
+	}{
+		{"postgresql~9.4", "postgresql~9.4", 0},
+		{"postgres", "postgresql~18", 0},
+		{"PostgreSQL", "postgresql~18", 0},
+		{"python", "python~3.13", 0},
+		{"react", "react", 0},
+		{"reac", "", 2},
+		{"nosuch", "", 0},
+	}
+	for _, c := range cases {
+		got, cands, err := idx.ResolveDocSlug(context.Background(), c.in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != c.want || len(cands) != c.cands {
+			t.Errorf("ResolveDocSlug(%q) = %q, %v; want %q with %d candidates", c.in, got, cands, c.want, c.cands)
+		}
+	}
+}
+
+func TestOldVersions(t *testing.T) {
+	got := oldVersions(map[string]bool{"postgresql~9.4": true, "postgresql~18": true, "react": true})
+	if len(got) != 1 || got[0] != "postgresql~9.4" {
+		t.Errorf("oldVersions = %v", got)
+	}
+}

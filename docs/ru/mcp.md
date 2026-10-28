@@ -36,7 +36,12 @@ marvindocs реализует [Model Context Protocol](https://modelcontextproto
 - **Выход:** `{ docs: [{ slug, name, type, version, release, mtime }] }`
 
 `slug` передаётся как `doc_slug` в `get_docs`, `search` или `get_page`,
-чтобы закрепить библиотеку или версию.
+чтобы закрепить библиотеку или версию. В `get_docs`, `search` и
+`search_pages` точный slug используется как есть; имя дока, синоним или
+slug без версии (`postgres`, `postgresql`) означают самую новую версию
+(`postgresql~18`). Неизвестный `doc_slug` — ошибка со списком ближайших
+доков, а не пустой результат. Без `doc_slug` `get_docs` ищет только по
+самой новой версии каждого версионированного дока.
 
 Сервер также отдаёт MCP `instructions` (клиенты, которые их
 поддерживают, добавляют их в системный промпт): у агента есть справочная
