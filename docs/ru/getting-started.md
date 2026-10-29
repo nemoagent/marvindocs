@@ -77,6 +77,14 @@ Linux-пакеты из него — через `scripts/release-package.sh VERS
 (нужен [nfpm](https://nfpm.goreleaser.com/), конфиг `packaging/nfpm.yaml`).
 Релиз `bundles` с офлайн-наборами отдельный и не затрагивается.
 
+`scripts/e2e-ubuntu.sh [VERSION]` проверяет релиз от начала до конца в
+чистом docker-контейнере `ubuntu:24.04`: скачивает `.deb` и сверяет его с
+`SHA256SUMS`, устанавливает, выполняет `bundle install db` (другой набор
+задаёт переменная `BUNDLE`), поиск и `get` из CLI, затем запускает `serve` и
+обращается к веб-интерфейсу и MCP. `--deb FILE` проверяет локально собранный
+пакет вместо релиза; `EMBEDDER_URL=http://host:8001/v1` включает гибридный
+поиск с bge-m3.
+
 ## 4. Построить поисковый индекс
 
 ```bash

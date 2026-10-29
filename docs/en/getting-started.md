@@ -78,6 +78,13 @@ Linux packages from it with `scripts/release-package.sh VERSION GOARCH`
 (needs [nfpm](https://nfpm.goreleaser.com/), config `packaging/nfpm.yaml`). The
 `bundles` release with offline bundles is separate and is not touched.
 
+`scripts/e2e-ubuntu.sh [VERSION]` checks a release end to end in a clean
+`ubuntu:24.04` docker container: downloads the `.deb` and checks it against
+`SHA256SUMS`, installs it, runs `bundle install db` (the `BUNDLE` variable
+picks another bundle), CLI search and `get`, then starts `serve` and calls the
+web UI and MCP. `--deb FILE` tests a locally built package instead of a
+release; `EMBEDDER_URL=http://host:8001/v1` turns on hybrid search with bge-m3.
+
 ## 4. Build the search index
 
 ```bash
