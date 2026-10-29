@@ -11,6 +11,8 @@ marvindocs настраивается флагами командной стро
 data/public/docs/     исходные данные (дамп devdocs, в .gitignore)
 marvindocs.db         SQLite FTS5-индекс (в .gitignore)
 bin/marvindocs        скомпилированный бинарь (в .gitignore)
+bundles.yaml          описание оффлайн-наборов, см. bundles.md
+dist/bundles/         архивы `bundle build` (в .gitignore)
 ```
 
 Пути `data/public/` и `marvindocs.db*` добавлены в `.gitignore`.
@@ -20,7 +22,7 @@ bin/marvindocs        скомпилированный бинарь (в .gitigno
 | Флаг | Значение по умолчанию | Описание |
 |---|---|---|
 | `--docs-path DIR` | `data/public/docs` | Корень дампа devdocs. Должен содержать `docs.json`. |
-| `--index-path FILE` | `marvindocs.db` | Файл SQLite-индекса. `index build` создаёт его, `serve` требует, чтобы файл уже существовал. |
+| `--index-path FILE` | `marvindocs.db` | Файл SQLite-индекса. `index build` и `bundle install` создают его, `serve` требует, чтобы файл уже существовал. |
 
 ## Флаги только для `serve`
 

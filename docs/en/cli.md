@@ -233,6 +233,7 @@ full-text index is filled from the chunk texts, no HTML conversion or
 embedding is needed. Restart `serve` afterwards.
 
 Publish bundles with `gh release upload bundles dist/bundles/*.tar.gz --clobber`.
+Bundle list, versions, checksums and archive format: [Offline bundles](bundles.md).
 
 ## `marvindocs synonyms suggest`
 

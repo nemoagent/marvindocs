@@ -17,6 +17,10 @@ This page takes you from a fresh checkout to a running MCP server.
 
 ## 2. Get the devdocs data
 
+> Shortcut: `marvindocs bundle install NAME...` (after step 3) installs
+> prebuilt docs together with a ready index and embeddings, so steps 2
+> and 4 can be skipped. See [Offline bundles](bundles.md).
+
 marvindocs does not ship the documentation itself — it reads the raw
 devdocs archive. There are two ways to obtain it.
 

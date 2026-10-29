@@ -50,6 +50,19 @@ To refresh everything later (devdocs sync, parsers, incremental index,
 embeddings) run `make update`; it never drops existing embeddings. See
 [docs/en/sync-docs.md](docs/en/sync-docs.md#one-command-update).
 
+### Offline bundles with a ready index
+
+Instead of syncing and embedding, install prebuilt bundles (docs + index +
+embeddings) from the `bundles` GitHub release; needs `gh` logged in:
+
+```bash
+./bin/marvindocs bundle install core go python
+```
+
+Bundles: `core`, `go`, `python`, `db`, `infra`, `js`, `php`, `ruby`, `jvm`,
+`native`, `other` (~2.9 GB in total). See
+[docs/en/bundles.md](docs/en/bundles.md).
+
 ### Download specific docs or everything
 
 ```bash
@@ -193,6 +206,8 @@ must be built beforehand, for example:
 
 ```bash
 ./bin/marvindocs index build --index-path data/index/marvindocs.db
+# or install bundles straight into the mounted paths
+./bin/marvindocs bundle install --docs-path data/public/docs --index-path data/index/marvindocs.db core go
 ```
 
 > The image listens on `0.0.0.0:3333` inside the container and compose
@@ -206,6 +221,8 @@ scripts/sync-docs.sh     download docs (curl + tar, no Docker)
 scripts/mcp-smoke.sh     verify the MCP server end-to-end (no auth header: use a server without a token)
 scripts/fetch-onnx.sh    download the ONNX runtime, tokenizer and bge-m3 model for --embedder onnx
 data/public/docs/        devdocs dump (not in git, ~17 GB)
+bundles.yaml             offline bundle definitions (docs/en/bundles.md)
+dist/bundles/            archives from `bundle build` (not in git)
 marvindocs.db            SQLite FTS5 index (size depends on the doc set; page bodies indexed, text not stored)
 cmd/marvindocs/          CLI entrypoint
 internal/chunk/          Markdown section splitting and scoring for get_docs
@@ -228,6 +245,7 @@ docs/ru/                 Russian documentation
 |---|---|---|
 | Getting started | [docs/en/getting-started.md](docs/en/getting-started.md) | [docs/ru/getting-started.md](docs/ru/getting-started.md) |
 | Syncing docs | [docs/en/sync-docs.md](docs/en/sync-docs.md) | [docs/ru/sync-docs.md](docs/ru/sync-docs.md) |
+| Offline bundles | [docs/en/bundles.md](docs/en/bundles.md) | [docs/ru/bundles.md](docs/ru/bundles.md) |
 | Configuration | [docs/en/configuration.md](docs/en/configuration.md) | [docs/ru/configuration.md](docs/ru/configuration.md) |
 | CLI reference | [docs/en/cli.md](docs/en/cli.md) | [docs/ru/cli.md](docs/ru/cli.md) |
 | MCP server | [docs/en/mcp.md](docs/en/mcp.md) | [docs/ru/mcp.md](docs/ru/mcp.md) |

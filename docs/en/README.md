@@ -4,6 +4,8 @@
 - [Project overview](overview.md) — what it is and how it works, no technical details
 - [Getting started](getting-started.md) — install, build, first index
 - [Syncing docs](sync-docs.md) — download the devdocs data with the helper script
+- [Offline bundles](bundles.md) — install prebuilt docs with a ready
+  index and embeddings, build and publish bundles
 - [Configuration](configuration.md) — paths, flags, directory layout
 - [CLI reference](cli.md) — every subcommand and flag
 - [MCP server](mcp.md) — stdio + HTTP transports, tool reference,

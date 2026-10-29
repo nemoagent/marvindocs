@@ -11,6 +11,8 @@ deploy in containers and to reason about in scripts.
 data/public/docs/     source data (devdocs dump, gitignored)
 marvindocs.db         SQLite FTS5 index (gitignored)
 bin/marvindocs        compiled binary (gitignored)
+bundles.yaml          offline bundle definitions, see bundles.md
+dist/bundles/         archives from `bundle build` (gitignored)
 ```
 
 Both `data/public/` and `marvindocs.db*` are in `.gitignore`.
@@ -20,7 +22,7 @@ Both `data/public/` and `marvindocs.db*` are in `.gitignore`.
 | Flag | Default | Description |
 |---|---|---|
 | `--docs-path DIR` | `data/public/docs` | Root of the devdocs dump. Must contain `docs.json`. |
-| `--index-path FILE` | `marvindocs.db` | SQLite index file. Created if missing by `index build`, required by `serve`. |
+| `--index-path FILE` | `marvindocs.db` | SQLite index file. Created if missing by `index build` and `bundle install`, required by `serve`. |
 
 ## `serve`-only flags
 

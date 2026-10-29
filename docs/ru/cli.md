@@ -237,6 +237,7 @@ download` (или берёт из `--from DIR`), распаковывает ка
 `serve`.
 
 Публикация: `gh release upload bundles dist/bundles/*.tar.gz --clobber`.
+Список наборов, версии, контрольные суммы и формат архива: [Оффлайн-наборы](bundles.md).
 
 ## `marvindocs synonyms suggest`
 
