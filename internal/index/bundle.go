@@ -235,6 +235,8 @@ func (i *Index) Merge(ctx context.Context, path string) ([]string, error) {
 	i.vecMu.Unlock()
 	_, _ = conn.ExecContext(ctx, `INSERT INTO entries_fts(entries_fts) VALUES('optimize')`)
 	_, _ = conn.ExecContext(ctx, `INSERT INTO chunks_fts(chunks_fts) VALUES('optimize')`)
-	_, _ = conn.ExecContext(ctx, `ANALYZE`)
+	// Plain ANALYZE also visits the read-only attached bundle and fails,
+	// leaving no stats: doc-filtered vector search then takes minutes.
+	_, _ = conn.ExecContext(ctx, `ANALYZE main`)
 	return slugs, nil
 }

@@ -26,9 +26,15 @@ func TestExportMerge(t *testing.T) {
 	if _, err := dst.Build(ctx, fixtureStore(t)); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := dst.DB().Exec(`DROP TABLE IF EXISTS sqlite_stat1`); err != nil {
+		t.Fatal(err)
+	}
 	slugs, err := dst.Merge(ctx, out)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if n := count(t, dst, "sqlite_stat1"); n == 0 {
+		t.Fatal("Merge left no planner stats (ANALYZE failed)")
 	}
 	if len(slugs) != 1 || slugs[0] != "alpha" {
 		t.Fatalf("merged %v", slugs)
