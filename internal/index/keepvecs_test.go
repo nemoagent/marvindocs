@@ -26,3 +26,18 @@ func TestVectorDocs(t *testing.T) {
 		t.Errorf("vectorDocs:\n got %v\nwant %v", got, want)
 	}
 }
+
+func TestNewestDocs(t *testing.T) {
+	in := []string{
+		"python~3.13", "python~3.14", "node", "node~20_lts", "node~24_lts",
+		"gcc~13", "gcc~14", "gcc~13_cpp", "gcc~14_cpp", "haxe~cpp", "openjdk~21", "openjdk~25", "react",
+	}
+	lts := map[string]bool{"node~24_lts": true, "openjdk~21": true}
+	want := []string{
+		"gcc~14", "gcc~14_cpp", "haxe~cpp", "node", "node~24_lts",
+		"openjdk~21", "openjdk~25", "python~3.14", "react",
+	}
+	if got := NewestDocs(in, lts); !reflect.DeepEqual(got, want) {
+		t.Errorf("NewestDocs:\n got %v\nwant %v", got, want)
+	}
+}

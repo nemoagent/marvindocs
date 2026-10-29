@@ -46,11 +46,25 @@ func versionGroup(slug string) (key string, ok bool) {
 // vectorDocs picks the slugs that get vectors by default: the newest
 // keepVersions of every version group, LTS releases and variants.
 func vectorDocs(slugs []string) []string {
+	return pickVersions(slugs, keepVersions, func(s string) bool {
+		return strings.HasSuffix(s, "_lts") || ltsVersions[s]
+	})
+}
+
+// NewestDocs picks the newest version of every version group, the
+// releases in lts and variants; it selects the docs of an offline bundle.
+func NewestDocs(slugs []string, lts map[string]bool) []string {
+	return pickVersions(slugs, 1, func(s string) bool { return lts[s] })
+}
+
+// pickVersions keeps the newest keep slugs of every version group plus
+// the slugs isLTS accepts and non-version variants, sorted.
+func pickVersions(slugs []string, keep int, isLTS func(string) bool) []string {
 	groups := make(map[string][]string)
 	var out []string
 	for _, s := range slugs {
 		key, ok := versionGroup(s)
-		if !ok || strings.HasSuffix(s, "_lts") || ltsVersions[s] {
+		if !ok || isLTS(s) {
 			out = append(out, s)
 			continue
 		}
@@ -58,8 +72,8 @@ func vectorDocs(slugs []string) []string {
 	}
 	for _, g := range groups {
 		sort.Slice(g, func(a, b int) bool { return compareVersions(g[a], g[b]) > 0 })
-		if len(g) > keepVersions {
-			g = g[:keepVersions]
+		if len(g) > keep {
+			g = g[:keep]
 		}
 		out = append(out, g...)
 	}
