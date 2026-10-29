@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -37,9 +38,14 @@ Usage:
   marvindocs index stats [--index-path FILE] [--by-doc] [--top N]
   marvindocs index embed [--doc SLUG]... [--embedder ollama|openai|onnx] [--ollama-url URL] [--ollama-model NAME]
                          [--openai-url URL] [--openai-model NAME] [--model-dir DIR] [--onnxruntime PATH] [--batch N] [--docs-path DIR] [--index-path FILE]
+                         [--all-versions]
+                         (without --doc only the newest 3 versions, LTS releases and variants of a doc are embedded;
+                          --all-versions embeds every version, --doc SLUG one exact version)
                          (embedder flags default to MARVINDOCS_EMBEDDER, _OLLAMA_URL, _OLLAMA_MODEL, _OPENAI_URL, _OPENAI_MODEL,
                           _MODEL_DIR, _ONNXRUNTIME;
                           index embed defaults to onnx, which needs a build with make build-onnx)
+  marvindocs index prune-vectors [--dry-run] [--index-path FILE]
+                         (delete vectors of the versions index embed skips by default, then VACUUM)
   marvindocs search QUERY [--doc SLUG] [--limit N] [--json]
   marvindocs get SLUG PATH [--format FORMAT]
   marvindocs list [--json]
@@ -312,12 +318,13 @@ func runIndex(args []string) {
 	case "embed":
 		fs := flag.NewFlagSet("index embed", flag.ExitOnError)
 		var docs []string
-		fs.Func("doc", "Doc slug to embed; may be repeated (default: all docs)", func(v string) error {
+		fs.Func("doc", "Doc slug to embed; may be repeated (default: the newest 3 versions and LTS of every doc)", func(v string) error {
 			docs = append(docs, v)
 			return nil
 		})
 		newEmbedder := embedderFlags(fs, "onnx")
 		batch := fs.Int("batch", 64, "Chunks per embedder call and per transaction")
+		allVersions := fs.Bool("all-versions", false, "Without --doc embed every version, not only the newest 3 and LTS")
 		docsPath := fs.String("docs-path", "data/public/docs", "Path to devdocs data")
 		indexPath := fs.String("index-path", "marvindocs.db", "SQLite index file")
 		_ = fs.Parse(args[1:])
@@ -330,7 +337,16 @@ func runIndex(args []string) {
 			fmt.Fprintln(os.Stderr, "error: index embed needs --embedder ollama, openai or onnx")
 			os.Exit(2)
 		}
-		if err := runIndexEmbed(*docsPath, *indexPath, docs, e, *batch); err != nil {
+		if err := runIndexEmbed(*docsPath, *indexPath, docs, *allVersions, e, *batch); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+	case "prune-vectors":
+		fs := flag.NewFlagSet("index prune-vectors", flag.ExitOnError)
+		dryRun := fs.Bool("dry-run", false, "Only list the docs whose vectors would be deleted")
+		indexPath := fs.String("index-path", "marvindocs.db", "SQLite index file")
+		_ = fs.Parse(args[1:])
+		if err := runIndexPruneVectors(*indexPath, *dryRun); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
 		}
@@ -459,7 +475,7 @@ func embedderFlags(fs *flag.FlagSet, def string) func() (embed.Embedder, error) 
 	}
 }
 
-func runIndexEmbed(docsPath, indexPath string, docs []string, e embed.Embedder, batch int) error {
+func runIndexEmbed(docsPath, indexPath string, docs []string, allVersions bool, e embed.Embedder, batch int) error {
 	defer func() { _ = e.Close() }()
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -476,6 +492,12 @@ func runIndexEmbed(docsPath, indexPath string, docs []string, e embed.Embedder, 
 		return err
 	}
 	defer idx.Close()
+
+	if len(docs) == 0 && !allVersions {
+		if docs, err = idx.VectorDocs(ctx); err != nil {
+			return err
+		}
+	}
 
 	start := time.Now()
 	last := start
@@ -498,6 +520,42 @@ func runIndexEmbed(docsPath, indexPath string, docs []string, e embed.Embedder, 
 		"duration", time.Since(start).Round(time.Millisecond).String(),
 		"path", indexPath)
 	return err
+}
+
+func runIndexPruneVectors(indexPath string, dryRun bool) error {
+	if _, err := os.Stat(indexPath); err != nil {
+		return fmt.Errorf("index file not found: %s", indexPath)
+	}
+	idx, err := index.Open(indexPath)
+	if err != nil {
+		return err
+	}
+	defer idx.Close()
+	ctx := context.Background()
+	pruned, err := idx.PruneVectors(ctx, dryRun)
+	if err != nil {
+		return err
+	}
+	slugs := make([]string, 0, len(pruned))
+	total := 0
+	for s, n := range pruned {
+		slugs = append(slugs, s)
+		total += n
+	}
+	sort.Strings(slugs)
+	for _, s := range slugs {
+		fmt.Printf("%s\t%d\n", s, pruned[s])
+	}
+	verb := "deleted"
+	if dryRun {
+		verb = "would delete"
+	}
+	fmt.Printf("%s %d vectors of %d docs\n", verb, total, len(slugs))
+	if dryRun || total == 0 {
+		return nil
+	}
+	fmt.Println("vacuum...")
+	return idx.Vacuum(ctx)
 }
 
 func runIndexStats(indexPath string, byDoc bool, topN int) error {

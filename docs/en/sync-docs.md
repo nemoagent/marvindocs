@@ -158,7 +158,9 @@ See [Vector search](vectors.md#keeping-vectors-up-to-date).
 2. `run-parser.sh --all` - parser-built docs (skipped when no
    `bin/*-parser` binaries exist);
 3. `marvindocs index build` - incremental;
-4. `marvindocs index embed` - vectors for chunks that have none.
+4. `marvindocs index embed` - vectors for chunks that have none, only for
+   the newest 3 versions and LTS releases of each doc (`--all-versions`
+   embeds every version, see [Vector search](vectors.md#building-vectors)).
 
 It never drops the index or its vectors. Embedder settings come from `.env`
 (see [Configuration](configuration.md#env-file)). The default embedder is

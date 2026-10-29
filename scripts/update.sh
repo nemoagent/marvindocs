@@ -7,7 +7,9 @@
 #   3. marvindocs index build          incremental: only changed docs are
 #                                      re-indexed, embeddings of unchanged
 #                                      docs are kept
-#   4. marvindocs index embed          vectors for chunks that have none
+#   4. marvindocs index embed          vectors for chunks that have none,
+#                                      only the newest 3 versions, LTS
+#                                      releases and variants of each doc
 #
 # Nothing here drops the index or its vectors; `index build --full` is
 # never used. Embedder settings come from .env (see .env.example):
@@ -19,6 +21,8 @@
 #   ./scripts/update.sh --no-embed      # skip step 4
 #   ./scripts/update.sh --embed-only    # only step 4
 #   ./scripts/update.sh --index-only    # only steps 3-4
+#   ./scripts/update.sh --all-versions  # step 4 embeds every doc version
+#   (one old version: bin/marvindocs index embed --doc python~3.8)
 
 set -euo pipefail
 
@@ -31,11 +35,13 @@ RUN_PARSERS=true
 RUN_INDEX=true
 RUN_EMBED=true
 PARSER_FAILED=false
+EMBED_ARGS=()
 
 for arg in "$@"; do
 	case "$arg" in
 	--no-parsers) RUN_PARSERS=false ;;
 	--no-embed) RUN_EMBED=false ;;
+	--all-versions) EMBED_ARGS+=(--all-versions) ;;
 	--embed-only)
 		RUN_SYNC=false
 		RUN_PARSERS=false
@@ -46,7 +52,7 @@ for arg in "$@"; do
 		RUN_PARSERS=false
 		;;
 	--help | -h)
-		sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
+		sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'
 		exit 0
 		;;
 	*)
@@ -121,7 +127,7 @@ if [ "$RUN_EMBED" = true ]; then
 		;;
 	esac
 	if [ "$EMBEDDER" != none ]; then
-		"$BINARY" index embed --embedder "$EMBEDDER"
+		"$BINARY" index embed --embedder "$EMBEDDER" "${EMBED_ARGS[@]}"
 	fi
 fi
 

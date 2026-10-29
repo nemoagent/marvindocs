@@ -99,7 +99,7 @@ cp .env.example .env
 
 ## Флаги только для `index embed`
 
-`index embed` принимает `--doc`, `--embedder` (по умолчанию `onnx` или
+`index embed` принимает `--doc`, `--all-versions`, `--embedder` (по умолчанию `onnx` или
 `MARVINDOCS_EMBEDDER`), `--batch` и те же `--ollama-*`, `--openai-*`, `--model-dir` и `--onnxruntime`, что и
 `serve`. См. [Векторный поиск](vectors.md).
 

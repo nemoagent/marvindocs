@@ -99,7 +99,7 @@ cp .env.example .env
 
 ## `index embed`-only flags
 
-`index embed` takes `--doc`, `--embedder` (default `onnx`, or
+`index embed` takes `--doc`, `--all-versions`, `--embedder` (default `onnx`, or
 `MARVINDOCS_EMBEDDER`), `--batch` and the same `--ollama-*`, `--openai-*`, `--model-dir` and `--onnxruntime` flags as
 `serve`. See [Vector search](vectors.md).
 

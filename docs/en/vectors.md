@@ -86,12 +86,28 @@ can be interrupted (Ctrl-C) and re-run; each batch is committed on its own.
 ```bash
 marvindocs index build
 marvindocs index embed --doc react --doc vue~3
-marvindocs index embed                     # every doc in the index
+marvindocs index embed                     # default set of versions, see below
+marvindocs index embed --all-versions      # every doc in the index
+marvindocs index embed --doc python~3.8    # one old version
 ```
+
+Without `--doc` only these docs are embedded: the newest 3 versions of
+each doc, LTS releases (`node~*_lts` and the list in
+`internal/index/keepvecs.go`: openjdk 8/11, django 1.8-4.2 LTS, qt 5.x LTS,
+...) and variants that are not versions (`haxe~cpp`, `rethinkdb~java`;
+`gcc~14_cpp` ranks apart from `gcc~14`). Older versions are still indexed
+and found by BM25, only without vectors. Searches without a version use
+the newest one anyway.
+
+`marvindocs index prune-vectors` deletes the vectors of docs outside that
+set and runs `VACUUM` (it needs free disk space about the size of the
+database); `--dry-run` only lists them. `scripts/update.sh` never deletes
+vectors.
 
 | Flag | Default | Notes |
 |---|---|---|
-| `--doc` | all docs | Doc slug; may be repeated. |
+| `--doc` | newest 3 versions + LTS | Doc slug; may be repeated. |
+| `--all-versions` | `false` | Without `--doc`: embed every version. |
 | `--embedder` | `onnx` | `ollama`, `openai` or `onnx`. |
 | `--ollama-url` | `http://localhost:11434` | Ollama base URL. |
 | `--ollama-model` | `bge-m3` | Ollama model name. |

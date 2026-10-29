@@ -88,12 +88,27 @@ go test -tags sqlite_fts5 -run 'TestBench$' -v ./internal/mcpserver/
 ```bash
 marvindocs index build
 marvindocs index embed --doc react --doc vue~3
-marvindocs index embed                     # все доки индекса
+marvindocs index embed                     # набор версий по умолчанию, см. ниже
+marvindocs index embed --all-versions      # все доки индекса
+marvindocs index embed --doc python~3.8    # одна старая версия
 ```
+
+Без `--doc` векторизуются только: 3 новейшие версии каждой доки,
+LTS-релизы (`node~*_lts` и список в `internal/index/keepvecs.go`:
+openjdk 8/11, LTS django 1.8-4.2, LTS qt 5.x, ...) и варианты, которые не
+являются версиями (`haxe~cpp`, `rethinkdb~java`; `gcc~14_cpp` ранжируется
+отдельно от `gcc~14`). Более старые версии остаются в индексе и находятся
+через BM25, только без векторов. Поиск без версии и так идёт по новейшей.
+
+`marvindocs index prune-vectors` удаляет векторы доков вне этого набора и
+выполняет `VACUUM` (нужно свободное место примерно в размер базы);
+`--dry-run` только выводит список. `scripts/update.sh` векторы никогда не
+удаляет.
 
 | Флаг | По умолчанию | Примечания |
 |---|---|---|
-| `--doc` | все доки | Slug доки; можно повторять. |
+| `--doc` | 3 новейшие версии + LTS | Slug доки; можно повторять. |
+| `--all-versions` | `false` | Без `--doc`: векторизовать все версии. |
 | `--embedder` | `onnx` | `ollama`, `openai` или `onnx`. |
 | `--ollama-url` | `http://localhost:11434` | Базовый URL Ollama. |
 | `--ollama-model` | `bge-m3` | Имя модели в Ollama. |
