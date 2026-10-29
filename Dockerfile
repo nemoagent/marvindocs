@@ -32,6 +32,7 @@ RUN CGO_ENABLED=1 \
 # Keep /var/lib/marvindocs in a named volume: on first start docker copies
 # the empty index into it, and installed bundles survive recreates.
 FROM alpine:3.20 AS empty
+LABEL org.opencontainers.image.source=https://github.com/nemoagent/marvindocs
 RUN apk add --no-cache ca-certificates sqlite-libs
 COPY --from=builder /out/marvindocs /usr/local/bin/marvindocs
 # serve and bundle install share the default relative paths

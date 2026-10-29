@@ -242,7 +242,9 @@ No local data needed: `docker compose up -d --build marvindocs-full`
 (port 3334) builds an image with every bundle preinstalled, and
 `marvindocs-empty` (port 3335) starts with no docs, bundles are installed
 with `docker exec marvindocs-empty marvindocs bundle install go` and a
-restart. See [Getting started](docs/en/getting-started.md#images-with-bundles-full-and-empty).
+restart. Prebuilt images: `ghcr.io/nemoagent/marvindocs:latest` (empty)
+and `ghcr.io/nemoagent/marvindocs:full`. See
+[Getting started](docs/en/getting-started.md#images-with-bundles-full-and-empty).
 
 > The image listens on `0.0.0.0:3333` inside the container and compose
 > publishes the port on all host interfaces. Set `MARVINDOCS_AUTH_TOKEN`

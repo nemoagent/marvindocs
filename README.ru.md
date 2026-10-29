@@ -245,7 +245,8 @@ Compose-файл монтирует `./data/public/docs` (только чтен�
 (порт 3334) собирает образ со всеми наборами, а `marvindocs-empty`
 (порт 3335) стартует без доков, наборы ставятся через
 `docker exec marvindocs-empty marvindocs bundle install go` и перезапуск.
-См. [Быстрый старт](docs/ru/getting-started.md#образы-с-наборами-full-и-empty).
+Готовые образы: `ghcr.io/nemoagent/marvindocs:latest` (пустой) и
+`ghcr.io/nemoagent/marvindocs:full`. См. [Быстрый старт](docs/ru/getting-started.md#образы-с-наборами-full-и-empty).
 
 > Внутри контейнера образ слушает `0.0.0.0:3333`, а compose публикует
 > порт на всех интерфейсах хоста. Если хост доступен другим, задай
