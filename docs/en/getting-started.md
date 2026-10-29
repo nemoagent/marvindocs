@@ -60,6 +60,17 @@ This runs the build inside Docker and drops a single binary at
 `./bin/marvindocs` (about 19 MB; dynamically linked against the system
 libc because the SQLite driver uses CGo).
 
+Or download a prebuilt binary from
+[Releases](https://github.com/nemoagent/marvindocs/releases): archives
+`marvindocs_VERSION_OS_ARCH` for Linux, macOS and Windows on amd64 and
+arm64, plus `SHA256SUMS`. Linux and Windows binaries are static and need
+nothing else; unpack and run `marvindocs`.
+
+Releases are built by `.github/workflows/release.yml` when a `v*` tag is
+pushed (`git tag v0.1.0 && git push origin v0.1.0`). One archive is built
+locally with `scripts/release-build.sh VERSION GOOS GOARCH [CC]`. The
+`bundles` release with offline bundles is separate and is not touched.
+
 ## 4. Build the search index
 
 ```bash

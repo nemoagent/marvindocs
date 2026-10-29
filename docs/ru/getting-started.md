@@ -59,6 +59,17 @@ make build
 `./bin/marvindocs` (~19 МБ; динамически слинкован с системным libc,
 поскольку драйвер SQLite использует CGo).
 
+Или скачайте готовый бинарник со страницы
+[Releases](https://github.com/nemoagent/marvindocs/releases): архивы
+`marvindocs_VERSION_OS_ARCH` для Linux, macOS и Windows на amd64 и arm64,
+плюс `SHA256SUMS`. Бинарники для Linux и Windows статические и ничего
+больше не требуют: распакуйте и запустите `marvindocs`.
+
+Релизы собирает `.github/workflows/release.yml` при пуше тега `v*`
+(`git tag v0.1.0 && git push origin v0.1.0`). Один архив локально
+собирается через `scripts/release-build.sh VERSION GOOS GOARCH [CC]`.
+Релиз `bundles` с офлайн-наборами отдельный и не затрагивается.
+
 ## 4. Построить поисковый индекс
 
 ```bash

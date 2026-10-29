@@ -44,7 +44,7 @@ Documentation content is covered by the licenses of its original sources.
 
 ## Requirements
 
-- **Docker** — for `make build` (Go 1.25 inside container). Not needed to run the binary.
+- **Docker** — for `make build` (Go 1.25 inside container). Not needed to run the binary or a prebuilt one from Releases.
 - **curl + tar** — for `scripts/sync-docs.sh` to download the docs.
 - **Optional, for vector search** — Ollama with bge-m3 (embedding) and ~600 MB for the ONNX model and libs (`make onnx-fetch`).
 - **~2 GB disk** for the default doc set; ~17 GB for everything.
@@ -52,7 +52,7 @@ Documentation content is covered by the licenses of its original sources.
 ## Getting started
 
 ```bash
-# 1. Build the binary
+# 1. Build the binary (or download one for your OS/arch from Releases)
 make build
 
 # 2. Download documentation (27 popular docs, ~0.6 GB on disk)
