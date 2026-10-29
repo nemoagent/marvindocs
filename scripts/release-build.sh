@@ -22,7 +22,7 @@ mkdir -p "$work"
 CGO_ENABLED=1 GOOS=$goos GOARCH=$goarch \
 	go build -tags sqlite_fts5 -trimpath -ldflags "$ldflags" \
 	-o "$work/marvindocs$ext" ./cmd/marvindocs
-cp README.md README.ru.md "$work/"
+cp -r README.md README.ru.md docs "$work/"
 
 cd "$out"
 if [ "$goos" = windows ]; then

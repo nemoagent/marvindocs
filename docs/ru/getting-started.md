@@ -64,7 +64,9 @@ make build
 `marvindocs_VERSION_OS_ARCH` для Linux, macOS и Windows на amd64 и arm64,
 пакеты `.deb` и `.rpm` для Linux amd64 и arm64, плюс `SHA256SUMS`.
 Бинарники для Linux и Windows статические и ничего больше не требуют:
-распакуйте и запустите `marvindocs`. Пакеты ставят его в `/usr/bin`:
+распакуйте и запустите `marvindocs`. В архивах и пакетах есть `README.md`,
+`README.ru.md` и папка `docs/`; пакеты ставят бинарник в `/usr/bin`,
+а документацию — в `/usr/share/doc/marvindocs`:
 `sudo apt install ./marvindocs_VERSION_amd64.deb` или
 `sudo dnf install ./marvindocs-VERSION-1.x86_64.rpm`.
 

@@ -65,7 +65,9 @@ Or download a prebuilt binary from
 `marvindocs_VERSION_OS_ARCH` for Linux, macOS and Windows on amd64 and
 arm64, `.deb` and `.rpm` packages for Linux amd64 and arm64, plus
 `SHA256SUMS`. Linux and Windows binaries are static and need nothing else;
-unpack and run `marvindocs`. The packages install it to `/usr/bin`:
+unpack and run `marvindocs`. Archives and packages include `README.md`,
+`README.ru.md` and the `docs/` directory; the packages install the binary
+to `/usr/bin` and the documentation to `/usr/share/doc/marvindocs`:
 `sudo apt install ./marvindocs_VERSION_amd64.deb` or
 `sudo dnf install ./marvindocs-VERSION-1.x86_64.rpm`.
 

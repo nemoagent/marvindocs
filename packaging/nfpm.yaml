@@ -11,7 +11,10 @@ contents:
     dst: /usr/bin/marvindocs
     file_info:
       mode: 0755
-  - src: README.md
+  - src: dist/pkg/README.md
     dst: /usr/share/doc/marvindocs/README.md
-  - src: README.ru.md
+  - src: dist/pkg/README.ru.md
     dst: /usr/share/doc/marvindocs/README.ru.md
+  - src: dist/pkg/docs
+    dst: /usr/share/doc/marvindocs/docs
+    type: tree
