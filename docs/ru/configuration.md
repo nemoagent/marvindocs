@@ -155,9 +155,15 @@ FTS5 отсутствует и индекс не откроется). Бинар
 ## Docker
 
 `Dockerfile` собирает бинарь в `golang:1.25-alpine` (CGO,
-`sqlite_fts5`) и кладёт его в небольшой образ `alpine`. `docker compose up -d`
-собирает образ и поднимает HTTP на порту 3333; монтируются
-`./data/public/docs` в `/data` (только чтение) и `./data/index` в `/index`.
+`sqlite_fts5`) и кладёт его в небольшой образ `alpine` (цель `empty`; цель
+`full` добавляет все офлайн-наборы, см.
+[Быстрый старт](getting-started.md#образы-с-наборами-full-и-empty)).
+Рабочий каталог — `/var/lib/marvindocs`, поэтому `serve` и `bundle install`
+используют там общие пути по умолчанию `data/public/docs` и `marvindocs.db`.
+Аргумент сборки `VERSION` задаёт `marvindocs version`.
+`docker compose up -d` собирает образ и поднимает HTTP на порту 3333;
+монтируются `./data/public/docs` в `/var/lib/marvindocs/data/public/docs`
+(только чтение) и `./data/index` в `/var/lib/marvindocs/index`.
 Индекс нужно построить заранее, чтобы существовал
 `./data/index/marvindocs.db`, например:
 `./bin/marvindocs index build --index-path data/index/marvindocs.db`.
@@ -170,8 +176,8 @@ docker-хост через `extra_hosts`), `MARVINDOCS_OLLAMA_MODEL`,
 `MARVINDOCS_OPENAI_MODEL` из окружения
 хоста (или из `.env` рядом с `docker-compose.yml`).
 
-`CMD` образа: `serve --http 0.0.0.0:3333 --docs-path /data
---index-path /index/marvindocs.db`. Это не-loopback привязка, а compose
+`CMD` образа: `serve --http 0.0.0.0:3333`; сервис `marvindocs` добавляет
+`--index-path index/marvindocs.db`. Это не-loopback привязка, а compose
 публикует порт 3333 на всех интерфейсах хоста, поэтому контейнер сразу
 завершается, если не задан `MARVINDOCS_AUTH_TOKEN` (или
 `MARVINDOCS_INSECURE=1` для доверенного хоста). См.

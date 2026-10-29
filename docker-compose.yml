@@ -23,34 +23,80 @@
 #
 # or, for a trusted machine only, MARVINDOCS_INSECURE=1 docker compose up -d.
 
+# Settings shared by the services below.
+x-runtime: &runtime
+  restart: unless-stopped
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  environment:
+    MARVINDOCS_LOG_FORMAT: json
+    MARVINDOCS_LOG_LEVEL: info
+    MARVINDOCS_AUTH_TOKEN: ${MARVINDOCS_AUTH_TOKEN:-}
+    MARVINDOCS_INSECURE: ${MARVINDOCS_INSECURE:-}
+    MARVINDOCS_EMBEDDER: ${MARVINDOCS_EMBEDDER:-none}
+    MARVINDOCS_OLLAMA_URL: ${MARVINDOCS_OLLAMA_URL:-http://host.docker.internal:11434}
+    MARVINDOCS_OLLAMA_MODEL: ${MARVINDOCS_OLLAMA_MODEL:-bge-m3}
+    MARVINDOCS_OPENAI_URL: ${MARVINDOCS_OPENAI_URL:-http://host.docker.internal:8000/v1}
+    MARVINDOCS_OPENAI_MODEL: ${MARVINDOCS_OPENAI_MODEL:-bge-m3}
+  healthcheck:
+    test: ["CMD", "wget", "-qO-", "http://localhost:3333/healthz"]
+    interval: 30s
+    timeout: 5s
+    retries: 3
+
 services:
+  # Docs and index from the host (./data), see above.
   marvindocs:
-    build: .
+    <<: *runtime
+    build:
+      context: .
+      target: empty
+      args:
+        VERSION: ${VERSION:-dev}
     image: marvindocs:latest
     container_name: marvindocs
-    restart: unless-stopped
+    command: ["serve", "--http", "0.0.0.0:3333", "--index-path", "index/marvindocs.db"]
     ports:
       - "3333:3333"
     volumes:
-      - ./data/public/docs:/data:ro
-      - ./data/index:/index
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    environment:
-      MARVINDOCS_LOG_FORMAT: json
-      MARVINDOCS_LOG_LEVEL: info
-      MARVINDOCS_AUTH_TOKEN: ${MARVINDOCS_AUTH_TOKEN:-}
-      MARVINDOCS_INSECURE: ${MARVINDOCS_INSECURE:-}
-      MARVINDOCS_EMBEDDER: ${MARVINDOCS_EMBEDDER:-none}
-      MARVINDOCS_OLLAMA_URL: ${MARVINDOCS_OLLAMA_URL:-http://host.docker.internal:11434}
-      MARVINDOCS_OLLAMA_MODEL: ${MARVINDOCS_OLLAMA_MODEL:-bge-m3}
-      MARVINDOCS_OPENAI_URL: ${MARVINDOCS_OPENAI_URL:-http://host.docker.internal:8000/v1}
-      MARVINDOCS_OPENAI_MODEL: ${MARVINDOCS_OPENAI_MODEL:-bge-m3}
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3333/healthz"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+      - ./data/public/docs:/var/lib/marvindocs/data/public/docs:ro
+      - ./data/index:/var/lib/marvindocs/index
+
+  # All offline bundles baked into the image (several GB, the build
+  # downloads them). Naming the service enables its profile:
+  #   docker compose up -d --build marvindocs-full
+  marvindocs-full:
+    <<: *runtime
+    profiles: [full]
+    build:
+      context: .
+      target: full
+      args:
+        VERSION: ${VERSION:-dev}
+        BUNDLES: ${BUNDLES:-all}
+    image: marvindocs:full
+    container_name: marvindocs-full
+    ports:
+      - "${MARVINDOCS_FULL_PORT:-3334}:3333"
+
+  # No docs; install bundles in the running container, then restart it:
+  #   docker compose up -d --build marvindocs-empty
+  #   docker exec marvindocs-empty marvindocs bundle install go db
+  #   docker restart marvindocs-empty
+  marvindocs-empty:
+    <<: *runtime
+    profiles: [empty]
+    build:
+      context: .
+      target: empty
+      args:
+        VERSION: ${VERSION:-dev}
+    image: marvindocs:empty
+    container_name: marvindocs-empty
+    ports:
+      - "${MARVINDOCS_EMPTY_PORT:-3335}:3333"
+    volumes:
+      - marvindocs-bundles:/var/lib/marvindocs
 
   godoc:
     image: ${GO_IMAGE:-golang:1.25}
@@ -58,3 +104,6 @@ services:
     volumes:
       - ./:/workspace
     entrypoint: ["go", "doc"]
+
+volumes:
+  marvindocs-bundles:

@@ -94,7 +94,10 @@ long as their files are unchanged, and `sync-docs.sh` + `index build` +
 `index embed` can add docs that no bundle has.
 
 For Docker, install into the mounted data directory and index file on
-the host, then restart the container.
+the host, then restart the container. The `marvindocs:full` image has
+every bundle preinstalled, and in `marvindocs:empty` bundles are installed
+inside the container, see
+[Getting started](getting-started.md#images-with-bundles-full-and-empty).
 
 ## Build and publish (maintainers)
 

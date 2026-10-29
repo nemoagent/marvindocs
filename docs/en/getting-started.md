@@ -206,3 +206,28 @@ MARVINDOCS_OLLAMA_MODEL=bge-m3
 The index must already contain vectors (`index embed`); see
 [Vector search](vectors.md). The first query after start takes a few
 seconds while Ollama loads the model; warm queries are tens of milliseconds.
+
+### Images with bundles: full and empty
+
+Two more compose services need no local data. Both serve HTTP on port
+3333 inside the container and take the same token and embedder variables.
+
+- `marvindocs-full` (image `marvindocs:full`, host port 3334): every
+  offline bundle is installed into the image at build time, so the build
+  downloads about 2.9 GB (the image is about 7.7 GB). `BUNDLES="go db"` bakes only the listed bundles.
+- `marvindocs-empty` (image `marvindocs:empty`, host port 3335): starts
+  with no docs; bundles are installed in the running container and kept in
+  the named volume `marvindocs-bundles`.
+
+```bash
+# naming a service enables its compose profile
+MARVINDOCS_INSECURE=1 docker compose up -d --build marvindocs-full
+
+MARVINDOCS_INSECURE=1 docker compose up -d --build marvindocs-empty
+docker exec marvindocs-empty marvindocs bundle install go db
+docker restart marvindocs-empty   # serve picks up new docs on start
+```
+
+Ports are changed with `MARVINDOCS_FULL_PORT` and `MARVINDOCS_EMPTY_PORT`.
+Bundles include vectors, so with `MARVINDOCS_EMBEDDER` set (bge-m3)
+`get_docs` uses hybrid search in both images.

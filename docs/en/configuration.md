@@ -155,9 +155,15 @@ for `make embed` / `make update` is configured in `.env`. See
 ## Docker
 
 The `Dockerfile` builds the binary in `golang:1.25-alpine` (CGO,
-`sqlite_fts5`) and ships it in a small `alpine` image. `docker compose up -d`
-builds the image and serves HTTP on port 3333, with bind mounts
-`./data/public/docs` to `/data` (read-only) and `./data/index` to `/index`.
+`sqlite_fts5`) and ships it in a small `alpine` image (target `empty`; the
+target `full` adds every offline bundle, see
+[Getting started](getting-started.md#images-with-bundles-full-and-empty)).
+The working directory is `/var/lib/marvindocs`, so `serve` and
+`bundle install` share the default paths `data/public/docs` and
+`marvindocs.db` there. `VERSION` (build arg) sets `marvindocs version`.
+`docker compose up -d` builds the image and serves HTTP on port 3333, with
+bind mounts `./data/public/docs` to `/var/lib/marvindocs/data/public/docs`
+(read-only) and `./data/index` to `/var/lib/marvindocs/index`.
 Build the index beforehand so that `./data/index/marvindocs.db` exists, e.g.
 `./bin/marvindocs index build --index-path data/index/marvindocs.db`.
 The compose file sets `MARVINDOCS_LOG_FORMAT=json` and
@@ -169,8 +175,8 @@ docker host via `extra_hosts`), `MARVINDOCS_OLLAMA_MODEL`,
 `MARVINDOCS_OPENAI_MODEL` through from
 the host environment (or a `.env` file next to `docker-compose.yml`).
 
-The image `CMD` is `serve --http 0.0.0.0:3333 --docs-path /data
---index-path /index/marvindocs.db`. Because this is a non-loopback bind
+The image `CMD` is `serve --http 0.0.0.0:3333`; the `marvindocs` service
+adds `--index-path index/marvindocs.db`. Because this is a non-loopback bind
 and compose publishes port 3333 on all host interfaces, the container
 exits immediately unless `MARVINDOCS_AUTH_TOKEN` is set (or
 `MARVINDOCS_INSECURE=1` for a trusted host). See

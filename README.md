@@ -228,8 +228,8 @@ them from a git-ignored `.env`; copy the template `.env.example`.
 ### Docker
 
 `docker compose up -d` builds the image and serves HTTP on port 3333.
-The compose file bind-mounts `./data/public/docs` to `/data` (read-only)
-and `./data/index` to `/index`. The index file `./data/index/marvindocs.db`
+The compose file bind-mounts `./data/public/docs` (read-only) and
+`./data/index` into `/var/lib/marvindocs`. The index file `./data/index/marvindocs.db`
 must be built beforehand, for example:
 
 ```bash
@@ -237,6 +237,12 @@ must be built beforehand, for example:
 # or install bundles straight into the mounted paths
 ./bin/marvindocs bundle install --docs-path data/public/docs --index-path data/index/marvindocs.db core go
 ```
+
+No local data needed: `docker compose up -d --build marvindocs-full`
+(port 3334) builds an image with every bundle preinstalled, and
+`marvindocs-empty` (port 3335) starts with no docs, bundles are installed
+with `docker exec marvindocs-empty marvindocs bundle install go` and a
+restart. See [Getting started](docs/en/getting-started.md#images-with-bundles-full-and-empty).
 
 > The image listens on `0.0.0.0:3333` inside the container and compose
 > publishes the port on all host interfaces. Set `MARVINDOCS_AUTH_TOKEN`

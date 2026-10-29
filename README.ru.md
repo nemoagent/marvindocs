@@ -231,8 +231,8 @@ marvindocs version
 ### Docker
 
 `docker compose up -d` собирает образ и отдаёт HTTP на порту 3333.
-Compose-файл монтирует `./data/public/docs` в `/data` (только чтение)
-и `./data/index` в `/index`. Файл индекса `./data/index/marvindocs.db`
+Compose-файл монтирует `./data/public/docs` (только чтение) и
+`./data/index` в `/var/lib/marvindocs`. Файл индекса `./data/index/marvindocs.db`
 нужно собрать заранее, например:
 
 ```bash
@@ -240,6 +240,12 @@ Compose-файл монтирует `./data/public/docs` в `/data` (тольк�
 # или установить наборы прямо в смонтированные пути
 ./bin/marvindocs bundle install --docs-path data/public/docs --index-path data/index/marvindocs.db core go
 ```
+
+Без локальных данных: `docker compose up -d --build marvindocs-full`
+(порт 3334) собирает образ со всеми наборами, а `marvindocs-empty`
+(порт 3335) стартует без доков, наборы ставятся через
+`docker exec marvindocs-empty marvindocs bundle install go` и перезапуск.
+См. [Быстрый старт](docs/ru/getting-started.md#образы-с-наборами-full-и-empty).
 
 > Внутри контейнера образ слушает `0.0.0.0:3333`, а compose публикует
 > порт на всех интерфейсах хоста. Если хост доступен другим, задай

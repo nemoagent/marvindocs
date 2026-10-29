@@ -207,3 +207,29 @@ MARVINDOCS_OLLAMA_MODEL=bge-m3
 В индексе уже должны быть векторы (`index embed`), см.
 [Векторный поиск](vectors.md). Первый запрос после старта занимает несколько
 секунд, пока Ollama загружает модель; прогретые запросы — десятки миллисекунд.
+
+### Образы с наборами: full и empty
+
+Ещё два сервиса compose не требуют локальных данных. Оба поднимают HTTP на
+порту 3333 внутри контейнера и принимают те же переменные токена и
+эмбеддера.
+
+- `marvindocs-full` (образ `marvindocs:full`, порт хоста 3334): все
+  офлайн-наборы ставятся в образ при сборке, поэтому сборка скачивает около
+  2,9 ГБ (образ около 7,7 ГБ). `BUNDLES="go db"` запекает только перечисленные наборы.
+- `marvindocs-empty` (образ `marvindocs:empty`, порт хоста 3335): стартует
+  без доков; наборы ставятся в работающем контейнере и хранятся в
+  именованном томе `marvindocs-bundles`.
+
+```bash
+# имя сервиса включает его профиль compose
+MARVINDOCS_INSECURE=1 docker compose up -d --build marvindocs-full
+
+MARVINDOCS_INSECURE=1 docker compose up -d --build marvindocs-empty
+docker exec marvindocs-empty marvindocs bundle install go db
+docker restart marvindocs-empty   # serve подхватывает новые доки при старте
+```
+
+Порты меняются через `MARVINDOCS_FULL_PORT` и `MARVINDOCS_EMPTY_PORT`.
+В наборах есть векторы, поэтому с заданным `MARVINDOCS_EMBEDDER` (bge-m3)
+`get_docs` работает гибридным поиском в обоих образах.
