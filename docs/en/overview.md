@@ -6,14 +6,31 @@ developers, an alternative to Context7.
 ## What it does
 
 It takes the official documentation of popular languages, frameworks and
-libraries (Go, React, PostgreSQL, Git, Python and hundreds more, sourced
-from [DevDocs](https://devdocs.io/)), stores it in a single database on
-your machine and provides fast search over it.
+libraries (Go, React, PostgreSQL, Git, Python and hundreds more), stores it in a
+single database on your machine and provides fast search over it.
 
 The main consumer is an AI agent (Claude Code, Cursor and the like):
 instead of recalling an API from memory and getting it wrong, the agent
 asks marvindocs and receives an up-to-date fragment of the real
 documentation.
+
+## Relation to DevDocs
+
+The project is inspired by and built on [DevDocs](https://devdocs.io/), an
+open documentation browser for people. Most documentation (837 of 892 sets)
+comes from DevDocs packs, and all docs are stored in its format. The rest
+is produced by our own parsers: the Go standard library, go.dev, every
+Laravel version, the MongoDB Manual, Metasploit.
+
+What marvindocs adds on top of DevDocs:
+
+- an MCP server, so AI agents can use the documentation directly;
+- search over page text, not only over titles, by words and by meaning;
+- answers as Markdown fragments of a given size instead of whole HTML pages;
+- one program for the whole thing (search, MCP, web UI) and ready-made
+  bundles with a built index.
+
+marvindocs shares no code with DevDocs and is not affiliated with it.
 
 ## How it works
 

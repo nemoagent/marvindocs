@@ -1,8 +1,14 @@
 # marvindocs
 
-Single-binary MCP server and web UI for the [DevDocs](https://devdocs.io/)
-documentation archive. Lets AI agents and browsers search and read ~790
-documentation sets (React, Python, Go, Rust, …) from a local SQLite index.
+Single-binary MCP server and web UI that lets AI agents and browsers
+search and read ~890 documentation sets (React, Python, Go, Rust, …) from a
+local SQLite index.
+
+The project is inspired by and built on [DevDocs](https://devdocs.io/): most
+documentation comes from DevDocs packs, and every doc, including those from
+our own parsers, is stored in the DevDocs on-disk format. The search engine,
+MCP server and web UI are written from scratch. See
+[Relation to DevDocs](#relation-to-devdocs).
 
 ## What it does
 
@@ -14,6 +20,25 @@ documentation sets (React, Python, Go, Rust, …) from a local SQLite index.
 | **Full-text search** | SQLite FTS5, BM25 ranking, prefix matching |
 | **Synonyms** | Search queries expand with a synonym dictionary (`k8s` finds `kubernetes`), see [docs/en/synonyms.md](docs/en/synonyms.md); `synonyms suggest` mines candidates from the docs |
 | **Vector search** | Optional hybrid bge-m3 + BM25 search for `get_docs`, see [docs/en/vectors.md](docs/en/vectors.md) |
+
+## Relation to DevDocs
+
+[DevDocs](https://github.com/freeCodeCamp/devdocs) is a documentation browser
+for people: Ruby scrapers turn official docs into packs, and a JavaScript web
+app shows them and can keep them offline in the browser. marvindocs reuses
+the packs and their format, and builds a service for AI agents on top.
+
+| | DevDocs | marvindocs |
+|---|---|---|
+| Main user | a person in a browser | an AI agent over MCP; the web UI is secondary |
+| Doc sources | its own scrapers | DevDocs packs (837 of 892 in the full set) plus own parsers: Go stdlib via `go doc`, go.dev, Laravel 4.0-13, MongoDB Manual, Metasploit (55 docs), see [docs/en/parsers.md](docs/en/parsers.md) |
+| Storage | `index.json` + `db.json` per doc | the same `index.json`; pages packed into `db.zip` (`marvindocs pack`) |
+| Search | entry names in the browser | SQLite FTS5 over names and page bodies, BM25, synonyms, hybrid bge-m3 vector search over chunks |
+| Output | HTML pages | Markdown, and `get_docs` returns the best fragments within a token budget |
+| Delivery | web app, offline cache in the browser | one Go binary (CLI, stdio and HTTP MCP, web UI), Docker, prebuilt bundles with a ready index |
+
+marvindocs does not share code with DevDocs and is not affiliated with it.
+Documentation content is covered by the licenses of its original sources.
 
 ## Requirements
 
@@ -69,7 +94,7 @@ Bundles: `core`, `go`, `python`, `db`, `infra`, `js`, `php`, `ruby`, `jvm`,
 # Specific slugs
 ./scripts/sync-docs.sh react typescript python~3.13 go
 
-# All ~790 docs (~17 GB, may take 30-90 min)
+# All DevDocs docs (~840, ~17 GB, may take 30-90 min)
 ./scripts/sync-docs.sh --all
 ```
 
@@ -220,7 +245,7 @@ must be built beforehand, for example:
 scripts/sync-docs.sh     download docs (curl + tar, no Docker)
 scripts/mcp-smoke.sh     verify the MCP server end-to-end (no auth header: use a server without a token)
 scripts/fetch-onnx.sh    download the ONNX runtime, tokenizer and bge-m3 model for --embedder onnx
-data/public/docs/        devdocs dump (not in git, ~17 GB)
+data/public/docs/        DevDocs dump and parser output (not in git, ~17 GB)
 bundles.yaml             offline bundle definitions (docs/en/bundles.md)
 dist/bundles/            archives from `bundle build` (not in git)
 marvindocs.db            SQLite FTS5 index (size depends on the doc set; page bodies indexed, text not stored)
