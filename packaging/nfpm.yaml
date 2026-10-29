@@ -2,7 +2,7 @@
 name: marvindocs
 arch: ${ARCH}
 version: ${VERSION}
-maintainer: nemoagent
+maintainer: Sergei Vorontsov <piligrim@rootnix.net>
 description: MCP server and web UI for searching local documentation sets (DevDocs based).
 homepage: https://github.com/nemoagent/marvindocs
 license: MIT
