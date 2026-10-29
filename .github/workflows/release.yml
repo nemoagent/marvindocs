@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   # Linux (static, musl) and Windows, cross-compiled with zig cc:
-  # mattn/go-sqlite3 needs cgo.
+  # mattn/go-sqlite3 needs cgo. Linux also gets .deb and .rpm (nfpm).
   build-linux-windows:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -36,6 +36,12 @@ jobs:
           cache-key: ${{ matrix.target }}
       - name: build
         run: ./scripts/release-build.sh "${{ github.ref_name }}" ${{ matrix.goos }} ${{ matrix.goarch }} "zig cc -target ${{ matrix.target }}"
+      - name: deb and rpm
+        if: matrix.goos == 'linux'
+        run: |
+          curl -sSL https://github.com/goreleaser/nfpm/releases/download/v2.48.0/nfpm_2.48.0_Linux_x86_64.tar.gz \
+            | sudo tar -xz -C /usr/local/bin nfpm
+          ./scripts/release-package.sh "${{ github.ref_name }}" ${{ matrix.goarch }}
       - uses: actions/upload-artifact@v4
         with:
           name: marvindocs-${{ matrix.goos }}-${{ matrix.goarch }}
@@ -71,7 +77,7 @@ jobs:
           merge-multiple: true
       - name: checksums
         working-directory: dist
-        run: sha256sum marvindocs_* > SHA256SUMS
+        run: sha256sum marvindocs* > SHA256SUMS
       - name: release
         env:
           GH_TOKEN: ${{ github.token }}

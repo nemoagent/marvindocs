@@ -1,0 +1,17 @@
+# deb/rpm package description for nfpm; used by scripts/release-package.sh.
+name: marvindocs
+arch: ${ARCH}
+version: ${VERSION}
+maintainer: nemoagent
+description: MCP server and web UI for searching local documentation sets (DevDocs based).
+homepage: https://github.com/nemoagent/marvindocs
+license: MIT
+contents:
+  - src: dist/pkg/marvindocs
+    dst: /usr/bin/marvindocs
+    file_info:
+      mode: 0755
+  - src: README.md
+    dst: /usr/share/doc/marvindocs/README.md
+  - src: README.ru.md
+    dst: /usr/share/doc/marvindocs/README.ru.md
