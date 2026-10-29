@@ -1,5 +1,7 @@
 # marvindocs
 
+**English** | [Русский](README.ru.md)
+
 Single-binary MCP server and web UI that lets AI agents and browsers
 search and read ~890 documentation sets (React, Python, Go, Rust, …) from a
 local SQLite index.
