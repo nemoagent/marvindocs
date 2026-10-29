@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -549,8 +550,15 @@ func TestResolveDocSlug(t *testing.T) {
 }
 
 func TestOldVersions(t *testing.T) {
-	got := oldVersions(map[string]bool{"postgresql~9.4": true, "postgresql~18": true, "react": true})
-	if len(got) != 1 || got[0] != "postgresql~9.4" {
-		t.Errorf("oldVersions = %v", got)
+	got := oldVersions(map[string]bool{
+		"postgresql~9.4": true, "postgresql~18": true, "react": true,
+		"gcc~14": true, "gcc~14_cpp": true, "gcc~13_cpp": true,
+		"haxe~cpp": true, "haxe~java": true,
+		"openjdk~25": true, "openjdk~8_gui": true,
+		"node~22": true, "node~20_lts": true,
+	})
+	want := []string{"gcc~13_cpp", "node~20_lts", "openjdk~8_gui", "postgresql~9.4"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("oldVersions = %v, want %v", got, want)
 	}
 }

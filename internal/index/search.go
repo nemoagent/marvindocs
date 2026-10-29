@@ -148,21 +148,40 @@ func (i *Index) ResolveDocSlug(ctx context.Context, name string) (slug string, c
 }
 
 // oldVersions lists the slugs that have a newer version of the same doc.
+// Versions rank within their versionGroup, so variants that are not
+// versions (haxe~cpp) are never old and gcc~14_cpp does not hide gcc~14.
+// A suffixed variant is old too when the plain doc has a newer version
+// (openjdk~8_gui next to openjdk~25, scala~2.13_library next to scala~3.2).
 func oldVersions(slugMap map[string]bool) []string {
-	all := make([]string, 0, len(slugMap))
+	newest := make(map[string]string)
 	for s := range slugMap {
-		all = append(all, s)
-	}
-	newest := make(map[string]bool)
-	for _, s := range newestPerDoc(all) {
-		newest[s] = true
-	}
-	var old []string
-	for _, s := range all {
-		if !newest[s] {
-			old = append(old, s)
+		key, ok := versionGroup(s)
+		if !ok {
+			continue
+		}
+		if cur, has := newest[key]; !has || compareVersions(s, cur) > 0 {
+			newest[key] = s
 		}
 	}
+	var old []string
+	for s := range slugMap {
+		key, ok := versionGroup(s)
+		if !ok {
+			continue
+		}
+		if newest[key] != s {
+			old = append(old, s)
+			continue
+		}
+		if tilde := strings.Index(s, "~"); tilde >= 0 && key != s[:tilde] {
+			plain, has := newest[s[:tilde]]
+			ver := s[:tilde+1] + strings.SplitN(s[tilde+1:], "_", 2)[0]
+			if has && compareVersions(plain, ver) > 0 {
+				old = append(old, s)
+			}
+		}
+	}
+	sort.Strings(old)
 	return old
 }
 
