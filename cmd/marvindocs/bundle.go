@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/piligrim/marvindocs/internal/docstore"
 	"github.com/piligrim/marvindocs/internal/index"
@@ -460,20 +461,95 @@ func fetchSums(url string) (map[string]string, error) {
 // download saves url to path and checks its SHA-256 against want.
 func download(url, path, want string) error {
 	fmt.Printf("download %s\n", url)
-	body, err := httpGet(url)
+	part := path + ".part"
+	var err error
+	for attempt := 1; attempt <= downloadAttempts; attempt++ {
+		if attempt > 1 {
+			fmt.Printf("  retry %d/%d after: %v\n", attempt, downloadAttempts, err)
+			time.Sleep(downloadBackoff * time.Duration(attempt-1))
+		}
+		if err = fetchPart(url, part); err == nil {
+			break
+		}
+	}
+	if err != nil {
+		os.Remove(part)
+		return err
+	}
+	got, err := fileSHA256(part)
 	if err != nil {
 		return err
 	}
-	defer body.Close()
-	h := sha256.New()
-	if err := writeFrom(path, io.TeeReader(body, h)); err != nil {
-		return err
-	}
-	if got := hex.EncodeToString(h.Sum(nil)); got != want {
-		os.Remove(path)
+	if got != want {
+		os.Remove(part)
 		return fmt.Errorf("checksum mismatch: got %s, want %s", got, want)
 	}
-	return nil
+	return os.Rename(part, path)
+}
+
+// Retry settings of download; tests shorten the backoff.
+var (
+	downloadAttempts = 5
+	downloadBackoff  = 2 * time.Second
+)
+
+// fetchPart appends the rest of url to part, asking the server with a
+// Range header to resume after the bytes a broken attempt left. A server
+// that ignores the range sends the whole file, which then replaces part.
+func fetchPart(url, part string) error {
+	if err := os.MkdirAll(filepath.Dir(part), 0o755); err != nil {
+		return err
+	}
+	var offset int64
+	if fi, err := os.Stat(part); err == nil {
+		offset = fi.Size()
+	}
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	if offset > 0 {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	flags := os.O_CREATE | os.O_WRONLY
+	switch {
+	case resp.StatusCode == http.StatusPartialContent && offset > 0:
+		flags |= os.O_APPEND
+	case resp.StatusCode == http.StatusOK:
+		flags |= os.O_TRUNC
+	case resp.StatusCode == http.StatusRequestedRangeNotSatisfiable && offset > 0:
+		return nil // part already holds the whole file
+	default:
+		return fmt.Errorf("GET %s: %s", url, resp.Status)
+	}
+	f, err := os.OpenFile(part, flags, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(f, resp.Body); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+// fileSHA256 returns the hex SHA-256 of the file at path.
+func fileSHA256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // writeFrom writes r to path through a temporary file, creating parent

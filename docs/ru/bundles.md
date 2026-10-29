@@ -58,6 +58,8 @@ marvindocs serve --http :3333
 1. скачивает `SHA256SUMS` и `NAME.tar.gz` по HTTPS из
    `https://github.com/nemoagent/marvindocs/releases/download/bundles/` во временный каталог и сверяет контрольную сумму архива
    (имя, которого нет в `SHA256SUMS`, или несовпадение прерывают установку);
+   оборванное скачивание повторяется до 5 раз и продолжается с места обрыва
+   (HTTP `Range`);
 2. распаковывает `docs/<slug>/` в `--docs-path` (`data/public/docs`),
    заменяя существующие каталоги тех же доков;
 3. добавляет доки в `docs.json` (записи с тем же slug заменяются);

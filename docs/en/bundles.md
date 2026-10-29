@@ -58,6 +58,8 @@ What `install` does for each bundle:
 1. downloads `SHA256SUMS` and `NAME.tar.gz` over HTTPS from
    `https://github.com/nemoagent/marvindocs/releases/download/bundles/` into a temporary directory and checks the archive checksum
    (a name missing from `SHA256SUMS` or a mismatch stops the install);
+   a broken download is retried up to 5 times and resumes where it stopped
+   (HTTP `Range`);
 2. unpacks `docs/<slug>/` into `--docs-path` (`data/public/docs`),
    replacing existing directories of the same docs;
 3. adds the docs to `docs.json` (entries with the same slug are replaced);
