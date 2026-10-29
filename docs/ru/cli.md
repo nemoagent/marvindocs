@@ -206,6 +206,38 @@ marvindocs pack (--all | SLUG...) [--docs-path DIR]
 занимает на диске примерно в 4 раза меньше (полный набор devdocs:
 ~8 ГБ -> ~2.4 ГБ).
 
+## `marvindocs bundle`
+
+Оффлайн-наборы: вместо скачивания и индексации всего devdocs
+пользователь ставит только нужные наборы с готовым индексом. Наборы
+описаны в `bundles.yaml` (имя набора -> имена документов и список
+`lts`); документы, не попавшие ни в один набор, идут в неявный набор
+`other`. В набор входит последняя версия каждого документа, релизы из
+`lts` и неверсионные варианты (`haxe~cpp`).
+
+```bash
+marvindocs bundle build [--config FILE] [--out DIR] [--docs-path DIR] [--index-path FILE] [NAME...]
+marvindocs bundle install [--repo OWNER/REPO] [--tag TAG] [--from DIR] [--docs-path DIR] [--index-path FILE] NAME...
+```
+
+`build` (на машине с полным индексом) пишет `NAME.tar.gz` для каждого
+набора (или только для названных) в `--out` (`dist/bundles`). В архиве
+`docs.json` с документами набора, их каталоги `docs/<slug>/` и
+`bundle.db` — индекс с записями, страницами, чанками, векторами и
+текстами чанков. Каждый документ должен быть проиндексирован и не
+меняться после последнего `index build`.
+
+`install` скачивает `NAME.tar.gz` из GitHub-релиза `--tag` (`bundles`)
+репозитория `--repo` (`nemoagent/marvindocs`) через `gh release
+download` (или берёт из `--from DIR`), распаковывает каталоги документов
+в `--docs-path` с заменой существующих, добавляет документы в
+`docs.json` и сливает `bundle.db` в индекс: документы с тем же slug
+заменяются, полнотекстовый индекс заполняется из текстов чанков,
+конвертация HTML и эмбеддинг не нужны. После установки перезапусти
+`serve`.
+
+Публикация: `gh release upload bundles dist/bundles/*.tar.gz --clobber`.
+
 ## `marvindocs synonyms suggest`
 
 Собирает из документов кандидатов-аббревиатур (`Server-Side Rendering

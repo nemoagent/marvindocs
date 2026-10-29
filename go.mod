@@ -11,6 +11,8 @@ require (
 	golang.org/x/net v0.58.0
 )
 
+require gopkg.in/yaml.v3 v3.0.1
+
 require (
 	github.com/JohannesKaufmann/dom v0.2.0 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect

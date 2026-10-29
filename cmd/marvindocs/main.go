@@ -51,6 +51,10 @@ Usage:
   marvindocs list [--json]
   marvindocs pack (--all | SLUG...) [--docs-path DIR]
                   (convert devdocs db.json into db.zip; sync-docs.sh does this per download)
+  marvindocs bundle build [--config FILE] [--out DIR] [--docs-path DIR] [--index-path FILE] [NAME...]
+                  (pack bundles.yaml bundles as NAME.tar.gz: pages and a ready index with vectors)
+  marvindocs bundle install [--repo OWNER/REPO] [--tag TAG] [--from DIR] [--docs-path DIR] [--index-path FILE] NAME...
+                  (download bundles with gh from the release and merge them into the index)
   marvindocs synonyms suggest [--docs-path DIR] [--doc SLUG]... [--min-docs N] [--min-count N] [--names-only]
                               [--synonyms DIR] [--out FILE]
   marvindocs synonyms import FILE --out DIR [--force]
@@ -87,6 +91,8 @@ func main() {
 		runList(os.Args[2:])
 	case "pack":
 		runPack(os.Args[2:])
+	case "bundle":
+		runBundle(os.Args[2:])
 	case "synonyms":
 		runSynonyms(os.Args[2:])
 	case "version", "--version", "-v":

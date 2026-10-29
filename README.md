@@ -143,6 +143,8 @@ marvindocs index build   [--docs-path DIR] [--index-path FILE] [--full [--drop-v
                                                                 # --full rebuilds and needs --drop-vectors if vectors exist;
                                                                 # --rehash recomputes content hashes only (once after pack --all)
 marvindocs pack          (--all | SLUG...) [--docs-path DIR]    # convert db.json -> db.zip, remove db.json
+marvindocs bundle build  [--out DIR] [NAME...]                  # pack bundles.yaml bundles with a ready index
+marvindocs bundle install [--from DIR] NAME...                  # download bundles (gh) and merge into the index
 marvindocs index stats   [--index-path FILE] [--by-doc] [--top N]  # show counts
 marvindocs index embed   [--doc SLUG]... [--embedder ollama|onnx] [--batch N]
                                                                 # chunk embeddings, see docs/en/vectors.md

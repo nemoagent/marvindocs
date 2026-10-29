@@ -34,3 +34,4 @@
 /parsers/laravel/laravel
 /parsers/mongodb/mongodb
 .playwright-mcp/
+/dist/

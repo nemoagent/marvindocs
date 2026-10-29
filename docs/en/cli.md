@@ -203,6 +203,37 @@ directory in place (about 12 minutes for 830 docs); afterwards run
 [`marvindocs index build --rehash`](#marvindocs-index-build) once. The
 result is ~4x smaller on disk (full devdocs set: ~8 GB -> ~2.4 GB).
 
+## `marvindocs bundle`
+
+Offline bundles: instead of downloading and indexing all of devdocs, a
+user installs only the doc sets they need with a ready index. Bundles are
+defined in `bundles.yaml` (bundle name -> doc names, plus the `lts` list);
+docs no bundle lists go to the implicit `other` bundle. A bundle ships the
+newest version of each doc, the releases from `lts` and non-version
+variants (`haxe~cpp`).
+
+```bash
+marvindocs bundle build [--config FILE] [--out DIR] [--docs-path DIR] [--index-path FILE] [NAME...]
+marvindocs bundle install [--repo OWNER/REPO] [--tag TAG] [--from DIR] [--docs-path DIR] [--index-path FILE] NAME...
+```
+
+`build` (on the machine with the full index) writes `NAME.tar.gz` for
+every bundle (or only the named ones) to `--out` (`dist/bundles`). The
+archive holds `docs.json` with the bundle docs, their `docs/<slug>/`
+directories and `bundle.db`: an index with the docs' entries, pages,
+chunks, vectors and chunk texts. Every doc must be indexed and unchanged
+since the last `index build`.
+
+`install` downloads `NAME.tar.gz` from the GitHub release `--tag`
+(`bundles`) of `--repo` (`nemoagent/marvindocs`) with `gh release
+download` (or takes it from `--from DIR`), unpacks the doc directories
+into `--docs-path` replacing existing ones, adds the docs to `docs.json`
+and merges `bundle.db` into the index: same-slug docs are replaced, the
+full-text index is filled from the chunk texts, no HTML conversion or
+embedding is needed. Restart `serve` afterwards.
+
+Publish bundles with `gh release upload bundles dist/bundles/*.tar.gz --clobber`.
+
 ## `marvindocs synonyms suggest`
 
 Mines abbreviation candidates (`Server-Side Rendering (SSR)`) from the
