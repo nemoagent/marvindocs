@@ -289,6 +289,9 @@ func runBundleInstall(repo, tag, from, docsPath, indexPath string, names []strin
 	if err := os.MkdirAll(docsPath, 0o755); err != nil {
 		return err
 	}
+	if err := os.MkdirAll(filepath.Dir(indexPath), 0o755); err != nil {
+		return err
+	}
 	idx, err := index.Open(indexPath)
 	if err != nil {
 		return err

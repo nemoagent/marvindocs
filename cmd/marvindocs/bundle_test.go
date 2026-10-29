@@ -78,7 +78,7 @@ func TestBundleBuildInstall(t *testing.T) {
 	}
 
 	dst := t.TempDir()
-	dstDB := filepath.Join(t.TempDir(), "dst.db")
+	dstDB := filepath.Join(t.TempDir(), "index", "dst.db")
 	if err := runBundleInstall("", "", out, dst, dstDB, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
