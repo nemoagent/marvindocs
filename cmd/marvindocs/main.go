@@ -46,7 +46,9 @@ Usage:
                           index embed defaults to onnx, which needs a build with make build-onnx)
   marvindocs index prune-vectors [--dry-run] [--index-path FILE]
                          (delete vectors of the versions index embed skips by default, then VACUUM)
-  marvindocs search QUERY [--doc SLUG] [--limit N] [--json]
+  marvindocs search QUERY [--doc SLUG|NAME] [--limit N] [--json] [--body]
+                         (matches entry names, falls back to page text when none match;
+                          --body searches page text only; --doc postgresql means the newest version)
   marvindocs get SLUG PATH [--format FORMAT]
   marvindocs list [--json]
   marvindocs pack (--all | SLUG...) [--docs-path DIR]

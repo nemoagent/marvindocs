@@ -121,15 +121,15 @@ Runs a full-text search against the index and prints hits. Useful for
 shell pipelines and quick lookups without starting a server.
 
 ```bash
-marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body] [--index-path FILE] [--docs-path DIR] [--synonyms DIR]
+marvindocs search QUERY [--doc SLUG|NAME] [--limit N] [--json] [--body] [--index-path FILE] [--docs-path DIR] [--synonyms DIR]
 ```
 
 | Flag | Default | Notes |
 |---|---|---|
-| `--doc` | empty | Restrict results to a single doc slug (e.g. `react`, `python~3.13`). If omitted, a query token matching a known slug or its prefix (up to `~`/`-`) is removed and applied as an automatic filter; if that finds nothing, the full query is searched globally. Synonyms of a doc name work too (`pg` -> `postgresql`, `golang` -> `go`), see [Synonyms](synonyms.md). |
+| `--doc` | empty | Restrict results to a single doc slug (e.g. `react`, `python~3.13`). A doc name without a version or a synonym means its newest version (`postgresql` -> `postgresql~18`); an ambiguous or unknown name is an error listing the closest docs. If omitted, a query token matching a known slug or its prefix (up to `~`/`-`) is removed and applied as an automatic filter; if that finds nothing, the full query is searched globally. Synonyms of a doc name work too (`pg` -> `postgresql`, `golang` -> `go`), see [Synonyms](synonyms.md). |
 | `--limit` | `20` | Maximum number of results (1–100). |
 | `--json` | `false` | Emit the raw hit list as JSON on stdout. |
-| `--body` | `false` | Search page bodies (Markdown chunks, a page is ranked by its best chunk) instead of entry names. |
+| `--body` | `false` | Search page bodies (Markdown chunks, a page is ranked by its best chunk) instead of entry names. Without it the search falls back to page bodies by itself when no entry name matches (`ZADD sorted set`); a note is printed to stderr. |
 | `--index-path` | `marvindocs.db` | SQLite index file (must exist). |
 | `--docs-path` | `data/public/docs` | Used with `--body` to build snippets from `db.zip`; without it hits are listed without excerpts. |
 | `--synonyms` | empty | Directory with extra synonym `*.md` files, added to the builtin dictionary; `off` disables query expansion. Falls back to `MARVINDOCS_SYNONYMS`; see [Synonyms](synonyms.md). |

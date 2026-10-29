@@ -1,6 +1,6 @@
 // Command-line helpers for ad-hoc searching without starting a server.
 //
-//	marvindocs search QUERY [--doc SLUG] [--limit N] [--json]
+//	marvindocs search QUERY [--doc SLUG|NAME] [--limit N] [--json] [--body]
 //	marvindocs get SLUG PATH [--format markdown|html]
 //	marvindocs list [--json]
 package main
@@ -53,7 +53,7 @@ func runSearch(args []string) {
 	_ = fs.Parse(flagArgs)
 
 	if len(positional) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: marvindocs search QUERY [--doc SLUG] [--limit N] [--json] [--body]")
+		fmt.Fprintln(os.Stderr, "usage: marvindocs search QUERY [--doc SLUG|NAME] [--limit N] [--json] [--body]")
 		os.Exit(2)
 	}
 	query := strings.Join(positional, " ")
@@ -67,54 +67,74 @@ func runSearch(args []string) {
 		fatal(err)
 	}
 
-	if *body {
-		// Snippets are rebuilt from db.json; without the data dir the
-		// hits are still listed, just without excerpts.
-		var pages index.PageSource
-		if store, err := docstore.Open(*docsPath); err == nil {
-			pages = store
-		}
-		hits, err := idx.SearchPages(context.Background(), pages, query, *docSlug, *limit)
-		if err != nil {
-			fatal(err)
-		}
-		if *asJSON {
-			enc := json.NewEncoder(os.Stdout)
-			enc.SetIndent("", "  ")
-			_ = enc.Encode(hits)
-			return
-		}
-		if len(hits) == 0 {
-			fmt.Fprintln(os.Stderr, "no results")
-			return
-		}
-		for _, h := range hits {
-			fmt.Printf("%-20s  %-40s  %s\n", h.DocSlug, h.Path, h.Snippet)
-		}
-		fmt.Fprintf(os.Stderr, "\n%d result(s)\n", len(hits))
-		return
-	}
-
-	hits, err := idx.Search(context.Background(), query, *docSlug, *limit)
+	slug, err := resolveDocFlag(idx, *docSlug)
 	if err != nil {
 		fatal(err)
 	}
 
+	if !*body {
+		hits, err := idx.Search(context.Background(), query, slug, *limit)
+		if err != nil {
+			fatal(err)
+		}
+		if len(hits) > 0 {
+			if *asJSON {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				_ = enc.Encode(hits)
+				return
+			}
+			for _, h := range hits {
+				fmt.Printf("%-20s  %-30s  %s\n", h.DocSlug, h.Name, h.Path)
+			}
+			fmt.Fprintf(os.Stderr, "\n%d result(s)\n", len(hits))
+			return
+		}
+		// Like the MCP search tool: a query naming a concept rather than
+		// an entry still gets results from the page text.
+		fmt.Fprintln(os.Stderr, "no entry names match; searching page text")
+	}
+
+	// Snippets are rebuilt from db.json; without the data dir the
+	// hits are still listed, just without excerpts.
+	var pages index.PageSource
+	if store, err := docstore.Open(*docsPath); err == nil {
+		pages = store
+	}
+	hits, err := idx.SearchPages(context.Background(), pages, query, slug, *limit)
+	if err != nil {
+		fatal(err)
+	}
 	if *asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		_ = enc.Encode(hits)
 		return
 	}
-
 	if len(hits) == 0 {
 		fmt.Fprintln(os.Stderr, "no results")
 		return
 	}
 	for _, h := range hits {
-		fmt.Printf("%-20s  %-30s  %s\n", h.DocSlug, h.Name, h.Path)
+		fmt.Printf("%-20s  %-40s  %s\n", h.DocSlug, h.Path, h.Snippet)
 	}
 	fmt.Fprintf(os.Stderr, "\n%d result(s)\n", len(hits))
+}
+
+// resolveDocFlag maps --doc to a known slug: a doc name without a version
+// ("postgresql", "postgres") means its newest version.
+func resolveDocFlag(idx *index.Index, name string) (string, error) {
+	if name == "" {
+		return "", nil
+	}
+	slug, cands, err := idx.ResolveDocSlug(context.Background(), name)
+	if err != nil || slug != "" {
+		return slug, err
+	}
+	if len(cands) > 0 {
+		return "", fmt.Errorf("unknown doc %q; did you mean: %s?", name, strings.Join(cands, ", "))
+	}
+	return "", fmt.Errorf("unknown doc %q (use `marvindocs list` to see available)", name)
 }
 
 // runGet implements `marvindocs get SLUG PATH [--format markdown|html]`.
