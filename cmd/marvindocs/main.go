@@ -551,9 +551,11 @@ func runIndexPruneVectors(indexPath string, dryRun bool) error {
 		verb = "would delete"
 	}
 	fmt.Printf("%s %d vectors of %d docs\n", verb, total, len(slugs))
-	if dryRun || total == 0 {
+	if dryRun {
 		return nil
 	}
+	// Vacuum even when nothing was deleted now: a previous run may have been
+	// interrupted after the deletes.
 	fmt.Println("vacuum...")
 	return idx.Vacuum(ctx)
 }
