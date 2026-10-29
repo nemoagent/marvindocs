@@ -62,12 +62,17 @@ make build
 Или скачайте готовый бинарник со страницы
 [Releases](https://github.com/nemoagent/marvindocs/releases): архивы
 `marvindocs_VERSION_OS_ARCH` для Linux, macOS и Windows на amd64 и arm64,
-плюс `SHA256SUMS`. Бинарники для Linux и Windows статические и ничего
-больше не требуют: распакуйте и запустите `marvindocs`.
+пакеты `.deb` и `.rpm` для Linux amd64 и arm64, плюс `SHA256SUMS`.
+Бинарники для Linux и Windows статические и ничего больше не требуют:
+распакуйте и запустите `marvindocs`. Пакеты ставят его в `/usr/bin`:
+`sudo apt install ./marvindocs_VERSION_amd64.deb` или
+`sudo dnf install ./marvindocs-VERSION-1.x86_64.rpm`.
 
 Релизы собирает `.github/workflows/release.yml` при пуше тега `v*`
 (`git tag v0.1.0 && git push origin v0.1.0`). Один архив локально
-собирается через `scripts/release-build.sh VERSION GOOS GOARCH [CC]`.
+собирается через `scripts/release-build.sh VERSION GOOS GOARCH [CC]`, а
+Linux-пакеты из него — через `scripts/release-package.sh VERSION GOARCH`
+(нужен [nfpm](https://nfpm.goreleaser.com/), конфиг `packaging/nfpm.yaml`).
 Релиз `bundles` с офлайн-наборами отдельный и не затрагивается.
 
 ## 4. Построить поисковый индекс

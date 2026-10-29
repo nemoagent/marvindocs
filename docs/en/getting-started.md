@@ -63,12 +63,17 @@ libc because the SQLite driver uses CGo).
 Or download a prebuilt binary from
 [Releases](https://github.com/nemoagent/marvindocs/releases): archives
 `marvindocs_VERSION_OS_ARCH` for Linux, macOS and Windows on amd64 and
-arm64, plus `SHA256SUMS`. Linux and Windows binaries are static and need
-nothing else; unpack and run `marvindocs`.
+arm64, `.deb` and `.rpm` packages for Linux amd64 and arm64, plus
+`SHA256SUMS`. Linux and Windows binaries are static and need nothing else;
+unpack and run `marvindocs`. The packages install it to `/usr/bin`:
+`sudo apt install ./marvindocs_VERSION_amd64.deb` or
+`sudo dnf install ./marvindocs-VERSION-1.x86_64.rpm`.
 
 Releases are built by `.github/workflows/release.yml` when a `v*` tag is
 pushed (`git tag v0.1.0 && git push origin v0.1.0`). One archive is built
-locally with `scripts/release-build.sh VERSION GOOS GOARCH [CC]`. The
+locally with `scripts/release-build.sh VERSION GOOS GOARCH [CC]`, and the
+Linux packages from it with `scripts/release-package.sh VERSION GOARCH`
+(needs [nfpm](https://nfpm.goreleaser.com/), config `packaging/nfpm.yaml`). The
 `bundles` release with offline bundles is separate and is not touched.
 
 ## 4. Build the search index
