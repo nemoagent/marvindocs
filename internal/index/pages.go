@@ -27,16 +27,10 @@ func pageWorkers() int {
 	return n
 }
 
-// indexDocPages streams every page of slug from db.json, converts them to
-// Markdown and cuts them into chunks in parallel, and inserts each
-// non-empty page into pages, its chunks into chunks (offsets only) and
-// chunks_fts (sharing the chunk rowid). Returns the number of inserted
-// pages.
-//
-// Errors from the docstore stream (other than a missing db.json) or SQL
-// insert are surfaced through the returned error; a page that fails to
-// convert is skipped. Worker goroutines exit as soon as ctx is cancelled
-// or any error is observed.
+// indexDocPages converts every page of slug (see convertPages) and inserts
+// each non-empty page into pages, its chunks into chunks (offsets only)
+// and chunks_fts (sharing the chunk rowid). Returns the number of
+// inserted pages.
 func indexDocPages(ctx context.Context, s *docstore.Store, slug string, tx *sql.Tx) (int, error) {
 	pageStmt, err := tx.PrepareContext(ctx, `INSERT INTO pages(doc_slug, path) VALUES (?, ?)`)
 	if err != nil {
@@ -55,20 +49,39 @@ func indexDocPages(ctx context.Context, s *docstore.Store, slug string, tx *sql.
 	defer ftsStmt.Close()
 	docName := strings.SplitN(slug, "~", 2)[0]
 
+	var inserted int
+	err = convertPages(ctx, s, slug, func(p pageMD) error {
+		if err := insertPage(ctx, pageStmt, chunkStmt, ftsStmt, slug, docName, p.path, p.title, p.md, p.chunks); err != nil {
+			return err
+		}
+		inserted++
+		return nil
+	})
+	return inserted, err
+}
+
+// pageMD is one page converted to Markdown and cut into chunks.
+type pageMD struct {
+	path   string
+	md     string
+	title  string
+	chunks []chunk.Chunk
+}
+
+// convertPages streams every page of slug from db.zip, converts them to
+// Markdown and cuts them into chunks in parallel, and calls fn for each
+// non-empty page from the calling goroutine. A page that fails to convert
+// is skipped; a doc without db.zip has no pages. Errors from the stream
+// or fn stop the workers and are returned.
+func convertPages(ctx context.Context, s *docstore.Store, slug string, fn func(pageMD) error) error {
 	type job struct {
 		path string
 		html string
 	}
-	type result struct {
-		path   string
-		md     string
-		title  string
-		chunks []chunk.Chunk
-	}
 
 	workers := pageWorkers()
 	jobs := make(chan job, workers*2)
-	results := make(chan result, workers*2)
+	results := make(chan pageMD, workers*2)
 
 	jobCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -86,7 +99,7 @@ func indexDocPages(ctx context.Context, s *docstore.Store, slug string, tx *sql.
 				if err != nil || strings.TrimSpace(md) == "" {
 					continue
 				}
-				r := result{path: j.path, md: md, title: chunk.Title(md), chunks: chunk.Chunks(md)}
+				r := pageMD{path: j.path, md: md, title: chunk.Title(md), chunks: chunk.Chunks(md)}
 				select {
 				case results <- r:
 				case <-jobCtx.Done():
@@ -96,7 +109,7 @@ func indexDocPages(ctx context.Context, s *docstore.Store, slug string, tx *sql.
 		}()
 	}
 
-	// Producer: stream db.json into jobs.
+	// Producer: stream db.zip into jobs.
 	streamErrCh := make(chan error, 1)
 	go func() {
 		err := s.StreamPages(slug, func(path, html string) error {
@@ -114,37 +127,33 @@ func indexDocPages(ctx context.Context, s *docstore.Store, slug string, tx *sql.
 		streamErrCh <- err
 	}()
 
-	// Closer: once all workers are done, close results so the writer
-	// loop below exits.
+	// Closer: once all workers are done, close results so the loop
+	// below exits.
 	go func() {
 		wg.Wait()
 		close(results)
 	}()
 
-	// Writer (this goroutine): own the SQLite stmt.
-	var inserted int
-	var writeErr error
+	var fnErr error
 	for r := range results {
-		writeErr = insertPage(ctx, pageStmt, chunkStmt, ftsStmt, slug, docName, r.path, r.title, r.md, r.chunks)
-		if writeErr != nil {
+		if fnErr = fn(r); fnErr != nil {
 			cancel()
 			// Drain to allow workers and producer to exit cleanly.
 			for range results {
 			}
 			break
 		}
-		inserted++
 	}
 
 	streamErr := <-streamErrCh
-	if writeErr != nil {
-		return inserted, writeErr
+	if fnErr != nil {
+		return fnErr
 	}
-	// A doc without db.json ships only index.json: nothing to index.
+	// A doc without db.zip ships only index.json: nothing to index.
 	if streamErr != nil && !errors.Is(streamErr, fs.ErrNotExist) {
-		return inserted, streamErr
+		return streamErr
 	}
-	return inserted, nil
+	return nil
 }
 
 // insertPage adds one page row, then a chunks row and a chunks_fts row
