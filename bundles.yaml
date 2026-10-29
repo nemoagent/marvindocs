@@ -1,0 +1,79 @@
+# Offline bundles: groups of docs downloaded and installed together.
+#
+# A bundle lists doc names (the slug part before "~"). By default a bundle
+# installs the newest version of every version group (see versionGroup in
+# internal/index/keepvecs.go), the supported LTS releases below and
+# non-version variants (haxe~cpp, rethinkdb~java).
+#
+# Every doc not listed in any bundle belongs to the implicit bundle "other".
+
+# Supported LTS releases (endoflife.date, 2026-10-29) that devdocs has.
+# Kept separately from ltsVersions in keepvecs.go, which also lists old
+# releases that still get vectors.
+lts:
+  - openjdk~8
+  - openjdk~8_gui
+  - openjdk~8_web
+  - openjdk~11
+  - openjdk~17
+  - openjdk~21
+  - node~22_lts
+  - node~24_lts
+  - django~5.2
+  - haproxy~2.6
+  - haproxy~2.8
+  - haproxy~3.0
+  - haproxy~3.2
+  - julia~1.10
+
+bundles:
+  core: [bash, zsh, fish, git, http, man, markdown, jq, gnu_make, cmake]
+
+  go: [go, go-std, go-dev]
+
+  python: [
+    python, pytest, requests, click, trio, celery,
+    django, django_rest_framework, flask, fastapi, falcon, bottle, werkzeug, jinja, wagtail,
+    numpy, pandas, polars, matplotlib, scikit_learn, scikit_image, statsmodels,
+    pytorch, tensorflow, pygame,
+  ]
+
+  db: [
+    postgresql, mariadb, sqlite, redis, mongodb, duckdb, couchdb, rethinkdb,
+    influxdata, opentsdb, graphite, rabbitmq,
+  ]
+
+  infra: [
+    nginx, nginx_lua_module, haproxy, apache_http_server, varnish,
+    docker, kubernetes, kubectl, terraform, opentofu,
+    ansible, saltstack, chef, vagrant, nix, homebrew, powershell, nushell,
+  ]
+
+  js: [
+    javascript, typescript, node, deno, bun, npm, yarn,
+    dom, html, css, svg, web_extensions, browser_support_tables,
+    react, react_router, redux, relay, vue, vue_router, vuex, vueuse, angular, svelte, lit,
+    nextjs, astro, htmx, tailwindcss, bootstrap, react_bootstrap, sass, less,
+    vite, webpack, esbuild, babel, eslint, prettier, tanstack_query, tanstack_router,
+    pug, handlebars,
+    express, koa, hapi, socketio, sequelize, mongoose, axios, lodash, es_toolkit,
+    date_fns, moment, moment_timezone, joi, valibot, rxjs,
+    jest, vitest, mocha, chai, sinon, jasmine, qunit, enzyme, cypress, playwright,
+    puppeteer, codeceptjs,
+    d3, threejs, leaflet, maplibre_gl, openlayers,
+    electron, react_native, cordova,
+  ]
+
+  php: [
+    php, composer, phpunit, codeception, laravel, symfony, cakephp, codeigniter,
+    yii, phalcon, drupal, wordpress, twig,
+  ]
+
+  ruby: [ruby, rails, rack, minitest, nokogiri, padrino, jekyll, liquid]
+
+  jvm: [openjdk, kotlin, scala, groovy, clojure, spring_boot, vertx, apache_pig]
+
+  native: [
+    c, cpp, gcc, rust, tokio, zig, d, nim, odin, crystal,
+    qt, gtk, opengl, vulkan, eigen3, point_cloud_library, godot,
+  ]
