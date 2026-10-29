@@ -2,16 +2,19 @@ package main
 
 import (
 	"archive/tar"
+	"bufio"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -49,7 +52,7 @@ func runBundle(args []string) {
 		fs := flag.NewFlagSet("bundle install", flag.ExitOnError)
 		repo := fs.String("repo", "nemoagent/marvindocs", "GitHub repository with the bundle release")
 		tag := fs.String("tag", "bundles", "Release tag")
-		from := fs.String("from", "", "Directory with NAME.tar.gz instead of downloading with gh")
+		from := fs.String("from", "", "Directory with NAME.tar.gz instead of downloading")
 		docsPath := fs.String("docs-path", "data/public/docs", "Path to devdocs data")
 		indexPath := fs.String("index-path", "marvindocs.db", "SQLite index file")
 		_ = fs.Parse(args[1:])
@@ -57,7 +60,8 @@ func runBundle(args []string) {
 			fmt.Fprintln(os.Stderr, "usage: marvindocs bundle install [flags] NAME...")
 			os.Exit(2)
 		}
-		err = runBundleInstall(*repo, *tag, *from, *docsPath, *indexPath, fs.Args())
+		baseURL := "https://github.com/" + *repo + "/releases/download/" + *tag
+		err = runBundleInstall(baseURL, *from, *docsPath, *indexPath, fs.Args())
 	default:
 		fmt.Fprintf(os.Stderr, "unknown bundle command: %s\n", args[0])
 		os.Exit(2)
@@ -280,7 +284,10 @@ func writeBundleArchive(out, dbPath, docsPath string, slugs []string, manifest [
 	return os.Rename(out+".part", out)
 }
 
-func runBundleInstall(repo, tag, from, docsPath, indexPath string, names []string) error {
+// runBundleInstall installs bundles from the directory from, or downloads
+// them from baseURL (a release download URL) when from is empty and checks
+// them against its SHA256SUMS.
+func runBundleInstall(baseURL, from, docsPath, indexPath string, names []string) error {
 	tmp, err := os.MkdirTemp("", "marvindocs-bundle-")
 	if err != nil {
 		return err
@@ -297,17 +304,23 @@ func runBundleInstall(repo, tag, from, docsPath, indexPath string, names []strin
 		return err
 	}
 	defer idx.Close()
+	var sums map[string]string
+	if from == "" {
+		if sums, err = fetchSums(baseURL + "/SHA256SUMS"); err != nil {
+			return err
+		}
+	}
 	for _, name := range names {
 		archive := filepath.Join(from, name+".tar.gz")
 		if from == "" {
-			fmt.Printf("download %s from %s@%s\n", name, repo, tag)
-			cmd := exec.Command("gh", "release", "download", tag, "-R", repo,
-				"-p", name+".tar.gz", "-D", tmp, "--clobber")
-			cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("download bundle %s: %w", name, err)
+			want, ok := sums[name+".tar.gz"]
+			if !ok {
+				return fmt.Errorf("bundle %s is not in the release", name)
 			}
 			archive = filepath.Join(tmp, name+".tar.gz")
+			if err := download(baseURL+"/"+name+".tar.gz", archive, want); err != nil {
+				return fmt.Errorf("download bundle %s: %w", name, err)
+			}
 		}
 		n, err := installArchive(archive, tmp, docsPath, idx)
 		if err != nil {
@@ -412,6 +425,55 @@ func installArchive(archive, tmp, docsPath string, idx *index.Index) (int, error
 		return 0, err
 	}
 	return len(slugs), nil
+}
+
+// httpGet returns the body of a successful GET request to url.
+func httpGet(url string) (io.ReadCloser, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		return nil, fmt.Errorf("GET %s: %s", url, resp.Status)
+	}
+	return resp.Body, nil
+}
+
+// fetchSums reads a sha256sum file: "HASH  NAME" per line.
+func fetchSums(url string) (map[string]string, error) {
+	body, err := httpGet(url)
+	if err != nil {
+		return nil, err
+	}
+	defer body.Close()
+	sums := map[string]string{}
+	sc := bufio.NewScanner(body)
+	for sc.Scan() {
+		if f := strings.Fields(sc.Text()); len(f) == 2 {
+			sums[strings.TrimPrefix(f[1], "*")] = f[0]
+		}
+	}
+	return sums, sc.Err()
+}
+
+// download saves url to path and checks its SHA-256 against want.
+func download(url, path, want string) error {
+	fmt.Printf("download %s\n", url)
+	body, err := httpGet(url)
+	if err != nil {
+		return err
+	}
+	defer body.Close()
+	h := sha256.New()
+	if err := writeFrom(path, io.TeeReader(body, h)); err != nil {
+		return err
+	}
+	if got := hex.EncodeToString(h.Sum(nil)); got != want {
+		os.Remove(path)
+		return fmt.Errorf("checksum mismatch: got %s, want %s", got, want)
+	}
+	return nil
 }
 
 // writeFrom writes r to path through a temporary file, creating parent

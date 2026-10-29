@@ -2,6 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -79,7 +83,7 @@ func TestBundleBuildInstall(t *testing.T) {
 
 	dst := t.TempDir()
 	dstDB := filepath.Join(t.TempDir(), "index", "dst.db")
-	if err := runBundleInstall("", "", out, dst, dstDB, []string{"a"}); err != nil {
+	if err := runBundleInstall("", out, dst, dstDB, []string{"a"}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := docstore.Open(dst)
@@ -92,7 +96,24 @@ func TestBundleBuildInstall(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dst, "alpha", devdocsfmt.DBName)); err != nil {
 		t.Fatal(err)
 	}
-	if err := runBundleInstall("", "", out, dst, dstDB, []string{"other", "a"}); err != nil {
+	// The second install downloads over HTTP and checks SHA256SUMS.
+	var sums string
+	for _, name := range []string{"a.tar.gz", "other.tar.gz"} {
+		raw, err := os.ReadFile(filepath.Join(out, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sums += fmt.Sprintf("%x  %s\n", sha256.Sum256(raw), name)
+	}
+	if err := os.WriteFile(filepath.Join(out, "SHA256SUMS"), []byte(sums), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.FileServer(http.Dir(out)))
+	defer srv.Close()
+	if err := runBundleInstall(srv.URL, "", dst, dstDB, []string{"missing"}); err == nil {
+		t.Fatal("install of an unknown bundle succeeded")
+	}
+	if err := runBundleInstall(srv.URL, "", dst, dstDB, []string{"other", "a"}); err != nil {
 		t.Fatal(err)
 	}
 	if got, err = docstore.Open(dst); err != nil || len(got.Docs()) != 2 {
