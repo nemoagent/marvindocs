@@ -45,9 +45,8 @@
 
 ## Установка
 
-Нужны бинарник `marvindocs` и [GitHub CLI](https://cli.github.com/) `gh`
-с выполненным входом (`gh auth login`) и правом чтения
-`nemoagent/marvindocs` (репозиторий приватный).
+Нужны только бинарник `marvindocs` и доступ в интернет. Репозиторий
+публичный, поэтому GitHub CLI, вход и токен не нужны.
 
 ```bash
 marvindocs bundle install core go python
@@ -56,8 +55,9 @@ marvindocs serve --http :3333
 
 Что делает `install` для каждого набора:
 
-1. скачивает `NAME.tar.gz` командой `gh release download bundles -R nemoagent/marvindocs`
-   во временный каталог;
+1. скачивает `SHA256SUMS` и `NAME.tar.gz` по HTTPS из
+   `https://github.com/nemoagent/marvindocs/releases/download/bundles/` во временный каталог и сверяет контрольную сумму архива
+   (имя, которого нет в `SHA256SUMS`, или несовпадение прерывают установку);
 2. распаковывает `docs/<slug>/` в `--docs-path` (`data/public/docs`),
    заменяя существующие каталоги тех же доков;
 3. добавляет доки в `docs.json` (записи с тем же slug заменяются);
@@ -72,14 +72,15 @@ marvindocs serve --http :3333
 Оффлайн-установка из каталога со скачанными архивами:
 
 ```bash
-gh release download bundles -R nemoagent/marvindocs -p 'go.tar.gz' -p SHA256SUMS -D /tmp/b
-(cd /tmp/b && sha256sum -c --ignore-missing SHA256SUMS)
+mkdir -p /tmp/b && cd /tmp/b
+curl -LO https://github.com/nemoagent/marvindocs/releases/download/bundles/go.tar.gz -LO https://github.com/nemoagent/marvindocs/releases/download/bundles/SHA256SUMS
+sha256sum -c --ignore-missing SHA256SUMS
 marvindocs bundle install --from /tmp/b go
 ```
 
 | Флаг | По умолчанию | Описание |
 |---|---|---|
-| `--repo` | `nemoagent/marvindocs` | GitHub-репозиторий с релизом. |
+| `--repo` | `nemoagent/marvindocs` | GitHub-репозиторий с релизом; адрес загрузки `https://github.com/REPO/releases/download/TAG/`. |
 | `--tag` | `bundles` | Тег релиза. |
 | `--from` | (пусто) | Каталог с `NAME.tar.gz`; без загрузки. |
 | `--docs-path` | `data/public/docs` | Каталог данных. |

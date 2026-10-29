@@ -45,9 +45,8 @@ Older versions are not in bundles; get them with
 
 ## Install
 
-Requirements: the `marvindocs` binary and the [GitHub CLI](https://cli.github.com/)
-`gh`, logged in (`gh auth login`) with read access to `nemoagent/marvindocs`
-(the repository is private).
+Requirements: only the `marvindocs` binary and internet access. The
+repository is public, so no GitHub CLI, login or token is needed.
 
 ```bash
 marvindocs bundle install core go python
@@ -56,8 +55,9 @@ marvindocs serve --http :3333
 
 What `install` does for each bundle:
 
-1. downloads `NAME.tar.gz` with `gh release download bundles -R nemoagent/marvindocs`
-   into a temporary directory;
+1. downloads `SHA256SUMS` and `NAME.tar.gz` over HTTPS from
+   `https://github.com/nemoagent/marvindocs/releases/download/bundles/` into a temporary directory and checks the archive checksum
+   (a name missing from `SHA256SUMS` or a mismatch stops the install);
 2. unpacks `docs/<slug>/` into `--docs-path` (`data/public/docs`),
    replacing existing directories of the same docs;
 3. adds the docs to `docs.json` (entries with the same slug are replaced);
@@ -72,14 +72,15 @@ docs: restart it.
 Offline install from a directory with downloaded archives:
 
 ```bash
-gh release download bundles -R nemoagent/marvindocs -p 'go.tar.gz' -p SHA256SUMS -D /tmp/b
-(cd /tmp/b && sha256sum -c --ignore-missing SHA256SUMS)
+mkdir -p /tmp/b && cd /tmp/b
+curl -LO https://github.com/nemoagent/marvindocs/releases/download/bundles/go.tar.gz -LO https://github.com/nemoagent/marvindocs/releases/download/bundles/SHA256SUMS
+sha256sum -c --ignore-missing SHA256SUMS
 marvindocs bundle install --from /tmp/b go
 ```
 
 | Flag | Default | Notes |
 |---|---|---|
-| `--repo` | `nemoagent/marvindocs` | GitHub repository with the release. |
+| `--repo` | `nemoagent/marvindocs` | GitHub repository with the release; the download URL is `https://github.com/REPO/releases/download/TAG/`. |
 | `--tag` | `bundles` | Release tag. |
 | `--from` | (empty) | Directory with `NAME.tar.gz`; no download. |
 | `--docs-path` | `data/public/docs` | Data directory. |

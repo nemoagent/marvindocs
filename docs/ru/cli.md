@@ -228,8 +228,8 @@ marvindocs bundle install [--repo OWNER/REPO] [--tag TAG] [--from DIR] [--docs-p
 меняться после последнего `index build`.
 
 `install` скачивает `NAME.tar.gz` из GitHub-релиза `--tag` (`bundles`)
-репозитория `--repo` (`nemoagent/marvindocs`) через `gh release
-download` (или берёт из `--from DIR`), распаковывает каталоги документов
+репозитория `--repo` (`nemoagent/marvindocs`) по HTTPS, без `gh` и
+токена, и сверяет его с `SHA256SUMS` релиза (или берёт из `--from DIR`), распаковывает каталоги документов
 в `--docs-path` с заменой существующих, добавляет документы в
 `docs.json` и сливает `bundle.db` в индекс: документы с тем же slug
 заменяются, полнотекстовый индекс заполняется из текстов чанков,

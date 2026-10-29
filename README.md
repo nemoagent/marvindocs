@@ -78,7 +78,8 @@ embeddings) run `make update`; it never drops existing embeddings. See
 ### Offline bundles with a ready index
 
 Instead of syncing and embedding, install prebuilt bundles (docs + index +
-embeddings) from the `bundles` GitHub release; needs `gh` logged in:
+embeddings) from the public `bundles` GitHub release; no `gh` or token
+needed, archives are checked against the release `SHA256SUMS`:
 
 ```bash
 ./bin/marvindocs bundle install core go python

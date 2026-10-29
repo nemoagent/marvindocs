@@ -225,8 +225,9 @@ chunks, vectors and chunk texts. Every doc must be indexed and unchanged
 since the last `index build`.
 
 `install` downloads `NAME.tar.gz` from the GitHub release `--tag`
-(`bundles`) of `--repo` (`nemoagent/marvindocs`) with `gh release
-download` (or takes it from `--from DIR`), unpacks the doc directories
+(`bundles`) of `--repo` (`nemoagent/marvindocs`) over HTTPS, without
+`gh` or a token, and checks it against the release `SHA256SUMS` (or takes
+it from `--from DIR`), unpacks the doc directories
 into `--docs-path` replacing existing ones, adds the docs to `docs.json`
 and merges `bundle.db` into the index: same-slug docs are replaced, the
 full-text index is filled from the chunk texts, no HTML conversion or
