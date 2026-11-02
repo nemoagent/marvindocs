@@ -44,7 +44,7 @@ bundles:
   ]
 
   infra: [
-    nginx, nginx_lua_module, haproxy, apache_http_server, varnish,
+    nginx, nginx_lua_module, haproxy, caddy, apache_http_server, varnish,
     docker, kubernetes, kubectl, terraform, opentofu,
     ansible, saltstack, chef, vagrant, nix, homebrew, powershell, nushell,
   ]
