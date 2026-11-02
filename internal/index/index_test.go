@@ -7,22 +7,53 @@ import (
 	"testing"
 )
 
-// dataRoot points at the project's data/public/docs directory. Tests are
-// skipped if the data isn't present or under -short: building the shared
-// index from a full devdocs tree takes minutes, so the fast suite relies
-// on the small fixture-based tests only.
+// dataRoot writes a small devdocs tree with the docs the search tests
+// rely on (angular, react, go), so they do not depend on which bundles
+// are installed in data/public/docs.
 func dataRoot(t *testing.T) string {
 	t.Helper()
-	if testing.Short() {
-		t.Skip("skipping full-index test in -short mode")
+	root := t.TempDir()
+	docs := `[{"name":"Angular","slug":"angular","type":"angular","version":"","release":"20","mtime":1},
+		{"name":"Go","slug":"go","type":"go","version":"","release":"1.25","mtime":1},
+		{"name":"React","slug":"react","type":"react","version":"","release":"19","mtime":1}]`
+	index := map[string]string{
+		"angular": `{"entries":[{"name":"Component","path":"api/core/component","type":"Decorators"},
+			{"name":"NgModule","path":"api/core/ngmodule","type":"Decorators"}],
+			"types":[{"name":"Decorators","count":2,"slug":"decorators"}]}`,
+		"go": `{"entries":[{"name":"context","path":"context/index","type":"context"},
+			{"name":"context.Background","path":"context/index#Background","type":"context"},
+			{"name":"context.WithCancel","path":"context/index#WithCancel","type":"context"}],
+			"types":[{"name":"context","count":3,"slug":"context"}]}`,
+		"react": `{"entries":[{"name":"useState","path":"reference/react/usestate","type":"Hooks"},
+			{"name":"useEffect","path":"reference/react/useeffect","type":"Hooks"}],
+			"types":[{"name":"Hooks","count":2,"slug":"hooks"}]}`,
 	}
-	wd, err := os.Getwd()
-	if err != nil {
+	pages := map[string]map[string]string{
+		"angular": {
+			"index":              "<h1>Angular</h1><p>Angular is a web framework for building component based applications.</p>",
+			"api/core/component": "<h1>Component</h1><p>Decorator that marks a class as an Angular component.</p>",
+			"api/core/ngmodule":  "<h1>NgModule</h1><p>Decorator that marks a class as an NgModule.</p>",
+		},
+		"go": {
+			"context/index": "<h1>Package context</h1><p>WithCancel returns a derived context that is canceled when cancel is called.</p>",
+		},
+		"react": {
+			"reference/react/usestate":  "<h1>useState</h1><p>useState is a React Hook that adds a state variable to a component.</p>",
+			"reference/react/useeffect": "<h1>useEffect</h1><p>useEffect synchronizes a component with an external system.</p>",
+		},
+	}
+	if err := os.WriteFile(filepath.Join(root, "docs.json"), []byte(docs), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	root := filepath.Join(wd, "..", "..", "data", "public", "docs")
-	if _, err := os.Stat(filepath.Join(root, "docs.json")); err != nil {
-		t.Skipf("devdocs data not available at %s", root)
+	for slug, body := range index {
+		dir := filepath.Join(root, slug)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "index.json"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		writeDB(t, dir, pages[slug])
 	}
 	return root
 }

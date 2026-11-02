@@ -6,56 +6,27 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/piligrim/marvindocs/internal/docstore"
 	"github.com/piligrim/marvindocs/internal/synonyms"
 )
 
-// sharedIdx is built once per `go test` run and reused by all search tests
-// to avoid paying the 2+ minute indexing cost N times.
-var (
-	sharedIdxOnce sync.Once
-	sharedIdxPath string
-	sharedIdxErr  error
-)
-
+// sharedIndex builds an index over the dataRoot fixture.
 func sharedIndex(t *testing.T) *Index {
 	t.Helper()
-	root := dataRoot(t) // may Skip()
-	sharedIdxOnce.Do(func() {
-		store, err := docstore.Open(root)
-		if err != nil {
-			sharedIdxErr = err
-			return
-		}
-		dir, err := os.MkdirTemp("", "marvindocs-idx-*")
-		if err != nil {
-			sharedIdxErr = err
-			return
-		}
-		sharedIdxPath = filepath.Join(dir, "shared.db")
-		idx, err := Open(sharedIdxPath)
-		if err != nil {
-			sharedIdxErr = err
-			return
-		}
-		defer idx.Close()
-		if _, err := idx.Build(context.Background(), store); err != nil {
-			sharedIdxErr = err
-			return
-		}
-	})
-	if sharedIdxErr != nil {
-		t.Fatal(sharedIdxErr)
+	store, err := docstore.Open(dataRoot(t))
+	if err != nil {
+		t.Fatal(err)
 	}
-	// Re-open a fresh handle for this test; cheap.
-	idx, err := Open(sharedIdxPath)
+	idx, err := Open(filepath.Join(t.TempDir(), "shared.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = idx.Close() })
+	if _, err := idx.Build(context.Background(), store); err != nil {
+		t.Fatal(err)
+	}
 	return idx
 }
 
@@ -120,8 +91,8 @@ func TestListDocs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(docs) < 100 {
-		t.Fatalf("expected many docs, got %d", len(docs))
+	if len(docs) != 3 {
+		t.Fatalf("expected 3 fixture docs, got %d", len(docs))
 	}
 	// ordered by slug
 	for i := 1; i < len(docs); i++ {

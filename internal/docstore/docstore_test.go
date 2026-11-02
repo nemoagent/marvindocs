@@ -5,21 +5,51 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/piligrim/marvindocs/parsers/devdocsfmt"
 )
 
-// dataRoot points at the project's data/public/docs directory. Tests are
-// skipped if the data isn't present (e.g. in CI without the dump).
+// dataRoot writes a small devdocs tree (angular, go) into a temp dir, so
+// the tests do not depend on which bundles are installed in data/.
 func dataRoot(t *testing.T) string {
 	t.Helper()
-	// tests run from package dir; walk up to repo root.
-	wd, err := os.Getwd()
-	if err != nil {
+	root := t.TempDir()
+	docs := `[{"name":"Angular","slug":"angular","type":"angular","release":"20","mtime":1},
+		{"name":"Go","slug":"go","type":"go","release":"1.25","mtime":1}]`
+	if err := os.WriteFile(filepath.Join(root, "docs.json"), []byte(docs), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	root := filepath.Join(wd, "..", "..", "data", "public", "docs")
-	if _, err := os.Stat(filepath.Join(root, "docs.json")); err != nil {
-		t.Skipf("devdocs data not available at %s", root)
+	write := func(slug, index string, pages map[string]string) {
+		dir := filepath.Join(root, slug)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "index.json"), []byte(index), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		w, err := devdocsfmt.NewDBWriter(filepath.Join(dir, devdocsfmt.DBName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for path, html := range pages {
+			if err := w.Add(path, html); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := w.Close(); err != nil {
+			t.Fatal(err)
+		}
 	}
+	write("angular", `{"entries":[{"name":"Component","path":"api/core/component","type":"Decorators"}],
+		"types":[{"name":"Decorators","count":1,"slug":"decorators"}]}`, map[string]string{
+		"index":              "<h1>Angular</h1><p>Angular is a web framework for building component based applications. Angular is a web framework for building component based applications. Angular is a web framework for building component based applications. </p>",
+		"api/core/component": "<h1>Component</h1><p>Decorator that marks a class as a component.</p>",
+	})
+	write("go", `{"entries":[{"name":"context","path":"context/index","type":"context"}],
+		"types":[{"name":"context","count":1,"slug":"context"}]}`, map[string]string{
+		"context/index": "<h1>Package context</h1>",
+		"errors/index":  "<h1>Package errors</h1>",
+	})
 	return root
 }
 
@@ -87,9 +117,6 @@ func TestPageMatchesStreamPages(t *testing.T) {
 		t.Fatal(err)
 	}
 	slug := "go"
-	if s.Doc(slug) == nil {
-		t.Skipf("doc %s missing in dataset", slug)
-	}
 	const limit = 200
 	full := map[string]string{}
 	stop := errors.New("enough")

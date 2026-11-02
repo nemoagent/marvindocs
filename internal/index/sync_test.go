@@ -31,8 +31,16 @@ func TestSyncIncrementalSkipsUnchangedDocs(t *testing.T) {
 		t.Fatalf("expected non-empty initial sync, got %+v", first)
 	}
 
-	// Second sync without any changes: should report the same totals,
-	// taking far less wall time (no new inserts).
+	// Second sync without any changes: should report the same totals
+	// and leave the entry rows untouched (no delete + reinsert).
+	maxRowid := func() int64 {
+		var n int64
+		if err := idx.DB().QueryRow(`SELECT MAX(rowid) FROM entries`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	before := maxRowid()
 	second, err := idx.Sync(context.Background(), store, false)
 	if err != nil {
 		t.Fatal(err)
@@ -40,8 +48,8 @@ func TestSyncIncrementalSkipsUnchangedDocs(t *testing.T) {
 	if second.Docs != first.Docs || second.Entries != first.Entries {
 		t.Fatalf("expected stable counts, first=%+v second=%+v", first, second)
 	}
-	if second.Duration > first.Duration {
-		t.Fatalf("expected faster no-op sync, first=%s second=%s", first.Duration, second.Duration)
+	if after := maxRowid(); after != before {
+		t.Fatalf("no-op sync rewrote entries: max rowid %d -> %d", before, after)
 	}
 }
 
