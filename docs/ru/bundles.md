@@ -18,7 +18,7 @@
 | `go` | 3 | 13 МБ | go, go-std, go-dev |
 | `python` | 26 | 300 МБ | python, django, flask, fastapi, numpy, pandas, pytorch, ... |
 | `db` | 15 | 91 МБ | postgresql, mariadb, sqlite, redis, mongodb, duckdb, ... |
-| `infra` | 23 | 336 МБ | nginx, haproxy, docker, kubernetes, terraform, ansible, ... |
+| `infra` | 34 | 401 МБ | nginx, caddy, docker, podman, kubernetes, helm, prometheus, grafana, terraform, ansible, ... |
 | `js` | 80 | 287 МБ | javascript, typescript, node, react, vue, angular, css, html, ... |
 | `php` | 13 | 230 МБ | php, composer, phpunit, laravel, symfony, wordpress, ... |
 | `ruby` | 8 | 23 МБ | ruby, rails, rack, minitest, nokogiri, ... |
@@ -26,7 +26,7 @@
 | `native` | 18 | 384 МБ | c, cpp, gcc, rust, ... |
 | `other` | 73 | 308 МБ | все доки, не попавшие в другие наборы |
 
-Все 11 наборов: 285 доков, ~2,9 ГБ архивов. Точные списки — в
+Все 11 наборов: 296 доков, ~3 ГБ архивов. Точные списки — в
 [`bundles.yaml`](../../bundles.yaml); размеры по сборке 2026-10-29.
 
 ### Какие версии входят

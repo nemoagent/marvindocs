@@ -45,8 +45,10 @@ bundles:
 
   infra: [
     nginx, nginx_lua_module, haproxy, caddy, apache_http_server, varnish,
-    docker, kubernetes, kubectl, terraform, opentofu,
-    ansible, saltstack, chef, vagrant, nix, homebrew, powershell, nushell,
+    docker, podman, kubernetes, kubernetes_docs, kubectl, helm, argo_cd, istio,
+    terraform, opentofu, ansible, saltstack, chef, vagrant, nix,
+    prometheus, grafana, loki, opentelemetry, traefik,
+    homebrew, powershell, nushell,
   ]
 
   js: [

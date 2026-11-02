@@ -88,7 +88,7 @@ needed, archives are checked against the release `SHA256SUMS`:
 ```
 
 Bundles: `core`, `go`, `python`, `db`, `infra`, `js`, `php`, `ruby`, `jvm`,
-`native`, `other` (~2.9 GB in total). See
+`native`, `other` (~3 GB in total). See
 [docs/en/bundles.md](docs/en/bundles.md).
 
 ### Download specific docs or everything

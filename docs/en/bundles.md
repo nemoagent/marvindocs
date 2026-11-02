@@ -18,7 +18,7 @@ of `nemoagent/marvindocs`.
 | `go` | 3 | 13 MB | go, go-std, go-dev |
 | `python` | 26 | 300 MB | python, django, flask, fastapi, numpy, pandas, pytorch, ... |
 | `db` | 15 | 91 MB | postgresql, mariadb, sqlite, redis, mongodb, duckdb, ... |
-| `infra` | 23 | 336 MB | nginx, haproxy, docker, kubernetes, terraform, ansible, ... |
+| `infra` | 34 | 401 MB | nginx, caddy, docker, podman, kubernetes, helm, prometheus, grafana, terraform, ansible, ... |
 | `js` | 80 | 287 MB | javascript, typescript, node, react, vue, angular, css, html, ... |
 | `php` | 13 | 230 MB | php, composer, phpunit, laravel, symfony, wordpress, ... |
 | `ruby` | 8 | 23 MB | ruby, rails, rack, minitest, nokogiri, ... |
@@ -26,7 +26,7 @@ of `nemoagent/marvindocs`.
 | `native` | 18 | 384 MB | c, cpp, gcc, rust, ... |
 | `other` | 73 | 308 MB | every doc not listed in another bundle |
 
-All 11 bundles: 285 docs, ~2.9 GB of archives. The exact lists are in
+All 11 bundles: 296 docs, ~3 GB of archives. The exact lists are in
 [`bundles.yaml`](../../bundles.yaml); sizes are from the 2026-10-29 build.
 
 ### Which versions are included

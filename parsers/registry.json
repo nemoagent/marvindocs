@@ -52,6 +52,78 @@
       "args": ["--version", "v{v}"],
       "versions": ["7.0", "8.0", "8.3"],
       "description": "MongoDB {v} Manual from github.com/mongodb/docs"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "docker",
+      "args": ["--site", "docker"],
+      "description": "Docker docs (manuals, guides, CLI reference) from github.com/docker/docs"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "kubernetes_docs",
+      "args": ["--site", "kubernetes_docs"],
+      "description": "Kubernetes docs (concepts, tasks, tutorials, reference) from github.com/kubernetes/website"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "helm",
+      "args": ["--site", "helm"],
+      "description": "Helm docs from github.com/helm/helm-www"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "prometheus",
+      "args": ["--site", "prometheus"],
+      "description": "Prometheus docs from github.com/prometheus/docs and prometheus/prometheus"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "traefik",
+      "args": ["--site", "traefik"],
+      "description": "Traefik Proxy docs from github.com/traefik/traefik"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "argo_cd",
+      "args": ["--site", "argo_cd"],
+      "description": "Argo CD docs from github.com/argoproj/argo-cd"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "istio",
+      "args": ["--site", "istio"],
+      "description": "Istio docs from github.com/istio/istio.io"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "opentelemetry",
+      "args": ["--site", "opentelemetry"],
+      "description": "OpenTelemetry docs from github.com/open-telemetry/opentelemetry.io"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "grafana",
+      "args": ["--site", "grafana"],
+      "description": "Grafana docs from github.com/grafana/grafana"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "loki",
+      "args": ["--site", "loki"],
+      "description": "Grafana Loki docs from github.com/grafana/loki"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "podman",
+      "args": ["--site", "podman"],
+      "description": "Podman man pages from github.com/containers/podman"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "vagrant",
+      "args": ["--site", "vagrant"],
+      "description": "Vagrant docs (latest version) from github.com/hashicorp/web-unified-docs"
     }
   ]
 }
