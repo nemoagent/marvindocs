@@ -33,7 +33,7 @@ the packs and their format, and builds a service for AI agents on top.
 | | DevDocs | marvindocs |
 |---|---|---|
 | Main user | a person in a browser | an AI agent over MCP; the web UI is secondary |
-| Doc sources | its own scrapers | DevDocs packs (837 of 892 in the full set) plus own parsers: Go stdlib via `go doc`, go.dev, Laravel 4.0-13, MongoDB Manual, Metasploit (55 docs), see [docs/en/parsers.md](docs/en/parsers.md) |
+| Doc sources | its own scrapers | DevDocs packs (837 of 892 in the full set) plus own parsers: Go stdlib via `go doc`, go.dev, Laravel 4.0-13, MongoDB Manual, Metasploit, Caddy (56 docs), see [docs/en/parsers.md](docs/en/parsers.md) |
 | Storage | `index.json` + `db.json` per doc | the same `index.json`; pages packed into `db.zip` (`marvindocs pack`) |
 | Search | entry names in the browser | SQLite FTS5 over names and page bodies, BM25, synonyms, hybrid bge-m3 vector search over chunks |
 | Output | HTML pages | Markdown, and `get_docs` returns the best fragments within a token budget |

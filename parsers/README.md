@@ -36,6 +36,7 @@ joins the rest. No marvindocs code change required.
 | `go-std` | `go doc` in Docker image | `go-std~<version>` (e.g. `go-std~1.25`) | [parsers/go-std/README.md](go-std/README.md) |
 | `mongodb` | github.com/mongodb/docs (reST Manual sources) | `mongodb~<version>` (e.g. `mongodb~8.0`) | [parsers/mongodb/README.md](mongodb/README.md) |
 | `metasploit` | docs.metasploit.com (HTML) | `metasploit` | [EN](../docs/en/metasploit.md) / [RU](../docs/ru/metasploit.md) |
+| `caddy` | github.com/caddyserver/website (markdown) | `caddy` | [parsers/caddy/README.md](caddy/README.md) |
 
 ## Build
 

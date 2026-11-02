@@ -20,7 +20,7 @@ The project is inspired by and built on [DevDocs](https://devdocs.io/), an
 open documentation browser for people. Most documentation (837 of 892 sets)
 comes from DevDocs packs, and all docs are stored in its format. The rest
 is produced by our own parsers: the Go standard library, go.dev, every
-Laravel version, the MongoDB Manual, Metasploit.
+Laravel version, the MongoDB Manual, Metasploit, Caddy.
 
 What marvindocs adds on top of DevDocs:
 
