@@ -156,3 +156,46 @@ Review the `lts` list against <https://endoflife.date> when rebuilding.
 | `bundle.db` | SQLite index of the bundle docs: `docs`, `entries`, `pages`, `chunks`, `chunk_vecs` and `chunk_text` (breadcrumb and body of every chunk, used to fill the contentless `chunks_fts` on merge). |
 | `docs.json` | `docs.json` entries of the bundle docs. |
 | `docs/<slug>/...` | Doc directories as described in [Data format](data-format.md). |
+
+## Full index snapshot (maintainers)
+
+Bundles hold only the newest versions and LTS. The full local index
+(all versions, including bge-m3 vectors of old releases that are
+expensive to recompute) is backed up as is to a separate release.
+`bundle install` does not use it.
+
+Current snapshot:
+[`snapshot-2026-11-02`](https://github.com/nemoagent/marvindocs/releases/tag/snapshot-2026-11-02),
+`marvindocs.db` (7.8 GB, 892 docs, 3.7M vectors) and `data/`; 11.5 GB
+unpacked, 6.7 GB as `tar.zst` split into four parts plus `SHA256SUMS`.
+
+Restore in the repository root:
+
+```bash
+gh release download snapshot-2026-11-02 -R nemoagent/marvindocs
+sha256sum -c SHA256SUMS
+cat marvindocs-snapshot.tar.zst.part* | zstd -dc | tar -xf -
+```
+
+Create a new one (do not run `index build` or `index embed` while
+archiving). Parts are 1900 MiB because a release asset must be under
+2 GiB:
+
+```bash
+TAG=snapshot-$(date +%F)
+tar -cf - marvindocs.db data | zstd -T0 \
+  | split -b 1900M -d - /backup/marvindocs-snapshot.tar.zst.part
+cd /backup && sha256sum marvindocs-snapshot.tar.zst.part* > SHA256SUMS
+gh release create "$TAG" -R nemoagent/marvindocs --latest=false \
+  --title "Index snapshot $(date +%F)" --notes "Full index backup"
+gh release upload "$TAG" -R nemoagent/marvindocs --clobber \
+  SHA256SUMS marvindocs-snapshot.tar.zst.part*
+```
+
+Check the upload: GitHub reports a `digest` for each asset, compare it
+with `SHA256SUMS`:
+
+```bash
+gh api repos/nemoagent/marvindocs/releases/tags/$TAG \
+  -q '.assets[]|"\(.digest) \(.name)"'
+```

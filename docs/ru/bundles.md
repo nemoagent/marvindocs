@@ -157,3 +157,47 @@ bundles:
 | `bundle.db` | Индекс SQLite доков набора: `docs`, `entries`, `pages`, `chunks`, `chunk_vecs` и `chunk_text` (breadcrumb и текст каждого чанка; из него при слиянии заполняется contentless-таблица `chunks_fts`). |
 | `docs.json` | Записи `docs.json` для доков набора. |
 | `docs/<slug>/...` | Каталоги доков, см. [Формат данных](data-format.md). |
+
+## Снимок полного индекса (для мейнтейнеров)
+
+В наборах только новейшие версии и LTS. Полный локальный индекс (все
+версии, включая векторы bge-m3 старых релизов, которые дорого
+пересчитывать) сохраняется как есть в отдельный релиз. `bundle install`
+его не использует.
+
+Текущий снимок:
+[`snapshot-2026-11-02`](https://github.com/nemoagent/marvindocs/releases/tag/snapshot-2026-11-02),
+`marvindocs.db` (7,8 ГБ, 892 дока, 3,7 млн векторов) и `data/`; 11,5 ГБ
+в распакованном виде, 6,7 ГБ в `tar.zst`, разбитом на четыре части, плюс
+`SHA256SUMS`.
+
+Восстановление в корне репозитория:
+
+```bash
+gh release download snapshot-2026-11-02 -R nemoagent/marvindocs
+sha256sum -c SHA256SUMS
+cat marvindocs-snapshot.tar.zst.part* | zstd -dc | tar -xf -
+```
+
+Создание нового снимка (во время архивации не запускайте `index build` и
+`index embed`). Части по 1900 МиБ, потому что файл релиза должен быть
+меньше 2 ГиБ:
+
+```bash
+TAG=snapshot-$(date +%F)
+tar -cf - marvindocs.db data | zstd -T0 \
+  | split -b 1900M -d - /backup/marvindocs-snapshot.tar.zst.part
+cd /backup && sha256sum marvindocs-snapshot.tar.zst.part* > SHA256SUMS
+gh release create "$TAG" -R nemoagent/marvindocs --latest=false \
+  --title "Index snapshot $(date +%F)" --notes "Full index backup"
+gh release upload "$TAG" -R nemoagent/marvindocs --clobber \
+  SHA256SUMS marvindocs-snapshot.tar.zst.part*
+```
+
+Проверка загрузки: GitHub отдаёт `digest` каждого файла, сверьте его с
+`SHA256SUMS`:
+
+```bash
+gh api repos/nemoagent/marvindocs/releases/tags/$TAG \
+  -q '.assets[]|"\(.digest) \(.name)"'
+```
