@@ -89,8 +89,8 @@ MCP-эндпоинт доступен на <http://localhost:3333/mcp>.
 ./bin/marvindocs bundle install core go python
 ```
 
-Наборы: `core`, `go`, `python`, `db`, `infra`, `js`, `php`, `ruby`, `jvm`,
-`native`, `other` (~2.9 ГБ в сумме). См.
+Наборы: `core`, `go`, `python`, `db`, `infra`, `iac`, `js`, `php`, `ruby`, `jvm`,
+`native`, `other` (~3,1 ГБ в сумме). См.
 [docs/ru/bundles.md](docs/ru/bundles.md).
 
 ### Скачать отдельные доки или всё

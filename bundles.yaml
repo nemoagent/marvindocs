@@ -51,6 +51,12 @@ bundles:
     homebrew, powershell, nushell,
   ]
 
+  iac: [
+    terraform_aws, terraform_azurerm, terraform_google, terraform_kubernetes, terraform_helm,
+    terragrunt, terratest, tflint, terraform_docs, atlantis, pulumi,
+    vault, consul, nomad, packer,
+  ]
+
   js: [
     javascript, typescript, node, deno, bun, npm, yarn,
     dom, html, css, svg, web_extensions, browser_support_tables,

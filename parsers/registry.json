@@ -124,6 +124,96 @@
       "slug": "vagrant",
       "args": ["--site", "vagrant"],
       "description": "Vagrant docs (latest version) from github.com/hashicorp/web-unified-docs"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "vault",
+      "args": ["--site", "vault"],
+      "description": "vault docs from github.com/hashicorp/web-unified-docs (Vault)"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "consul",
+      "args": ["--site", "consul"],
+      "description": "consul docs from github.com/hashicorp/web-unified-docs (Consul)"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "nomad",
+      "args": ["--site", "nomad"],
+      "description": "nomad docs from github.com/hashicorp/web-unified-docs (Nomad)"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "packer",
+      "args": ["--site", "packer"],
+      "description": "packer docs from github.com/hashicorp/web-unified-docs (Packer)"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "terraform_aws",
+      "args": ["--site", "terraform_aws"],
+      "description": "terraform_aws docs from github.com/hashicorp/terraform-provider-aws"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "terraform_azurerm",
+      "args": ["--site", "terraform_azurerm"],
+      "description": "terraform_azurerm docs from github.com/hashicorp/terraform-provider-azurerm"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "terraform_google",
+      "args": ["--site", "terraform_google"],
+      "description": "terraform_google docs from github.com/hashicorp/terraform-provider-google"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "terraform_kubernetes",
+      "args": ["--site", "terraform_kubernetes"],
+      "description": "terraform_kubernetes docs from github.com/hashicorp/terraform-provider-kubernetes"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "terraform_helm",
+      "args": ["--site", "terraform_helm"],
+      "description": "terraform_helm docs from github.com/hashicorp/terraform-provider-helm"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "terragrunt",
+      "args": ["--site", "terragrunt"],
+      "description": "terragrunt docs from github.com/gruntwork-io/terragrunt"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "terratest",
+      "args": ["--site", "terratest"],
+      "description": "terratest docs from github.com/gruntwork-io/terratest"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "tflint",
+      "args": ["--site", "tflint"],
+      "description": "tflint docs from github.com/terraform-linters/tflint"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "terraform_docs",
+      "args": ["--site", "terraform_docs"],
+      "description": "terraform_docs docs from github.com/terraform-docs/terraform-docs"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "atlantis",
+      "args": ["--site", "atlantis"],
+      "description": "atlantis docs from github.com/runatlantis/atlantis"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "pulumi",
+      "args": ["--site", "pulumi"],
+      "description": "pulumi docs from github.com/pulumi/docs"
     }
   ]
 }
