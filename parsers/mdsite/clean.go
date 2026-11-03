@@ -9,7 +9,7 @@ import (
 
 var (
 	commentRe   = regexp.MustCompile(`(?s)<!--.*?-->`)
-	includeRe   = regexp.MustCompile(`\{\{[<%]\s*(?:include|readfile)\s+(?:file=)?"([^"]+)"[^}]*[%>]\}\}|--8<--\s+"([^"]+)"|\{%\s*include-markdown\s+"([^"]+)"[^%]*%\}|\{!([^!\s]+)!\}`)
+	includeRe   = regexp.MustCompile(`\{\{[<%]\s*(?:include|readfile)\s+(?:file=)?"([^"]+)"[^}]*[%>]\}\}|--8<--\s+"([^"]+)"|\{%\s*include-markdown\s+"([^"]+)"[^%]*%\}|\{!([^!\s]+)!\}|(?m)^[ \t]*(?:[-*][ \t]+)?\x60?@include\s+['"]([^'"]+)['"]\x60?`)
 	textArgRe   = regexp.MustCompile(`\{\{[<%]\s*[\w-]+\s+[^}]*?\btext="([^"]*)"[^}]*[%>]\}\}`)
 	tabRe       = regexp.MustCompile(`\{\{[<%]\s*tab\s+name="([^"]*)"[^}]*[%>]\}\}`)
 	shortcodeRe = regexp.MustCompile(`(?s)\{\{[<%].*?[%>]\}\}`)
@@ -32,13 +32,13 @@ func cleanMarkdown(site Site, md string, files map[string]string, depth int) str
 	md = commentRe.ReplaceAllString(md, "")
 	md = includeRe.ReplaceAllStringFunc(md, func(s string) string {
 		m := includeRe.FindStringSubmatch(s)
-		name := m[1] + m[2] + m[3] + m[4]
+		name := m[1] + m[2] + m[3] + m[4] + m[5]
 		if depth > 2 {
 			return ""
 		}
 		for _, d := range append(site.IncludeDirs[:len(site.IncludeDirs):len(site.IncludeDirs)], "") {
 			if body, ok := files[path.Join(d, name)]; ok {
-				if path.Ext(name) != ".md" {
+				if ext := path.Ext(name); ext != ".md" && ext != ".mdx" {
 					return strings.TrimRight(body, "\n")
 				}
 				_, body = splitFrontMatter(body)

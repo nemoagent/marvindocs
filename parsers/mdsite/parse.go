@@ -213,7 +213,7 @@ func mapPages(site Site, files map[string]string) map[string]string {
 	out := map[string]string{}
 	for f := range files {
 		ext := path.Ext(f)
-		if ext != ".md" && ext != ".mdx" {
+		if ext != ".md" && ext != ".mdx" && ext != ".markdown" {
 			continue
 		}
 		for _, r := range site.Roots {
@@ -221,7 +221,7 @@ func mapPages(site Site, files map[string]string) map[string]string {
 			if !strings.HasPrefix(f, dir) {
 				continue
 			}
-			rel := strings.TrimSuffix(strings.TrimPrefix(f, dir), ext)
+			rel := strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(f, dir), ext), ".html")
 			switch base := path.Base(rel); strings.ToLower(base) {
 			case "_index", "index", "readme":
 				rel = path.Dir(rel)

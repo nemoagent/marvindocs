@@ -142,3 +142,12 @@ func TestMarkdownIncludeRaw(t *testing.T) {
 		t.Errorf("want %q in:\n%s", want, got)
 	}
 }
+
+func TestAtIncludeForms(t *testing.T) {
+	files := map[string]string{"p.mdx": "PART"}
+	for _, in := range []string{"@include 'p.mdx'", "`@include 'p.mdx'`", "- @include 'p.mdx'"} {
+		if got := cleanMarkdown(testSite, in, files, 0); !strings.Contains(got, "PART") || strings.Contains(got, "@include") {
+			t.Errorf("%q -> %q", in, got)
+		}
+	}
+}

@@ -7,7 +7,11 @@ sections, include directories and optional hooks.
 
 Supported sites (`--list`): `docker`, `kubernetes_docs`, `helm`,
 `prometheus`, `traefik`, `argo_cd`, `istio`, `opentelemetry`, `grafana`,
-`loki`, `podman`, `vagrant`.
+`loki`, `podman`, `vagrant`, `terraform_aws`, `terraform_azurerm`,
+`terraform_google`, `terraform_kubernetes`, `terraform_helm`, `terragrunt`,
+`terratest`, `tflint`, `terraform_docs`, `atlantis`, `pulumi`, `vault`,
+`consul`, `nomad`, `packer` (the last four from `hashicorp/web-unified-docs`,
+newest version directory).
 
 ## Build and run
 
