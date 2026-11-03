@@ -30,7 +30,7 @@ cd parsers/mdsite && go build -o ../../bin/mdsite-parser .
 ## What it does
 
 - strips front matter, Hugo shortcodes, MDX/JSX components and Go
-  template blocks; inlines `include`, `include-markdown` and `--8<--`
+  template blocks; inlines `include`, `include-markdown`, `--8<--` and `{!path!}`
   snippets; applies Hugo `module.mounts`;
 - renders Markdown with gomarkdown, one page per file;
 - rewrites links between pages to relative ones; other site links become

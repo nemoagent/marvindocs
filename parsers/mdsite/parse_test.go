@@ -134,3 +134,11 @@ func TestIstioClean(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestMarkdownIncludeRaw(t *testing.T) {
+	files := map[string]string{"docs/cm.yaml": "---\nkey: {{ value }}\n"}
+	got := cleanMarkdown(testSite, "```yaml\n{!docs/cm.yaml!}\n```", files, 0)
+	if want := "```yaml\n---\nkey: {{ value }}\n```"; !strings.Contains(got, want) {
+		t.Errorf("want %q in:\n%s", want, got)
+	}
+}
