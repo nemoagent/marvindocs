@@ -78,7 +78,7 @@ Linux packages from it with `scripts/release-package.sh VERSION GOARCH`
 (needs [nfpm](https://nfpm.goreleaser.com/), config `packaging/nfpm.yaml`). The
 `bundles` release with offline bundles is separate and is not touched.
 The same tag starts `.github/workflows/docker.yml`, which publishes the
-Docker images to ghcr.io (a manual run publishes `edge` and `edge-full`).
+Docker image to ghcr.io (a manual run publishes `edge`).
 
 `scripts/e2e-ubuntu.sh [VERSION]` checks a release end to end in a clean
 `ubuntu:24.04` docker container: downloads the `.deb` and checks it against
@@ -234,15 +234,14 @@ Ports are changed with `MARVINDOCS_FULL_PORT` and `MARVINDOCS_EMPTY_PORT`.
 Bundles include vectors, so with `MARVINDOCS_EMBEDDER` set (bge-m3)
 `get_docs` uses hybrid search in both images.
 
-Prebuilt images for linux/amd64 and linux/arm64 are published to
-`ghcr.io/nemoagent/marvindocs` on every release: `latest` and `X.Y.Z` are
-the empty image, `full` and `X.Y.Z-full` the full one.
+A prebuilt empty image for linux/amd64 and linux/arm64 is published to
+`ghcr.io/nemoagent/marvindocs` on every release as `latest` and `X.Y.Z`.
+Bundles are installed in the running container into the volume.
+There is no prebuilt full image; build it locally with `marvindocs-full`.
 
 ```bash
 docker run -d --name marvindocs -p 3333:3333 -e MARVINDOCS_INSECURE=1 \
   -v marvindocs:/var/lib/marvindocs ghcr.io/nemoagent/marvindocs:latest
 docker exec marvindocs marvindocs bundle install go db
 docker restart marvindocs
-
-docker run -d -p 3333:3333 -e MARVINDOCS_INSECURE=1 ghcr.io/nemoagent/marvindocs:full
 ```

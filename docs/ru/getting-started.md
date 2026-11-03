@@ -77,7 +77,7 @@ Linux-пакеты из него — через `scripts/release-package.sh VERS
 (нужен [nfpm](https://nfpm.goreleaser.com/), конфиг `packaging/nfpm.yaml`).
 Релиз `bundles` с офлайн-наборами отдельный и не затрагивается.
 Тот же тег запускает `.github/workflows/docker.yml`, который публикует
-Docker-образы в ghcr.io (ручной запуск публикует `edge` и `edge-full`).
+Docker-образ в ghcr.io (ручной запуск публикует `edge`).
 
 `scripts/e2e-ubuntu.sh [VERSION]` проверяет релиз от начала до конца в
 чистом docker-контейнере `ubuntu:24.04`: скачивает `.deb` и сверяет его с
@@ -236,15 +236,14 @@ docker restart marvindocs-empty   # serve подхватывает новые д
 В наборах есть векторы, поэтому с заданным `MARVINDOCS_EMBEDDER` (bge-m3)
 `get_docs` работает гибридным поиском в обоих образах.
 
-Готовые образы для linux/amd64 и linux/arm64 публикуются в
-`ghcr.io/nemoagent/marvindocs` с каждым релизом: `latest` и `X.Y.Z` —
-пустой образ, `full` и `X.Y.Z-full` — полный.
+Готовый пустой образ для linux/amd64 и linux/arm64 публикуется в
+`ghcr.io/nemoagent/marvindocs` с каждым релизом как `latest` и `X.Y.Z`.
+Наборы ставятся в запущенном контейнере в volume. Готового полного
+образа нет, его собирают локально через `marvindocs-full`.
 
 ```bash
 docker run -d --name marvindocs -p 3333:3333 -e MARVINDOCS_INSECURE=1 \
   -v marvindocs:/var/lib/marvindocs ghcr.io/nemoagent/marvindocs:latest
 docker exec marvindocs marvindocs bundle install go db
 docker restart marvindocs
-
-docker run -d -p 3333:3333 -e MARVINDOCS_INSECURE=1 ghcr.io/nemoagent/marvindocs:full
 ```
