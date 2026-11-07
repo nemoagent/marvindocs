@@ -20,6 +20,7 @@ of `nemoagent/marvindocs`.
 | `db` | 15 | 91 MB | postgresql, mariadb, sqlite, redis, mongodb, duckdb, ... |
 | `infra` | 34 | 401 MB | nginx, caddy, docker, podman, kubernetes, helm, prometheus, grafana, terraform, ansible, ... |
 | `iac` | 15 | 115 MB | terraform_aws, terraform_azurerm, terraform_google, terragrunt, tflint, pulumi, vault, consul, nomad, packer, ... |
+| `smarthome` | 4 | - | home_assistant, home_assistant_dev, zigbee2mqtt, mosquitto |
 | `js` | 80 | 287 MB | javascript, typescript, node, react, vue, angular, css, html, ... |
 | `php` | 13 | 230 MB | php, composer, phpunit, laravel, symfony, wordpress, ... |
 | `ruby` | 8 | 23 MB | ruby, rails, rack, minitest, nokogiri, ... |
@@ -27,7 +28,7 @@ of `nemoagent/marvindocs`.
 | `native` | 18 | 384 MB | c, cpp, gcc, rust, ... |
 | `other` | 73 | 308 MB | every doc not listed in another bundle |
 
-All 12 bundles: 311 docs, ~3.1 GB of archives. The exact lists are in
+All 13 bundles: 315 docs, ~3.1 GB of archives (without `smarthome`). The exact lists are in
 [`bundles.yaml`](../../bundles.yaml); sizes are from the 2026-10-29 build.
 
 ### Which versions are included

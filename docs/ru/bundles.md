@@ -20,6 +20,7 @@
 | `db` | 15 | 91 МБ | postgresql, mariadb, sqlite, redis, mongodb, duckdb, ... |
 | `infra` | 34 | 401 МБ | nginx, caddy, docker, podman, kubernetes, helm, prometheus, grafana, terraform, ansible, ... |
 | `iac` | 15 | 115 МБ | terraform_aws, terraform_azurerm, terraform_google, terragrunt, tflint, pulumi, vault, consul, nomad, packer, ... |
+| `smarthome` | 4 | - | home_assistant, home_assistant_dev, zigbee2mqtt, mosquitto |
 | `js` | 80 | 287 МБ | javascript, typescript, node, react, vue, angular, css, html, ... |
 | `php` | 13 | 230 МБ | php, composer, phpunit, laravel, symfony, wordpress, ... |
 | `ruby` | 8 | 23 МБ | ruby, rails, rack, minitest, nokogiri, ... |
@@ -27,7 +28,7 @@
 | `native` | 18 | 384 МБ | c, cpp, gcc, rust, ... |
 | `other` | 73 | 308 МБ | все доки, не попавшие в другие наборы |
 
-Все 12 наборов: 311 доков, ~3,1 ГБ архивов. Точные списки — в
+Все 13 наборов: 315 доков, ~3,1 ГБ архивов (без `smarthome`). Точные списки — в
 [`bundles.yaml`](../../bundles.yaml); размеры по сборке 2026-10-29.
 
 ### Какие версии входят

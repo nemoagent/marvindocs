@@ -87,7 +87,7 @@ needed, archives are checked against the release `SHA256SUMS`:
 ./bin/marvindocs bundle install core go python
 ```
 
-Bundles: `core`, `go`, `python`, `db`, `infra`, `iac`, `js`, `php`, `ruby`, `jvm`,
+Bundles: `core`, `go`, `python`, `db`, `infra`, `iac`, `smarthome`, `js`, `php`, `ruby`, `jvm`,
 `native`, `other` (~3.1 GB in total). See
 [docs/en/bundles.md](docs/en/bundles.md).
 
