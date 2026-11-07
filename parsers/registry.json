@@ -238,6 +238,24 @@
       "slug": "mosquitto",
       "args": ["--site", "mosquitto"],
       "description": "Mosquitto MQTT broker man pages (DocBook) from github.com/eclipse-mosquitto/mosquitto"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "frigate",
+      "args": ["--site", "frigate"],
+      "description": "Frigate NVR docs (Docusaurus) from github.com/blakeblackshear/frigate"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "esphome",
+      "args": ["--site", "esphome"],
+      "description": "ESPHome docs (Astro Starlight MDX) from github.com/esphome/esphome-docs"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "hacs",
+      "args": ["--site", "hacs"],
+      "description": "HACS docs (MkDocs Material) from github.com/hacs/documentation"
     }
   ]
 }

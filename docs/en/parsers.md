@@ -39,7 +39,7 @@ path that handles upstream DevDocs dumps.
 | `mongodb` | github.com/mongodb/docs (reST Manual sources) | `mongodb~<version>` (e.g. `mongodb~8.0`) | `parsers/mongodb/README.md` |
 | `metasploit` | docs.metasploit.com (HTML) | `metasploit` | [Metasploit](metasploit.md) |
 | `caddy` | github.com/caddyserver/website (markdown) | `caddy` | `parsers/caddy/README.md` |
-| `mdsite` | Markdown sites from git: docker, kubernetes_docs, helm, prometheus, traefik, argo_cd, istio, opentelemetry, grafana, loki, podman, vagrant, terraform providers (aws, azurerm, google, kubernetes, helm), terragrunt, terratest, tflint, terraform_docs, atlantis, pulumi, vault, consul, nomad, packer, home_assistant, home_assistant_dev, zigbee2mqtt, mosquitto (DocBook man pages) | `<site>` | `parsers/mdsite/README.md` |
+| `mdsite` | Markdown sites from git: docker, kubernetes_docs, helm, prometheus, traefik, argo_cd, istio, opentelemetry, grafana, loki, podman, vagrant, terraform providers (aws, azurerm, google, kubernetes, helm), terragrunt, terratest, tflint, terraform_docs, atlantis, pulumi, vault, consul, nomad, packer, home_assistant, home_assistant_dev, zigbee2mqtt, mosquitto (DocBook man pages), frigate (Docusaurus), esphome (Astro MDX), hacs (MkDocs Material) | `<site>` | `parsers/mdsite/README.md` |
 
 ## Workflow
 

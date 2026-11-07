@@ -15,7 +15,7 @@ var (
 	shortcodeRe = regexp.MustCompile(`(?s)\{\{[<%].*?[%>]\}\}`)
 	liquidRe    = regexp.MustCompile(`\{%-?.*?-?%\}`)
 	mdxLineRe   = regexp.MustCompile(`^(import|export)\s`)
-	jsxTagRe    = regexp.MustCompile(`</?[A-Z][A-Za-z.]*(\s[^<>]*)?/?>`)
+	jsxTagRe    = regexp.MustCompile(`</?[A-Z][A-Za-z.]*[a-z][A-Za-z.]*(\s[^<>]*)?/?>`) // PascalCase only: <TOPIC> placeholders stay
 	admonRe     = regexp.MustCompile(`^(\s*)(?:!!!|\?\?\?\+?|===)\s*([\w-]*)\s*(?:"([^"]*)")?\s*$`)
 	colonRe     = regexp.MustCompile(`^(\s*):::+\s*([\w-]*)\s*(.*)$`)
 	alertRe     = regexp.MustCompile(`^((?:\s*>)+\s*)\[!(\w+)\]`)

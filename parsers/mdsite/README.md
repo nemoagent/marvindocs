@@ -12,8 +12,13 @@ Supported sites (`--list`): `docker`, `kubernetes_docs`, `helm`,
 `terratest`, `tflint`, `terraform_docs`, `atlantis`, `pulumi`, `vault`,
 `consul`, `nomad`, `packer` (the last four from `hashicorp/web-unified-docs`,
 newest version directory), `home_assistant` (Jekyll/Liquid, see `sites_home.go`),
-`home_assistant_dev`, `zigbee2mqtt` and `mosquitto` (DocBook man pages converted by
-`docbook.go`).
+`home_assistant_dev`, `zigbee2mqtt`, `mosquitto` (DocBook man pages converted by
+`docbook.go`), `frigate` (Docusaurus, front matter ids become URLs, `<Tabs>`,
+`<NavPath>` and `<FaqItem>` are rendered as text), `esphome` (Astro Starlight
+MDX: `<APIRef>`, `<Figure>`, `<ImgTable>` and `<EnumValues>` components are
+rendered as text, lists) and `hacs` (MkDocs Material: `coreui()` macros,
+`hacs:my` shortcodes, `--8<--` snippets and icons are expanded; see
+`sites_home2.go`).
 
 ## Build and run
 
