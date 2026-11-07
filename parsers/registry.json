@@ -214,6 +214,30 @@
       "slug": "pulumi",
       "args": ["--site", "pulumi"],
       "description": "pulumi docs from github.com/pulumi/docs"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "home_assistant",
+      "args": ["--site", "home_assistant"],
+      "description": "Home Assistant docs from github.com/home-assistant/home-assistant.io"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "home_assistant_dev",
+      "args": ["--site", "home_assistant_dev"],
+      "description": "Home Assistant developer docs from github.com/home-assistant/developers.home-assistant"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "zigbee2mqtt",
+      "args": ["--site", "zigbee2mqtt"],
+      "description": "Zigbee2MQTT docs and supported devices from github.com/Koenkk/zigbee2mqtt.io"
+    },
+    {
+      "parser": "mdsite",
+      "slug": "mosquitto",
+      "args": ["--site", "mosquitto"],
+      "description": "Mosquitto MQTT broker man pages (DocBook) from github.com/eclipse-mosquitto/mosquitto"
     }
   ]
 }

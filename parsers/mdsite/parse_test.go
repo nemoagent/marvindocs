@@ -151,3 +151,64 @@ func TestAtIncludeForms(t *testing.T) {
 		}
 	}
 }
+
+func TestDocbookToMarkdown(t *testing.T) {
+	src := `<refentry xmlns:xi="http://www.w3.org/2001/XInclude">
+<refmeta><refentrytitle>demo</refentrytitle><manvolnum>5</manvolnum></refmeta>
+<refnamediv><refname>demo</refname><refpurpose>a demo page</refpurpose></refnamediv>
+<refsynopsisdiv><cmdsynopsis><command>demo</command> <arg choice="opt">-v</arg> <arg choice="plain"><replaceable>file</replaceable></arg></cmdsynopsis></refsynopsisdiv>
+<refsect1><title>Options</title>
+<variablelist>
+<varlistentry><term><option>listener</option> <replaceable>port</replaceable></term>
+<listitem><para>Listen on  <replaceable>port</replaceable>,
+see <citerefentry><refentrytitle>mqtt</refentrytitle><manvolnum>7</manvolnum></citerefentry>
+and <ulink url="https://ex.com">the site</ulink>.</para>
+<itemizedlist><listitem><para>one</para></listitem></itemizedlist></listitem></varlistentry>
+</variablelist>
+<xi:include href="common/extra.xml"/>
+<programlisting>a  b
+c</programlisting>
+</refsect1></refentry>`
+	read := func(href string) string {
+		if href == "common/extra.xml" {
+			return `<wrap><para>Included <emphasis>text</emphasis>.</para></wrap>`
+		}
+		return ""
+	}
+	got, err := docbookToMarkdown(src, read)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"# demo(5)", "a demo page", "## Options", "### `listener` *port*",
+		"Listen on *port*, see mqtt(7) and [the site](https://ex.com).", "- one",
+		"Included *text*.", "```\na  b\nc\n```", "demo [-v]",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+}
+
+func TestHomeAssistantClean(t *testing.T) {
+	files := map[string]string{
+		"source/_includes/a/b.md": "---\n---\n{% if include.x %}X={{ include.x }}{% else %}none{% endif %} {% my integrations %}",
+	}
+	in := strings.Join([]string{
+		`{% include a/b.md x="1" %}`,
+		`{% term entity %} {% term "device" devices %} {% my config title="**Settings**" %}`,
+		`{% details "More" %}`, "hidden", `{% enddetails %}`,
+		`{% configuration %}`, "key:", "  type: string", `{% endconfiguration %}`,
+		`{% raw %}{{ states('a') }}{% endraw %}`,
+		`{% note %}`, "text", `{% endnote %}`,
+	}, "\n")
+	got := haClean(in, files)
+	for _, want := range []string{"X=1 integrations", "entity devices **Settings**", "**More**", "```yaml\nkey:\n  type: string\n```", "{{ states('a') }}", "**Note**"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "{%") {
+		t.Errorf("liquid left in:\n%s", got)
+	}
+}

@@ -11,7 +11,9 @@ Supported sites (`--list`): `docker`, `kubernetes_docs`, `helm`,
 `terraform_google`, `terraform_kubernetes`, `terraform_helm`, `terragrunt`,
 `terratest`, `tflint`, `terraform_docs`, `atlantis`, `pulumi`, `vault`,
 `consul`, `nomad`, `packer` (the last four from `hashicorp/web-unified-docs`,
-newest version directory).
+newest version directory), `home_assistant` (Jekyll/Liquid, see `sites_home.go`),
+`home_assistant_dev`, `zigbee2mqtt` and `mosquitto` (DocBook man pages converted by
+`docbook.go`).
 
 ## Build and run
 
