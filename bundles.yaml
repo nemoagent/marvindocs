@@ -57,7 +57,7 @@ bundles:
     vault, consul, nomad, packer,
   ]
 
-  smarthome: [home_assistant, home_assistant_dev, zigbee2mqtt, mosquitto]
+  smarthome: [home_assistant, home_assistant_dev, zigbee2mqtt, mosquitto, frigate, esphome, hacs]
 
   js: [
     javascript, typescript, node, deno, bun, npm, yarn,

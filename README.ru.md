@@ -90,7 +90,7 @@ MCP-эндпоинт доступен на <http://localhost:3333/mcp>.
 ```
 
 Наборы: `core`, `go`, `python`, `db`, `infra`, `iac`, `smarthome`, `js`, `php`, `ruby`, `jvm`,
-`native`, `other` (~3,1 ГБ в сумме). См.
+`native`, `other` (~3,2 ГБ в сумме). См.
 [docs/ru/bundles.md](docs/ru/bundles.md).
 
 ### Скачать отдельные доки или всё
